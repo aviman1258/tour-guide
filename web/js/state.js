@@ -16,6 +16,7 @@ export function emptyItinerary() {
     departBufferMinutes: 30,
     safetyBufferMinutes: 15,
     interests: "",
+    routeOptions: { avoidTolls: false, avoidHighways: false },
     stops: [],
     route: null,
     schedule: null,

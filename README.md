@@ -27,8 +27,10 @@ Wikipedia and Nominatim lookups for every candidate.
 2. **The server grounds every candidate**: Wikipedia REST summary → title search →
    coordinates batch → Nominatim geocode → drop. Anything it can't place is listed under
    "not found", nothing is invented.
-3. **OSRM routes** the day and the schedule is walked from your arrival time plus a
-   30 min airport buffer: drive + 3 min parking + dwell per stop.
+3. **Routing** (`server/router.js`): Valhalla's public server routes the day, honouring
+   *Avoid tolls* / *Avoid highways* when ticked and flagging when no such route exists; the
+   OSRM demo server is the fallback for plain routes. The schedule is walked from your start
+   time plus a 30 min buffer: drive + 3 min parking + dwell per stop.
 4. **Lunch** lands on the highest-priority food-friendly stop you reach between 11:30 and
    2:00 (ties go to the one nearest 12:30) and gets an hour.
 5. **Trimming**: while there are 6+ stops, the lowest-priority stop is cut. Below that,
@@ -73,7 +75,8 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 
 - **Wikipedia**: identifying `User-Agent` (set `CONTACT` in `.env`), ≤5 concurrent, results cached 24 h.
 - **Nominatim**: strictly 1 request/second through one queue, no autocomplete, cached 7 days.
-- **OSRM demo server**: 1 request/second, no uptime guarantee. Point `OSRM_BASE_URL` at your own if it flakes.
+- **Valhalla public server** (FOSSGIS): fair use, spaced requests, no uptime guarantee. `VALHALLA_BASE_URL` to self-host.
+- **OSRM demo server**: 1 request/second, no uptime guarantee, no toll/highway avoidance. Fallback only; `OSRM_BASE_URL` to change.
 - **OSM tiles**: attribution stays visible; no bulk pre-fetch (policy). Drive mode uses live tiles over cell data.
 
 ## Layout

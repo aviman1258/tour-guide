@@ -26,20 +26,25 @@
     <aside id="sidebar">
       <form id="plan-form" class="card" autocomplete="off">
         <div class="field">
-          <label for="start-preset">Start</label>
+          <label for="start-query">Start</label>
           <div class="row">
-            <select id="start-preset">
-              <option value="">Choose an airport…</option>
-            </select>
+            <input id="start-query" type="search" placeholder="Airport, hotel, address, landmark…" />
+            <button type="button" id="start-search" class="btn">Find</button>
             <button type="button" id="use-location" class="btn btn-ghost" title="Use my location">📍</button>
+          </div>
+          <div id="start-results" class="results"></div>
+          <div class="row">
+            <select id="start-preset" class="quiet">
+              <option value="">…or pick a major airport</option>
+            </select>
           </div>
           <div id="start-label" class="hint"></div>
         </div>
 
         <div class="field">
-          <label for="end-query">End (hotel)</label>
+          <label for="end-query">End</label>
           <div class="row">
-            <input id="end-query" type="search" placeholder="Hyatt Regency Houston Galleria" />
+            <input id="end-query" type="search" placeholder="Hotel, venue, a friend's place…" />
             <button type="button" id="end-search" class="btn">Find</button>
           </div>
           <div id="end-results" class="results"></div>
@@ -52,18 +57,26 @@
             <input id="date" type="date" />
           </div>
           <div class="field">
-            <label for="arrival">Arrive</label>
+            <label for="arrival">Start at</label>
             <input id="arrival" type="time" value="11:30" required />
           </div>
           <div class="field">
-            <label for="deadline">Be at hotel by</label>
+            <label for="deadline">Be at the end by</label>
             <input id="deadline" type="time" value="15:00" required />
           </div>
         </div>
 
         <div class="field">
           <label for="interests">Interests</label>
-          <textarea id="interests" rows="2" placeholder="indian stuff, historic neighborhoods, upper affluent"></textarea>
+          <textarea id="interests" rows="2" placeholder="e.g. indian food, historic neighborhoods, upscale areas, street art"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Route</label>
+          <div class="row checks">
+            <label class="check"><input type="checkbox" id="avoid-tolls" /> Avoid tolls</label>
+            <label class="check"><input type="checkbox" id="avoid-highways" /> Avoid highways</label>
+          </div>
         </div>
 
         <div class="row">

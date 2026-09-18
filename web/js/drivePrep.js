@@ -3,6 +3,7 @@
 import * as state from "./state.js";
 import * as api from "./api.js";
 import * as storage from "./storage.js";
+import * as busy from "./busy.js";
 import { toast } from "./itinerary.js";
 
 const $ = (id) => document.getElementById(id);
@@ -54,9 +55,9 @@ export async function importPackage(file) {
 export function bind() {
   $("prepare-btn").addEventListener("click", async () => {
     $("prepare-btn").disabled = true;
-    msg("Scanning the route for interesting places and writing narration… (1-2 min)");
+    msg("Scanning the route for interesting places, then Claude writes the narration. Usually 2-4 minutes.");
     try {
-      const pkg = await prepare();
+      const pkg = await busy.run("Scanning the route and writing narration…", prepare);
       const stops = pkg.narration.filter((n) => n.kind === "stop").length;
       const drivebys = pkg.narration.filter((n) => n.kind === "driveby").length;
       msg(`Ready: ${stops} stop narrations, ${drivebys} drive-by facts. Open Drive mode, or export to your phone.`);

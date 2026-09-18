@@ -6,7 +6,8 @@ let map, layer, routeLayer, onClickHandler = null;
 let lastKey = "";
 
 export function init(el) {
-  map = L.map(el, { zoomControl: true, preferCanvas: true }).setView([29.76, -95.37], 10);
+  // no trip yet: show the continental US; render() fits to the trip as soon as there are points
+  map = L.map(el, { zoomControl: true, preferCanvas: true }).setView([39.5, -98.35], 4);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -61,7 +62,7 @@ export function render(it) {
     pts.push([s.lat, s.lon]);
   });
   if (it.end) {
-    L.marker([it.end.lat, it.end.lon], { icon: icon("H", "end") }).bindPopup(`<b>${escapeHtml(it.end.label)}</b>`).addTo(layer);
+    L.marker([it.end.lat, it.end.lon], { icon: icon("E", "end") }).bindPopup(`<b>${escapeHtml(it.end.label)}</b>`).addTo(layer);
     pts.push([it.end.lat, it.end.lon]);
   }
 

@@ -1,9 +1,9 @@
-// Server-side itinerary computation: order → estimate/trim → OSRM confirm → re-trim.
+// Server-side itinerary computation: order → estimate/trim → route confirm → re-trim.
 
 import { config } from "./config.js";
 import { httpError } from "./lib/http.js";
 import { orderStops, pathLengthM, bestInsertIndex } from "./lib/geo.js";
-import * as osrm from "./osrm.js";
+import * as router from "./router.js";
 import { compute, estimateLegs } from "../web/js/schedule-core.js";
 import { toMinutes } from "../web/js/format.js";
 
@@ -28,6 +28,11 @@ export function maybeReorder(it) {
   return geoLen < claudeLen * 0.85 ? reordered : it.stops;
 }
 
+/** Route the itinerary's points with its routing preferences (tolls / highways). */
+export function routeFor(it, stops = it.stops) {
+  return router.route([it.start, ...stops, it.end], { steps: true, ...router.normalizeOptions(it.routeOptions) });
+}
+
 /**
  * Full pipeline. `trim` removes low-priority stops until the day fits (plan only).
  * Returns the itinerary with stops, route, schedule and dropped filled in.
@@ -38,6 +43,7 @@ export async function computeItinerary(input, { trim = false, reorder = false } 
     departBufferMinutes: config.departBufferMinutes,
     safetyBufferMinutes: config.safetyBufferMinutes,
     ...input,
+    routeOptions: router.normalizeOptions(input.routeOptions),
     dropped: [...(input.dropped || [])],
   };
   if (reorder) it.stops = maybeReorder(it);
@@ -48,10 +54,10 @@ export async function computeItinerary(input, { trim = false, reorder = false } 
   it.stops = result.stops;
   it.dropped.push(...result.dropped);
 
-  // 2. confirm with OSRM; if real durations still run late, trim again and re-route (bounded)
+  // 2. confirm with the router; if real durations still run late, trim again and re-route (bounded)
   let route = null;
   for (let attempt = 0; attempt < 3; attempt++) {
-    route = await osrm.route([it.start, ...it.stops, it.end], { steps: true });
+    route = await routeFor(it);
     const routedCount = it.stops.length;
     const realLegs = route.legs.map((l) => l.durationSec / 60);
     // real legs while the stop set matches the routed one; haversine estimates once compute() drops stops
@@ -72,7 +78,7 @@ export async function computeItinerary(input, { trim = false, reorder = false } 
       const trial = { ...it, stops: [...it.stops.slice(0, at), back, ...it.stops.slice(at)] };
       const est = compute(trial, { trim: false });
       if (est.schedule.status !== "late") {
-        const trialRoute = await osrm.route([trial.start, ...trial.stops, trial.end], { steps: true });
+        const trialRoute = await routeFor(trial);
         const real = compute(trial, { trim: false, legFn: () => trialRoute.legs.map((l) => l.durationSec / 60) });
         if (real.schedule.status !== "late") {
           it.stops = real.stops;
@@ -84,7 +90,11 @@ export async function computeItinerary(input, { trim = false, reorder = false } 
     }
   }
 
-  return { ...it, route, schedule: result.schedule };
+  const schedule = { ...result.schedule, warnings: [...(result.schedule.warnings || [])] };
+  if (it.routeOptions.avoidTolls && route.flags?.hasToll) schedule.warnings.push("No toll-free route was found; this route includes a toll road.");
+  if (it.routeOptions.avoidHighways && route.flags?.hasHighway) schedule.warnings.push("No highway-free route was found; this route includes a highway.");
+
+  return { ...it, route, schedule };
 }
 
 export { estimateLegs };

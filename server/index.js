@@ -62,6 +62,7 @@ app.post("/api/plan", h(async (req, res) => {
     departBufferMinutes: Number(b.departBufferMinutes) || config.departBufferMinutes,
     safetyBufferMinutes: Number(b.safetyBufferMinutes) || config.safetyBufferMinutes,
     interests: String(b.interests || "").trim(),
+    routeOptions: b.routeOptions || {},
     stops: [],
   };
   schedule.validateItinerary(input);

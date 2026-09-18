@@ -4,8 +4,10 @@ import * as state from "./state.js";
 import * as actions from "./actions.js";
 import * as api from "./api.js";
 import * as map from "./map.js";
+import * as busy from "./busy.js";
 import { AIRPORTS, runtime } from "./config.js";
 import { escapeHtml, to12h, fmtDuration, fmtMiles } from "./format.js";
+import { haversineM } from "./routeMath.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -31,7 +33,54 @@ const CATEGORY_ICON = {
 
 // ---------- form ----------
 
+/**
+ * Search a place, biased toward `near` and sorted by distance from it.
+ * Used for start (near the end), end (near the start) and add-a-stop (near the route).
+ */
+async function searchPlace(q, near, label) {
+  return busy.run(label, async () => {
+    const { results } = await api.place(q, near);
+    if (near) results.sort((a, b) => haversineM(a, near) - haversineM(b, near));
+    // Nominatim often returns several map objects for one place (station, building, entrance…)
+    const seen = new Set();
+    return results.filter((s) => {
+      const key = (s.wikipediaTitle || `${s.name}@${s.lat.toFixed(3)},${s.lon.toFixed(3)}`).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  });
+}
+
+function bindSearch({ input, button, results, near, pickLabel, onPick, busyLabel }) {
+  const go = async () => {
+    const q = $(input).value.trim();
+    if (q.length < 2) return;
+    $(button).disabled = true;
+    try {
+      const found = await searchPlace(q, near(), busyLabel);
+      renderResults($(results), found, (s) => {
+        onPick(s);
+        $(results).innerHTML = "";
+      }, pickLabel, near());
+      if (!found.length) toast("Nothing found. Try adding the city or state.");
+    } catch (err) {
+      toast(err.message, 4000);
+    } finally {
+      $(button).disabled = false;
+    }
+  };
+  $(button).addEventListener("click", go);
+  $(input).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+}
+
 export function bindForm() {
+  // start: free search, my location, or an airport quick-pick
+  bindSearch({
+    input: "start-query", button: "start-search", results: "start-results",
+    near: () => state.get().end, pickLabel: "Start here", busyLabel: "Finding your start…",
+    onPick: (s) => { actions.setStart({ label: s.name, lat: s.lat, lon: s.lon }); $("start-preset").value = ""; },
+  });
   const preset = $("start-preset");
   for (const a of AIRPORTS) {
     const o = document.createElement("option");
@@ -41,41 +90,29 @@ export function bindForm() {
   }
   preset.addEventListener("change", () => {
     const a = AIRPORTS.find((x) => x.code === preset.value);
-    if (a) actions.setStart({ label: a.label, lat: a.lat, lon: a.lon });
+    if (a) { actions.setStart({ label: a.label, lat: a.lat, lon: a.lon }); $("start-query").value = ""; }
   });
-
   $("use-location").addEventListener("click", () => {
     if (!navigator.geolocation) return toast("Geolocation not available");
+    const end = busy.begin("Getting your location…");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        end();
         actions.setStart({ label: "My location", lat: pos.coords.latitude, lon: pos.coords.longitude });
         preset.value = "";
+        $("start-query").value = "";
       },
-      (err) => toast(`Location failed: ${err.message}`),
+      (err) => { end(); toast(`Location failed: ${err.message}`); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   });
 
-  const endSearch = async () => {
-    const q = $("end-query").value.trim();
-    if (q.length < 2) return;
-    $("end-search").disabled = true;
-    try {
-      const near = state.get().start;
-      const { results } = await api.place(q, near);
-      renderResults($("end-results"), results, (s) => {
-        actions.setEnd({ label: s.name, lat: s.lat, lon: s.lon });
-        $("end-results").innerHTML = "";
-      }, "Use as hotel");
-      if (!results.length) toast("Nothing found. Try adding the city.");
-    } catch (err) {
-      toast(err.message);
-    } finally {
-      $("end-search").disabled = false;
-    }
-  };
-  $("end-search").addEventListener("click", endSearch);
-  $("end-query").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); endSearch(); } });
+  // end: anything, searched near the start first
+  bindSearch({
+    input: "end-query", button: "end-search", results: "end-results",
+    near: () => state.get().start, pickLabel: "End here", busyLabel: "Finding your destination…",
+    onPick: (s) => actions.setEnd({ label: s.name, lat: s.lat, lon: s.lon }),
+  });
 
   for (const [id, key] of [["date", "date"], ["arrival", "arrivalTime"], ["deadline", "deadline"], ["interests", "interests"]]) {
     $(id).addEventListener("change", () => {
@@ -83,10 +120,12 @@ export function bindForm() {
       if (key !== "interests") actions.reschedule();
     });
   }
+  $("avoid-tolls").addEventListener("change", (e) => actions.setRouteOptions({ avoidTolls: e.target.checked }));
+  $("avoid-highways").addEventListener("change", (e) => actions.setRouteOptions({ avoidHighways: e.target.checked }));
 
   $("plan-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    showMsg("plan-msg", "Asking Claude for stops, then checking each one on Wikipedia… (30-90 s)");
+    showMsg("plan-msg", "Claude picks candidate stops, then each one is checked on Wikipedia and routed. Usually 1-3 minutes.");
     $("plan-btn").disabled = true;
     try {
       const result = await actions.plan();
@@ -103,34 +142,18 @@ export function bindForm() {
     if (confirm("Clear this trip?")) {
       actions.reset();
       preset.value = "";
+      $("start-query").value = "";
       $("end-query").value = "";
     }
   });
 
-  // add-a-stop search
-  const addSearch = async () => {
-    const q = $("add-query").value.trim();
-    if (q.length < 2) return;
-    $("add-search").disabled = true;
-    try {
-      const it = state.get();
-      const near = it.stops[0] || it.end || it.start;
-      const { results } = await api.place(q, near);
-      renderResults($("add-results"), results, (s) => {
-        actions.addStop(s);
-        $("add-results").innerHTML = "";
-        $("add-query").value = "";
-        toast(`Added ${s.name}`);
-      }, "Add");
-      if (!results.length) toast("Nothing found.");
-    } catch (err) {
-      toast(err.message);
-    } finally {
-      $("add-search").disabled = false;
-    }
-  };
-  $("add-search").addEventListener("click", addSearch);
-  $("add-query").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addSearch(); } });
+  // add-a-stop search, near the middle of the trip
+  bindSearch({
+    input: "add-query", button: "add-search", results: "add-results",
+    near: () => { const it = state.get(); return it.stops[Math.floor(it.stops.length / 2)] || it.end || it.start; },
+    pickLabel: "Add", busyLabel: "Searching…",
+    onPick: (s) => { actions.addStop(s); $("add-query").value = ""; toast(`Added ${s.name}`); },
+  });
 
   $("suggest-btn").addEventListener("click", async () => {
     $("suggest-btn").disabled = true;
@@ -143,7 +166,7 @@ export function bindForm() {
       }, "Add");
       if (!candidates.length) toast("No new suggestions.");
     } catch (err) {
-      toast(err.message);
+      toast(err.message, 4000);
     } finally {
       $("suggest-btn").disabled = false;
     }
@@ -153,28 +176,27 @@ export function bindForm() {
   map.onMapClick(async (lat, lon) => {
     if (!confirm("Add a stop here?")) return;
     try {
-      const stop = await api.reverse(lat, lon);
+      const stop = await busy.run("Looking up that spot…", () => api.reverse(lat, lon));
       actions.addStop(stop);
       toast(`Added ${stop.name}`);
     } catch (err) {
-      toast(err.message);
+      toast(err.message, 4000);
     }
   });
-
-  actions.onBusy((busy) => document.body.classList.toggle("busy", busy));
 }
 
-function renderResults(container, stops, onPick, label) {
+function renderResults(container, stops, onPick, label, near) {
   container.innerHTML = "";
   for (const s of stops) {
     const el = document.createElement("div");
     el.className = "result";
     el.dataset.id = s.id;
+    const dist = near ? ` · ${fmtMiles(haversineM(s, near))} away` : "";
     el.innerHTML = `
       <span>${CATEGORY_ICON[s.category] || "📍"}</span>
       <div class="grow">
         <div class="name">${escapeHtml(s.name)}</div>
-        <div class="sub">${escapeHtml(s.whyItMatches || s.blurb || s.approxArea || "")}</div>
+        <div class="sub">${escapeHtml(s.whyItMatches || s.blurb || s.approxArea || "")}${escapeHtml(dist)}</div>
       </div>
       <button type="button" class="btn btn-sm">${label}</button>`;
     el.querySelector("button").addEventListener("click", () => onPick(s));
@@ -192,6 +214,8 @@ export function render(it) {
   setVal("arrival", it.arrivalTime);
   setVal("deadline", it.deadline);
   setVal("interests", it.interests);
+  $("avoid-tolls").checked = Boolean(it.routeOptions?.avoidTolls);
+  $("avoid-highways").checked = Boolean(it.routeOptions?.avoidHighways);
   $("start-label").textContent = it.start ? `From: ${it.start.label}` : "";
   $("end-label").textContent = it.end ? `To: ${it.end.label}` : "";
   const preset = $("start-preset");
@@ -224,7 +248,10 @@ function renderStatus(it) {
   bar.className = `status-bar ${s.status}`;
   const slack = s.slackMinutes;
   const verdict = slack < 0 ? `${fmtDuration(-slack)} over` : `${fmtDuration(slack)} spare`;
-  bar.textContent = `Hotel ${to12h(s.hotelArrive)} · ${verdict} · ${fmtMiles(it.route.totalM)} driving`;
+  const flags = [];
+  if (it.route.flags?.hasToll) flags.push("tolls");
+  if (it.routeOptions?.avoidHighways && it.route.flags?.hasHighway) flags.push("highway");
+  bar.textContent = `Arrive ${to12h(s.hotelArrive)} · ${verdict} · ${fmtMiles(it.route.totalM)} driving${flags.length ? ` · ⚠ ${flags.join(", ")}` : ""}`;
   bar.title = (s.warnings || []).join("\n");
 }
 
@@ -232,10 +259,10 @@ function renderStops(it) {
   const root = $("stops");
   root.innerHTML = "";
   if (!it.start && !it.stops.length) {
-    root.innerHTML = `<div class="hint" style="padding:0 6px">Pick a start and hotel, describe what you like, and hit Plan. Or search a place below to add stops by hand.</div>`;
+    root.innerHTML = `<div class="hint" style="padding:0 6px">Pick where you start and where you need to end up, describe what you like, and hit Plan. Works for any city. Or search a place below to add stops by hand.</div>`;
     return;
   }
-  if (it.start) root.appendChild(endpoint("S", `Start: ${it.start.label}`, it.arrivalTime ? `Land ${to12h(it.arrivalTime)} · leave ${to12h(addMin(it.arrivalTime, it.departBufferMinutes))}` : ""));
+  if (it.start) root.appendChild(endpoint("S", `Start: ${it.start.label}`, it.arrivalTime ? `Arrive ${to12h(it.arrivalTime)} · on the road by ${to12h(addMin(it.arrivalTime, it.departBufferMinutes))}` : ""));
 
   it.stops.forEach((s, i) => {
     const sched = it.schedule?.items?.find((x) => x.stopId === s.id);
@@ -281,7 +308,7 @@ function renderStops(it) {
 
   if (it.end) {
     const s = it.schedule;
-    root.appendChild(endpoint("H", `Hotel: ${it.end.label}`, s ? `Arrive ${to12h(s.hotelArrive)} · need to be there by ${to12h(it.deadline)}` : `Be there by ${to12h(it.deadline)}`));
+    root.appendChild(endpoint("E", `End: ${it.end.label}`, s ? `Arrive ${to12h(s.hotelArrive)} · need to be there by ${to12h(it.deadline)}` : `Be there by ${to12h(it.deadline)}`));
   }
 }
 

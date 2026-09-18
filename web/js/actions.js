@@ -3,20 +3,11 @@
 
 import * as state from "./state.js";
 import * as api from "./api.js";
+import * as busy from "./busy.js";
 import { runtime } from "./config.js";
 import { bestInsertIndex } from "./routeMath.js";
 
 let rescheduleTimer = null;
-let inFlight = 0;
-const listeners = new Set();
-
-export function onBusy(fn) {
-  listeners.add(fn);
-}
-function busy(delta) {
-  inFlight += delta;
-  for (const fn of listeners) fn(inFlight > 0);
-}
 
 export function setField(patch) {
   state.set(patch);
@@ -29,6 +20,11 @@ export function setStart(start) {
 
 export function setEnd(end) {
   state.set({ end });
+  reschedule();
+}
+
+export function setRouteOptions(patch) {
+  state.set((it) => ({ ...it, routeOptions: { ...(it.routeOptions || {}), ...patch } }));
   reschedule();
 }
 
@@ -89,18 +85,18 @@ export function reschedule() {
       return;
     }
     if (runtime.hasServer === false) return;
-    busy(1);
+    const end = busy.begin("Routing and re-timing the day…");
     try {
       const next = await api.schedule(it, false);
       // only apply if the stops haven't changed while we waited
       const cur = state.get();
-      if (cur.stops.map((s) => s.id).join() === next.stops.map((s) => s.id).join()) {
-        state.set({ route: next.route, schedule: next.schedule, stops: next.stops });
-      }
+      const same = cur.stops.map((s) => s.id).join() === next.stops.map((s) => s.id).join()
+        && JSON.stringify(cur.routeOptions) === JSON.stringify(next.routeOptions);
+      if (same) state.set({ route: next.route, schedule: next.schedule, stops: next.stops });
     } catch (err) {
       console.warn("reschedule failed:", err.message);
     } finally {
-      busy(-1);
+      end();
     }
   }, 350);
 }
@@ -109,27 +105,22 @@ export async function plan() {
   const it = state.get();
   if (!it.start || !it.end) throw new Error("Pick a start and an end first.");
   if (!it.interests.trim()) throw new Error("Tell me what you're interested in.");
-  busy(1);
-  try {
+  return busy.run("Asking Claude for stops, then checking each one…", async () => {
     const result = await api.plan({
       start: it.start, end: it.end, date: it.date, arrivalTime: it.arrivalTime, deadline: it.deadline,
       interests: it.interests, departBufferMinutes: it.departBufferMinutes, safetyBufferMinutes: it.safetyBufferMinutes,
+      routeOptions: it.routeOptions,
     });
     state.replace({ ...it, ...result });
     return result;
-  } finally {
-    busy(-1);
-  }
+  });
 }
 
 export async function suggest(count = 3) {
-  busy(1);
-  try {
+  return busy.run("Asking Claude for more ideas…", async () => {
     const { candidates } = await api.suggest(state.get(), count);
     return candidates;
-  } finally {
-    busy(-1);
-  }
+  });
 }
 
 export function reset() {

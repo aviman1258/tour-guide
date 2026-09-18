@@ -10,11 +10,13 @@ export function httpError(status, message) {
  * fetch JSON with our User-Agent, a timeout, and one retry on 429/5xx.
  * Returns { status, data } and never throws on non-2xx (callers decide).
  */
-export async function fetchJson(url, { headers = {}, retry = 1 } = {}) {
+export async function fetchJson(url, { headers = {}, retry = 1, method = "GET", body } = {}) {
   for (let attempt = 0; ; attempt++) {
     let res;
     try {
       res = await fetch(url, {
+        method,
+        body,
         headers: { "User-Agent": config.userAgent, Accept: "application/json", ...headers },
         signal: AbortSignal.timeout(config.httpTimeoutMs),
       });

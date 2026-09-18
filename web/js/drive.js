@@ -87,7 +87,7 @@ async function usePackage(pkg) {
 // ---------- map ----------
 
 function initMap() {
-  state.map = L.map("map", { zoomControl: false, preferCanvas: true, attributionControl: true }).setView([29.76, -95.37], 11);
+  state.map = L.map("map", { zoomControl: false, preferCanvas: true, attributionControl: true }).setView([39.5, -98.35], 4);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, keepBuffer: 4, updateWhenIdle: true, errorTileUrl: "icons/blank-tile.png",
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -105,7 +105,7 @@ function drawRoute() {
   L.geoJSON(it.route.geometry, { style: { color: "#5aa5dc", weight: 6, opacity: 0.9 } }).addTo(state.map);
   const num = (label, cls) => L.divIcon({ className: "", html: `<div class="marker-num ${cls}">${label}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
   L.marker([it.start.lat, it.start.lon], { icon: num("S", "start") }).addTo(state.map);
-  L.marker([it.end.lat, it.end.lon], { icon: num("H", "end") }).addTo(state.map);
+  L.marker([it.end.lat, it.end.lon], { icon: num("E", "end") }).addTo(state.map);
   state.stopMarkers = it.stops.map((s, i) => L.marker([s.lat, s.lon], { icon: num(i + 1, state.geofence.visited.has(s.id) ? "visited" : "") }).bindPopup(`<b>${escapeHtml(s.name)}</b>`).addTo(state.map));
   for (const n of state.pkg.narration) {
     if (n.kind !== "driveby") continue;
@@ -145,10 +145,10 @@ function flattenManeuvers(route, points, cum, it) {
       if (!m || m.type === "depart") continue;
       const loc = { lat: m.location[1], lon: m.location[0] };
       const p = project(points, cum, loc);
-      out.push({
-        legIndex, type: m.type, modifier: m.modifier, exit: m.exit, name: st.name || st.ref || "", atM: p.progressM,
-        text: maneuverText(m, st, legIndex === route.legs.length - 1 ? it.end.label : it.stops[legIndex]?.name),
-      });
+      // Valhalla gives ready-made instructions; OSRM steps fall back to our own wording
+      const arriveName = legIndex === route.legs.length - 1 ? it.end.label : it.stops[legIndex]?.name;
+      const text = m.type === "arrive" ? `Arrive at ${arriveName || "your stop"}` : (st.instruction || "").replace(/\.$/, "") || maneuverText(m, st, arriveName);
+      out.push({ legIndex, type: m.type, modifier: m.modifier, exit: m.exit, name: st.name || st.ref || "", atM: p.progressM, text, verbal: st.verbalAlert || "" });
     }
   });
   return out.sort((a, b) => a.atM - b.atM);

@@ -2,7 +2,7 @@
 // candidates along the way, and Claude-written narration for stops + drive-bys.
 
 import { httpError } from "./lib/http.js";
-import * as osrm from "./osrm.js";
+import { routeFor } from "./schedule.js";
 import * as wikipedia from "./wikipedia.js";
 import * as claude from "./claude.js";
 import { findDriveBys, SAMPLE_STEP_M } from "./lib/wikiGeo.js";
@@ -23,7 +23,7 @@ export async function prepareDrive(itinerary) {
   // 1. route with turn-by-turn steps
   let route = itinerary.route;
   if (!route?.geometry || !route.legs?.[0]?.steps) {
-    route = await osrm.route([start, ...stops, end], { steps: true });
+    route = await routeFor(itinerary);
   }
   const points = lineToPoints(route.geometry);
   const cum = cumulative(points);

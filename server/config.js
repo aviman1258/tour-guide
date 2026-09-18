@@ -10,6 +10,8 @@ export const config = {
   modelFast: process.env.MODEL_FAST || "claude-haiku-4-5",
 
   osrmBase: (process.env.OSRM_BASE_URL || "https://router.project-osrm.org").replace(/\/$/, ""),
+  // Valhalla supports avoid-tolls / avoid-highways and spoken turn instructions; OSRM is the fallback.
+  valhallaBase: (process.env.VALHALLA_BASE_URL || "https://valhalla1.openstreetmap.de").replace(/\/$/, ""),
   wikiRestBase: "https://en.wikipedia.org/api/rest_v1",
   wikiApiBase: "https://en.wikipedia.org/w/api.php",
   nominatimBase: "https://nominatim.openstreetmap.org",
