@@ -456,7 +456,12 @@ function bindUi() {
 function setupSim() {
   const panel = $("sim-panel");
   panel.hidden = false;
-  state.sim = createSim({ points: state.points, cum: state.cum, onFix, stops: state.it.stops, stopRadiusM: 150 });
+  // sim clock starts when the itinerary says you leave the airport, so ETAs compare to the plan
+  const start = state.it.date ? new Date(`${state.it.date}T00:00:00`) : new Date();
+  if (Number.isNaN(start.getTime())) start.setTime(Date.now());
+  const [ah, am] = String(state.it.arrivalTime || "11:30").split(":").map(Number);
+  start.setHours(ah, am + (state.it.departBufferMinutes ?? 30), 0, 0);
+  state.sim = createSim({ points: state.points, cum: state.cum, onFix, stops: state.it.stops, stopRadiusM: 150, startMs: start.getTime() });
   const targets = [...state.stopAlong, ...state.pkg.narration.map((n) => n.alongM)];
   $("sim-play").addEventListener("click", () => (state.sim.status().running ? state.sim.pause() : state.sim.play()));
   $("sim-speed").addEventListener("change", (e) => state.sim.setFactor(e.target.value));

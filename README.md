@@ -94,10 +94,13 @@ the drive itself needs no server and no Claude, only cell data for map tiles.
 ### Prepare drive (`POST /api/prepare-drive`, `server/narrate.js`)
 
 1. Route with turn steps from OSRM (reused from the plan when present).
-2. Sample the route every 800 m and geosearch Wikipedia within 500 m of each sample
-   (`server/lib/wikiGeo.js`, 3 requests in flight). That guarantees a 300 m corridor.
-3. Drop administrative areas, "List of …", school and highway stubs, anything within 300 m of
-   a planned stop; fetch intro extracts, page length and 30-day pageviews; keep real articles
+2. Sample the route every 6 km and geosearch Wikipedia within 5 km of each sample
+   (`server/lib/wikiGeo.js`): about 15 calls per trip, one at a time with a pause, retried
+   when Wikipedia says it's busy. Wikimedia rate-limits anonymous API traffic per IP, and a
+   shared office connection trips that easily, so this stage is deliberately slow (1-2 min).
+3. Keep only articles within 300 m of the actual road (exact distance to the polyline). Drop
+   administrative areas, "List of …", school, hospital and highway stubs, anything within 300 m
+   of a planned stop; fetch intro extracts, page length and 30-day pageviews; keep real articles
    (≥ 3000 bytes, ≥ 200 chars of intro); score by popularity, type and interest keywords; keep
    up to 8 candidates per leg, spread at least 1.5 km apart.
 4. One Claude call writes every script: 90-150 words per stop, 40-70 per drive-by, at most two

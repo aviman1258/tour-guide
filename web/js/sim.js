@@ -2,13 +2,15 @@
 
 import { interpolateAlong } from "./routeMath.js";
 
-export function createSim({ points, cum, onFix, stops = [], stopRadiusM = 200, speedMps = 15 }) {
+const MAX_STEP_M = 120; // never jump farther than this between emitted fixes, whatever the speed-up
+
+export function createSim({ points, cum, onFix, stops = [], stopRadiusM = 200, speedMps = 15, startMs = Date.now() }) {
   const total = cum[cum.length - 1];
   let factor = 5;
   let distM = 0;
   let timer = null;
   let pauseUntil = 0;       // sim-clock ms
-  let simClock = Date.now();
+  let simClock = startMs;
   let offRouteUntil = 0;
   const pausedAt = new Set();
   const listeners = new Set();
@@ -19,8 +21,18 @@ export function createSim({ points, cum, onFix, stops = [], stopRadiusM = 200, s
     return { running: Boolean(timer), factor, distM, total, progress: total ? distM / total : 0 };
   }
 
+  /** One real second = `factor` sim seconds, emitted as several fixes so geofences aren't skipped. */
   function tick() {
-    simClock += 1000 * factor;
+    const subSteps = Math.max(1, Math.ceil((speedMps * factor) / MAX_STEP_M));
+    for (let i = 0; i < subSteps; i++) {
+      step(factor / subSteps);
+      if (!timer && distM >= total) break;
+    }
+    notify();
+  }
+
+  function step(simSeconds) {
+    simClock += 1000 * simSeconds;
     const p = interpolateAlong(points, cum, distM);
     let lat = p.lat, lon = p.lon;
     let speed = speedMps;
@@ -47,9 +59,8 @@ export function createSim({ points, cum, onFix, stops = [], stopRadiusM = 200, s
       sim: true,
     });
 
-    if (speed > 0) distM += speed * factor;
+    if (speed > 0) distM += speed * simSeconds;
     if (distM >= total) { distM = total; pause(); }
-    notify();
   }
 
   function play() {
@@ -64,13 +75,13 @@ export function createSim({ points, cum, onFix, stops = [], stopRadiusM = 200, s
     notify();
   }
   function setFactor(f) { factor = Number(f) || 1; notify(); }
-  function seek(fraction) { distM = Math.max(0, Math.min(1, fraction)) * total; pauseUntil = 0; tick(); }
+  function seek(fraction) { distM = Math.max(0, Math.min(1, fraction)) * total; pauseUntil = 0; step(1); notify(); }
   function nudgeOffRoute(ms = 30_000) { offRouteUntil = simClock + ms * factor; }
 
   /** Jump to just before the next interesting thing (a stop or a narration point). */
   function jumpToNext(targetsAlongM) {
     const next = targetsAlongM.filter((d) => d > distM + 50).sort((a, b) => a - b)[0];
-    if (next != null) { distM = Math.max(0, next - 900); pauseUntil = 0; tick(); }
+    if (next != null) { distM = Math.max(0, next - 900); pauseUntil = 0; step(1); notify(); }
   }
 
   function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
