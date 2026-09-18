@@ -25,7 +25,22 @@ export const MIN_GAP_M = 1500;
 
 const EXCLUDED_TYPES = new Set(["adm1st", "adm2nd", "adm3rd", "adm4th", "satellite", "camera", "country"]);
 const TYPE_WEIGHT = { landmark: 2, event: 1.5, waterbody: 1, river: 1, airport: 0.5, railwaystation: 0.5, city: 0.8, edu: 0.3, isle: 1, mountain: 1, forest: 0.8, pass: 0.5 };
-const BORING = /^(List of|Category:|.*\b(Independent School District|Elementary School|Middle School|High School|Intermediate School)\b.*|.*\b(FM|SH|Farm to Market Road|Texas State Highway|Interstate|U\.S\. Route|Loop) \d+.*)$/i;
+const BORING = /^(List of|Category:|.*\b(Independent School District|Elementary School|Middle School|High School|Intermediate School|Charter School|Hospital|Medical Center|Traffic Control Center|Post Office)\b.*|.*\b(FM|SH|Farm to Market Road|Texas State Highway|Interstate|U\.S\. Route|Loop) \d+.*)$/i;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** geosearch with retries when Wikipedia reports it's busy (429/5xx surface as thrown 503s). */
+async function geosearchPatient(s, log) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await wikipedia.geosearch(s.lat, s.lon, SEARCH_RADIUS_M, 500);
+    } catch (err) {
+      if (err.status !== 503 || attempt >= BUSY_RETRIES) throw err;
+      log(`geosearch busy at ${Math.round(s.alongM / 1000)} km; waiting ${BUSY_WAIT_MS / 1000} s (attempt ${attempt + 1}/${BUSY_RETRIES})`);
+      await sleep(BUSY_WAIT_MS);
+    }
+  }
+}
 
 /**
  * @param samples    [{lat, lon, alongM}] points along the route (SAMPLE_STEP_M apart)
@@ -39,14 +54,15 @@ export async function findDriveBys({ samples, points, cum, boundaries, stops, in
   // 1. geosearch each sample, strictly one at a time
   const raw = new Map(); // pageid → hit
   let failures = 0;
-  await mapLimit(samples, 1, async (s) => {
+  await mapLimit(samples, 1, async (s, i) => {
+    if (i > 0) await sleep(CALL_GAP_MS);
     try {
-      const hits = await wikipedia.geosearch(s.lat, s.lon, SEARCH_RADIUS_M, 500);
+      const hits = await geosearchPatient(s, log);
       if (!hits.length) failures++;
       for (const h of hits) if (!raw.has(h.pageid)) raw.set(h.pageid, h);
     } catch (err) {
       failures++;
-      log(`geosearch failed at ${s.alongM} m: ${err.message}`);
+      log(`geosearch failed at ${Math.round(s.alongM / 1000)} km: ${err.message}`);
     }
   });
   log(`geosearch: ${samples.length} calls (${failures} empty/failed) → ${raw.size} unique articles`);
@@ -64,9 +80,22 @@ export async function findDriveBys({ samples, points, cum, boundaries, stops, in
   }
   log(`corridor + prefilter: ${pre.length} within ${CORRIDOR_M} m of the road`);
 
-  // 3. quality fetch (20 pages per call, sequential inside extractsBatch)
-  const ex = pre.length ? await wikipedia.extractsBatch(pre.map((h) => h.pageid)) : [];
-  const byId = new Map(ex.map((e) => [e.pageid, e]));
+  // 3. quality fetch, 20 pages per call, patient about "busy" replies
+  const byId = new Map();
+  for (let i = 0; i < pre.length; i += 20) {
+    if (i > 0) await sleep(CALL_GAP_MS);
+    const chunk = pre.slice(i, i + 20).map((h) => h.pageid);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        for (const e of await wikipedia.extractsBatch(chunk)) byId.set(e.pageid, e);
+        break;
+      } catch (err) {
+        if (err.status !== 503 || attempt >= BUSY_RETRIES) { log(`extracts failed for ${chunk.length} pages: ${err.message}`); break; }
+        log(`extracts busy; waiting ${BUSY_WAIT_MS / 1000} s (attempt ${attempt + 1}/${BUSY_RETRIES})`);
+        await sleep(BUSY_WAIT_MS);
+      }
+    }
+  }
   const interestWords = tokens(interests);
   const scored = [];
   for (const h of pre) {
