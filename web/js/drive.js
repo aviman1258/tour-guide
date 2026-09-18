@@ -293,7 +293,7 @@ function renderNextStop(fix, progressM) {
   const s = state.it.stops[state.nextStopIdx];
   const sched = state.it.schedule?.items?.find((x) => x.stopId === s?.id);
   const target = s || state.it.end;
-  $("next-name").textContent = s ? `${state.nextStopIdx + 1}. ${s.name}` : `Hotel: ${state.it.end.label}`;
+  $("next-name").textContent = s ? `${state.nextStopIdx + 1}. ${s.name}` : `End: ${state.it.end.label}`;
   $("skip-stop").hidden = !s;
   const thumb = $("next-thumb");
   if (s?.thumbnail) { thumb.src = s.thumbnail; thumb.hidden = false; } else thumb.hidden = true;

@@ -147,6 +147,10 @@ after the Start click.
 
 ### PWA and hosting
 
+Live at https://aviman1258.github.io/tour-guide/ (drive screen: `/drive.html`). Every push to
+`main` redeploys `web/` via `.github/workflows/pages.yml`. **Bump `SHELL_VERSION` in `web/sw.js`
+whenever files under `web/` change**, or installed phones keep serving the old cached shell.
+
 `manifest.webmanifest` + `sw.js`: the app shell (including vendored Leaflet) is cached for
 offline; map tiles are cached only after the map requested them (OSM policy forbids
 pre-fetching); `/api/*` is never cached. `.github/workflows/pages.yml` publishes `web/` to
