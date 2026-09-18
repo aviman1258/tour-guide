@@ -1,0 +1,31 @@
+// Environment + constants. Everything env-driven is read once here.
+
+const contact = process.env.CONTACT || "tour-guide dev";
+
+export const config = {
+  port: Number(process.env.PORT) || 3001,
+
+  anthropicKey: process.env.ANTHROPIC_API_KEY || "",
+  modelStrong: process.env.MODEL_STRONG || "claude-opus-5",
+  modelFast: process.env.MODEL_FAST || "claude-haiku-4-5",
+
+  osrmBase: (process.env.OSRM_BASE_URL || "https://router.project-osrm.org").replace(/\/$/, ""),
+  wikiRestBase: "https://en.wikipedia.org/api/rest_v1",
+  wikiApiBase: "https://en.wikipedia.org/w/api.php",
+  nominatimBase: "https://nominatim.openstreetmap.org",
+
+  // Wikimedia and OSM both require an identifying User-Agent with contact info.
+  userAgent: `TourGuide/0.1 (${contact}) node-fetch`,
+
+  // Itinerary defaults (minutes)
+  departBufferMinutes: 30, // bags, rental car, getting out of the airport
+  safetyBufferMinutes: 15, // arrive at the hotel this early
+  minStopsAfterTrim: 3,
+  maxCorridorKm: 120, // drop candidates farther than this from the corridor center
+
+  // Politeness
+  nominatimMinIntervalMs: 1100,
+  osrmMinIntervalMs: 1100,
+  wikiConcurrency: 5,
+  httpTimeoutMs: 12000,
+};

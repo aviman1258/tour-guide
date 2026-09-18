@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f5f8b" />
+  <title>Tour Guide</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Tour Guide</h1>
+    <div id="status-bar" class="status-bar" hidden></div>
+    <nav>
+      <a href="drive.html" id="drive-link" class="btn btn-ghost">Drive mode</a>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <section id="map" aria-label="Map"></section>
+
+    <aside id="sidebar">
+      <form id="plan-form" class="card" autocomplete="off">
+        <div class="field">
+          <label for="start-preset">Start</label>
+          <div class="row">
+            <select id="start-preset">
+              <option value="">Choose an airport…</option>
+            </select>
+            <button type="button" id="use-location" class="btn btn-ghost" title="Use my location">📍</button>
+          </div>
+          <div id="start-label" class="hint"></div>
+        </div>
+
+        <div class="field">
+          <label for="end-query">End (hotel)</label>
+          <div class="row">
+            <input id="end-query" type="search" placeholder="Hyatt Regency Houston Galleria" />
+            <button type="button" id="end-search" class="btn">Find</button>
+          </div>
+          <div id="end-results" class="results"></div>
+          <div id="end-label" class="hint"></div>
+        </div>
+
+        <div class="row three">
+          <div class="field">
+            <label for="date">Date</label>
+            <input id="date" type="date" />
+          </div>
+          <div class="field">
+            <label for="arrival">Arrive</label>
+            <input id="arrival" type="time" value="11:30" required />
+          </div>
+          <div class="field">
+            <label for="deadline">Be at hotel by</label>
+            <input id="deadline" type="time" value="15:00" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="interests">Interests</label>
+          <textarea id="interests" rows="2" placeholder="indian stuff, historic neighborhoods, upper affluent"></textarea>
+        </div>
+
+        <div class="row">
+          <button type="submit" id="plan-btn" class="btn btn-primary">Plan my tour</button>
+          <button type="button" id="reset-btn" class="btn btn-ghost">Reset</button>
+        </div>
+        <div id="plan-msg" class="msg" hidden></div>
+      </form>
+
+      <p id="summary" class="summary" hidden></p>
+
+      <section id="stops" class="stops" aria-label="Stops"></section>
+
+      <section class="card add-card">
+        <h2>Add a stop</h2>
+        <div class="row">
+          <input id="add-query" type="search" placeholder="Search a place by name" />
+          <button type="button" id="add-search" class="btn">Find</button>
+        </div>
+        <div id="add-results" class="results"></div>
+        <div class="row">
+          <button type="button" id="suggest-btn" class="btn">Suggest more</button>
+          <span class="hint">or tap the map to drop a pin</span>
+        </div>
+        <div id="suggest-results" class="results"></div>
+      </section>
+
+      <section id="dropped" class="card dropped" hidden>
+        <h2>Didn't fit / not found</h2>
+        <ul id="dropped-list"></ul>
+      </section>
+
+      <section class="card actions">
+        <button type="button" id="share-btn" class="btn">Copy shareable link</button>
+        <button type="button" id="gmaps-btn" class="btn">Open in Google Maps</button>
+        <div id="gmaps-legs" class="results"></div>
+        <button type="button" id="prepare-btn" class="btn btn-primary">Prepare drive (narration)</button>
+        <div id="prepare-msg" class="msg" hidden></div>
+        <div class="row">
+          <button type="button" id="export-btn" class="btn btn-ghost">Export trip</button>
+          <label class="btn btn-ghost" for="import-file">Import trip</label>
+          <input id="import-file" type="file" accept="application/json,.json" hidden />
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
