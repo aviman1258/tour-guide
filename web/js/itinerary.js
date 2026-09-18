@@ -223,7 +223,7 @@ function renderStatus(it) {
   bar.hidden = false;
   bar.className = `status-bar ${s.status}`;
   const slack = s.slackMinutes;
-  const verdict = s.status === "late" ? `${fmtDuration(-slack)} late` : `${fmtDuration(slack)} spare`;
+  const verdict = slack < 0 ? `${fmtDuration(-slack)} over` : `${fmtDuration(slack)} spare`;
   bar.textContent = `Hotel ${to12h(s.hotelArrive)} · ${verdict} · ${fmtMiles(it.route.totalM)} driving`;
   bar.title = (s.warnings || []).join("\n");
 }
