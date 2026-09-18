@@ -27,9 +27,13 @@ export async function fetchJson(url, { headers = {}, retry = 1 } = {}) {
     }
     if ((res.status === 429 || res.status >= 500) && attempt < retry) {
       const ra = Number(res.headers.get("retry-after"));
-      await sleep(Number.isFinite(ra) && ra > 0 ? ra * 1000 : 2000);
+      // Wikimedia sends Retry-After of 30-60 s when rate-limited; cap so one hot call can't stall a request.
+      const wait = Number.isFinite(ra) && ra > 0 ? Math.min(ra, 15) * 1000 : 2000;
+      console.warn(`[http] ${res.status} from ${new URL(url).host}; retrying in ${wait} ms`);
+      await sleep(wait);
       continue;
     }
+    if (res.status === 429) console.warn(`[http] 429 from ${new URL(url).host} (giving up)`);
     let data = null;
     const text = await res.text();
     try {

@@ -35,7 +35,7 @@ export async function prepareDrive(itinerary) {
 
   // 3. drive-by candidates
   const samples = sampleAlong(points, cum, SAMPLE_STEP_M);
-  const { candidatesByLeg, stats } = await findDriveBys({ samples, boundaries, stops, interests: itinerary.interests, log });
+  const { candidatesByLeg, stats } = await findDriveBys({ samples, points, cum, boundaries, stops, interests: itinerary.interests, log });
 
   // 4. fuller text for each stop (REST summary extract; blurb as fallback)
   const stopExtracts = await Promise.all(stops.map(async (s) => {

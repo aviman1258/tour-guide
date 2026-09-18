@@ -1,55 +1,71 @@
-// Find interesting Wikipedia articles along a route: sample the polyline, geosearch
-// each sample, dedupe, prefilter, fetch extracts, score. Pure-ish (all I/O via wikipedia.js).
+// Find interesting Wikipedia articles along a route: a few large geosearches along the
+// polyline (serial, to stay under Wikimedia's anonymous rate limit), exact distance-to-route
+// filtering, dedupe, prefilter, extracts, scoring. All I/O goes through wikipedia.js.
 
 import * as wikipedia from "../wikipedia.js";
 import { mapLimit } from "./http.js";
 import { haversineM } from "./geo.js";
+import { project } from "../../web/js/routeMath.js";
 
-export const SAMPLE_STEP_M = 800;
-export const SEARCH_RADIUS_M = 500;   // 500 m circles at 800 m spacing → guaranteed 300 m corridor
+// 5 km circles every 6 km overlap generously (guaranteed half-width = 4 km), so a 90 km
+// route is ~15 requests instead of ~110. The real corridor test is exact distance to the polyline.
+// Wikimedia rate-limits anonymous API traffic per IP (shared office egress trips it easily),
+// so calls are serial, spaced out, and retried when the API says it's busy.
+export const SAMPLE_STEP_M = 6000;
+export const SEARCH_RADIUS_M = 5000;
+export const CALL_GAP_MS = 700;
+export const BUSY_RETRIES = 3;
+export const BUSY_WAIT_MS = 12000;
+export const CORRIDOR_M = 300;         // "within ~300 m of the road"
 export const NEAR_STOP_M = 300;
 export const MIN_ARTICLE_BYTES = 3000;
 export const MIN_EXTRACT_CHARS = 200;
 export const PER_LEG_CAP = 8;
+export const MIN_GAP_M = 1500;
 
-const EXCLUDED_TYPES = new Set(["adm1st", "adm2nd", "adm3rd", "satellite", "camera", "country", "adm4th"]);
-const TYPE_WEIGHT = { landmark: 2, event: 1.5, waterbody: 1, river: 1, airport: 0.5, railwaystation: 0.5, city: 0.8, edu: 0.3, isle: 1, mountain: 1, forest: 0.8, glacier: 0.5, pass: 0.5 };
-const BORING = /^(List of|Category:|.*\b(Independent School District|Elementary School|Middle School|High School)\b.*|.*\b(FM|SH|Farm to Market Road|Texas State Highway|Interstate) \d+.*)$/i;
+const EXCLUDED_TYPES = new Set(["adm1st", "adm2nd", "adm3rd", "adm4th", "satellite", "camera", "country"]);
+const TYPE_WEIGHT = { landmark: 2, event: 1.5, waterbody: 1, river: 1, airport: 0.5, railwaystation: 0.5, city: 0.8, edu: 0.3, isle: 1, mountain: 1, forest: 0.8, pass: 0.5 };
+const BORING = /^(List of|Category:|.*\b(Independent School District|Elementary School|Middle School|High School|Intermediate School)\b.*|.*\b(FM|SH|Farm to Market Road|Texas State Highway|Interstate|U\.S\. Route|Loop) \d+.*)$/i;
 
 /**
- * @param samples [{lat, lon, alongM}] points along the route
- * @param boundaries alongM values where legs change: [0, stop1, stop2, ..., total]
- * @param stops planned stops [{lat, lon, wikipediaTitle, name}]
- * @param interests free text
+ * @param samples    [{lat, lon, alongM}] points along the route (SAMPLE_STEP_M apart)
+ * @param points,cum route polyline + cumulative distances (for exact corridor test)
+ * @param boundaries alongM values where legs change: [0, stop1, ..., total]
+ * @param stops      planned stops [{lat, lon, wikipediaTitle, name}]
+ * @param interests  free text
  * @returns { candidatesByLeg: Map<legIndex, [{pageid,title,type,lat,lon,alongM,alongLegM,extract,score}]>, stats }
  */
-export async function findDriveBys({ samples, boundaries, stops, interests, log = () => {} }) {
-  // 1. geosearch every sample, 3 in flight
+export async function findDriveBys({ samples, points, cum, boundaries, stops, interests, log = () => {} }) {
+  // 1. geosearch each sample, strictly one at a time
   const raw = new Map(); // pageid → hit
-  const results = await mapLimit(samples, 3, async (s) => {
-    try { return await wikipedia.geosearch(s.lat, s.lon, SEARCH_RADIUS_M, 50); } catch { return []; }
-  });
-  results.forEach((hits, i) => {
-    for (const h of hits) {
-      const prev = raw.get(h.pageid);
-      if (!prev || h.dist < prev.dist) raw.set(h.pageid, { ...h, alongM: samples[i].alongM });
+  let failures = 0;
+  await mapLimit(samples, 1, async (s) => {
+    try {
+      const hits = await wikipedia.geosearch(s.lat, s.lon, SEARCH_RADIUS_M, 500);
+      if (!hits.length) failures++;
+      for (const h of hits) if (!raw.has(h.pageid)) raw.set(h.pageid, h);
+    } catch (err) {
+      failures++;
+      log(`geosearch failed at ${s.alongM} m: ${err.message}`);
     }
   });
-  log(`geosearch: ${samples.length} samples → ${raw.size} unique articles`);
+  log(`geosearch: ${samples.length} calls (${failures} empty/failed) → ${raw.size} unique articles`);
 
-  // 2. cheap prefilter
+  // 2. exact corridor test + cheap prefilter
   const stopTitles = new Set(stops.map((s) => (s.wikipediaTitle || "").toLowerCase()).filter(Boolean));
-  const pre = [...raw.values()].filter((h) => {
-    if (EXCLUDED_TYPES.has(h.type)) return false;
-    if (BORING.test(h.title)) return false;
-    if (stopTitles.has(h.title.toLowerCase())) return false;
-    if (stops.some((s) => haversineM(s, h) < NEAR_STOP_M)) return false;
-    return true;
-  });
-  log(`prefilter: ${pre.length} remain`);
+  const pre = [];
+  for (const h of raw.values()) {
+    if (EXCLUDED_TYPES.has(h.type) || BORING.test(h.title)) continue;
+    if (stopTitles.has(h.title.toLowerCase())) continue;
+    if (stops.some((s) => haversineM(s, h) < NEAR_STOP_M)) continue;
+    const p = project(points, cum, h);
+    if (p.offRouteM > CORRIDOR_M) continue;
+    pre.push({ ...h, alongM: p.progressM, offRouteM: Math.round(p.offRouteM) });
+  }
+  log(`corridor + prefilter: ${pre.length} within ${CORRIDOR_M} m of the road`);
 
-  // 3. quality fetch
-  const ex = await wikipedia.extractsBatch(pre.map((h) => h.pageid));
+  // 3. quality fetch (20 pages per call, sequential inside extractsBatch)
+  const ex = pre.length ? await wikipedia.extractsBatch(pre.map((h) => h.pageid)) : [];
   const byId = new Map(ex.map((e) => [e.pageid, e]));
   const interestWords = tokens(interests);
   const scored = [];
@@ -60,12 +76,12 @@ export async function findDriveBys({ samples, boundaries, stops, interests, log 
     const text = `${h.title} ${e.extract}`.toLowerCase();
     let hits = 0;
     for (const w of interestWords) if (text.includes(w)) hits++;
-    const score = Math.log10(1 + e.pageviews) + (TYPE_WEIGHT[h.type] || 0.6) + hits * 1.5 + Math.min(e.extract.length / 400, 1.5);
-    scored.push({ pageid: h.pageid, title: h.title, type: h.type, lat: h.lat, lon: h.lon, alongM: h.alongM, extract: e.extract, pageviews: e.pageviews, score });
+    const score = Math.log10(1 + e.pageviews) + (TYPE_WEIGHT[h.type] || 0.6) + hits * 1.5 + Math.min(e.extract.length / 400, 1.5) - h.offRouteM / 600;
+    scored.push({ pageid: h.pageid, title: h.title, type: h.type, lat: h.lat, lon: h.lon, alongM: h.alongM, offRouteM: h.offRouteM, extract: e.extract, pageviews: e.pageviews, score });
   }
   log(`quality: ${scored.length} candidates`);
 
-  // 4. bucket by leg, cap per leg
+  // 4. bucket by leg, keep the best few, spread out
   const candidatesByLeg = new Map();
   for (const c of scored) {
     let leg = boundaries.findIndex((b, i) => i < boundaries.length - 1 && c.alongM >= b && c.alongM < boundaries[i + 1]);
@@ -77,12 +93,12 @@ export async function findDriveBys({ samples, boundaries, stops, interests, log 
   }
   for (const [leg, list] of candidatesByLeg) {
     list.sort((a, b) => b.score - a.score);
-    candidatesByLeg.set(leg, spreadOut(list.slice(0, PER_LEG_CAP * 2), 1500).slice(0, PER_LEG_CAP).sort((a, b) => a.alongM - b.alongM));
+    candidatesByLeg.set(leg, spreadOut(list, MIN_GAP_M).slice(0, PER_LEG_CAP).sort((a, b) => a.alongM - b.alongM));
   }
-  return { candidatesByLeg, stats: { samples: samples.length, raw: raw.size, prefiltered: pre.length, scored: scored.length } };
+  return { candidatesByLeg, stats: { samples: samples.length, geosearchEmpty: failures, raw: raw.size, corridor: pre.length, scored: scored.length } };
 }
 
-/** Keep the best-scored items but never two within `minGapM` of each other along the route. */
+/** Keep best-scored items but never two within `minGapM` of each other along the route. */
 function spreadOut(sortedByScore, minGapM) {
   const kept = [];
   for (const c of sortedByScore) {
@@ -91,7 +107,7 @@ function spreadOut(sortedByScore, minGapM) {
   return kept;
 }
 
-const STOP = new Set(["the", "and", "of", "in", "stuff", "things", "places", "like", "some", "with", "a", "an", "to", "for"]);
+const STOP = new Set(["the", "and", "of", "in", "stuff", "things", "places", "like", "some", "with", "a", "an", "to", "for", "upper"]);
 function tokens(s) {
   return [...new Set(String(s || "").toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2 && !STOP.has(w)))];
 }

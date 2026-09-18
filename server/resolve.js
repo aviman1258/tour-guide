@@ -1,7 +1,7 @@
 // Ground Claude's candidates: Wikipedia summary → title search → coordinates → Nominatim → drop.
 
 import { config } from "./config.js";
-import { mapLimit } from "./lib/http.js";
+import { mapLimit, sleep } from "./lib/http.js";
 import { haversineM, bboxCenter } from "./lib/geo.js";
 import * as wikipedia from "./wikipedia.js";
 import * as nominatim from "./nominatim.js";
@@ -47,26 +47,20 @@ export async function resolveCandidates(candidates, corridor) {
       name: c.name, category: c.category, whyItMatches: c.whyItMatches, dwellMinutes: c.dwellMinutes,
       priority: c.priority, isFoodOption: c.isFoodOption, approxArea: c.approxArea,
     };
-    try {
-      const sum = await findSummary(c);
-      if (sum?.coordinates) return { stop: stopFromSummary(sum, extra), c };
-      let hits = await nominatim.search(c.searchHint || `${c.name} ${c.approxArea || ""}`, { viewbox: corridor, limit: 1 });
-      if (!hits[0] && sum) {
-        // Article exists but has no coordinates and the hint missed (often the metro name
-        // instead of the real suburb). Use the city the article itself names.
-        const place = cityFromText(`${sum.description}. ${sum.extract}`);
-        if (place) hits = await nominatim.search(`${sum.title}, ${place}`, { viewbox: corridor, limit: 1 });
-        if (!hits[0] && place) hits = await nominatim.search(`${c.name}, ${place}`, { viewbox: corridor, limit: 1 });
+    // one retry after a pause when Wikipedia rate-limits us; never call that "not found"
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await resolveOne(c, extra, corridor);
+      } catch (err) {
+        const busy = err.status === 503 || err.status === 429;
+        if (busy && attempt === 0) {
+          console.warn(`[resolve] ${c.name}: ${err.message}; retrying in ${config.wikiRetryDelayMs} ms`);
+          await sleep(config.wikiRetryDelayMs);
+          continue;
+        }
+        console.warn(`[resolve] ${c.name}: ${err.message}`);
+        return { drop: { name: c.name, reason: busy ? "lookup_failed" : "not_found" }, c };
       }
-      if (hits[0]) {
-        // Article exists but has no coordinates: take the location from Nominatim, keep the article.
-        const fromArticle = sum ? { blurb: sum.extract, thumbnail: sum.thumbnail, wikipediaTitle: sum.title, wikipediaUrl: sum.url } : {};
-        return { stop: stopFromNominatim(hits[0], { ...extra, ...fromArticle }), c };
-      }
-      return { drop: { name: c.name, reason: "not_found" }, c };
-    } catch (err) {
-      console.warn(`[resolve] ${c.name}: ${err.message}`);
-      return { drop: { name: c.name, reason: "not_found" }, c };
     }
   });
 
@@ -84,4 +78,25 @@ export async function resolveCandidates(candidates, corridor) {
     stops.push(s);
   }
   return { stops, dropped };
+}
+
+/** Wikipedia (with coords) → Nominatim by hint → Nominatim by the article's own city → not_found. */
+async function resolveOne(c, extra, corridor) {
+  const sum = await findSummary(c);
+  if (sum?.coordinates) return { stop: stopFromSummary(sum, extra), c };
+
+  let hits = await nominatim.search(c.searchHint || `${c.name} ${c.approxArea || ""}`, { viewbox: corridor, limit: 1 });
+  if (!hits[0] && sum) {
+    // Article exists but has no coordinates and the hint missed (often the metro name
+    // instead of the real suburb). Use the city the article itself names.
+    const place = cityFromText(`${sum.description}. ${sum.extract}`);
+    if (place) hits = await nominatim.search(`${sum.title}, ${place}`, { viewbox: corridor, limit: 1 });
+    if (!hits[0] && place) hits = await nominatim.search(`${c.name}, ${place}`, { viewbox: corridor, limit: 1 });
+  }
+  if (hits[0]) {
+    // Location from Nominatim; keep the article's text and link when we have one.
+    const fromArticle = sum ? { blurb: sum.extract, thumbnail: sum.thumbnail, wikipediaTitle: sum.title, wikipediaUrl: sum.url } : {};
+    return { stop: stopFromNominatim(hits[0], { ...extra, ...fromArticle }), c };
+  }
+  return { drop: { name: c.name, reason: "not_found" }, c };
 }

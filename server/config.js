@@ -27,6 +27,7 @@ export const config = {
   // Politeness
   nominatimMinIntervalMs: 1100,
   osrmMinIntervalMs: 1100,
-  wikiConcurrency: 5,
+  wikiConcurrency: 2, // Wikimedia starts sending 429s when we burst; 2 in flight is safe
+  wikiRetryDelayMs: 35000, // Wikimedia's Retry-After is 30-60 s; wait it out once rather than lose the stop
   httpTimeoutMs: 12000,
 };

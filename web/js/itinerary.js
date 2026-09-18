@@ -298,7 +298,7 @@ function renderDropped(it) {
   list.innerHTML = "";
   const items = it.dropped || [];
   sec.hidden = items.length === 0;
-  const REASON = { trimmed: "didn't fit the time window", not_found: "couldn't verify on Wikipedia or the map", no_coords: "no location found", too_far: "too far off the route" };
+  const REASON = { trimmed: "didn't fit the time window", not_found: "couldn't verify on Wikipedia or the map", no_coords: "no location found", too_far: "too far off the route", lookup_failed: "Wikipedia was busy; try Add a stop → search for it in a minute" };
   for (const d of items) {
     const li = document.createElement("li");
     li.innerHTML = `<div class="grow"><div>${escapeHtml(d.name)}</div><div class="reason">${REASON[d.reason] || d.reason}</div></div>`;

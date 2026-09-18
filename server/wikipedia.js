@@ -2,10 +2,15 @@
 // All calls cached; negative results cached for 1 hour.
 
 import { config } from "./config.js";
-import { fetchJson } from "./lib/http.js";
+import { fetchJson, httpError } from "./lib/http.js";
 import { TtlCache, HOUR, DAY } from "./lib/cache.js";
 
 const cache = new TtlCache(5000);
+
+/** Rate limits and server errors must never be cached as "not found": throw instead. */
+function guard(status, what) {
+  if (status === 429 || status >= 500) throw httpError(503, `Wikipedia is busy (${status}) during ${what}; try again in a minute`);
+}
 
 const api = (params) => {
   const u = new URL(config.wikiApiBase);
@@ -24,6 +29,7 @@ export async function summary(title) {
   return cache.wrap(key, DAY, async () => {
     const slug = encodeURIComponent(title.trim().replace(/ /g, "_"));
     const { status, data } = await fetchJson(`${config.wikiRestBase}/page/summary/${slug}`);
+    guard(status, "summary");
     if (status !== 200 || !data || data.type !== "standard") return null;
     return {
       title: data.title,
@@ -42,6 +48,7 @@ export async function search(q, limit = 3) {
   const key = `search:${q.toLowerCase()}:${limit}`;
   return cache.wrap(key, DAY, async () => {
     const { status, data } = await fetchJson(api({ action: "query", list: "search", srsearch: q, srlimit: String(limit) }));
+    guard(status, "search");
     if (status !== 200) return [];
     return (data?.query?.search || []).map((s) => ({ title: s.title, pageid: s.pageid, snippet: s.snippet }));
   });
@@ -59,6 +66,7 @@ export async function coordinatesBatch(titles) {
       action: "query", prop: "coordinates|pageimages|description", titles: chunk.join("|"),
       redirects: "1", piprop: "thumbnail", pithumbsize: "400",
     }));
+    guard(status, "coordinates");
     if (status !== 200) continue;
     for (const p of data?.query?.pages || []) {
       if (p.missing) continue;
@@ -88,6 +96,7 @@ export async function geosearch(lat, lon, radiusM = 1000, limit = 10) {
       gsradius: String(Math.min(10000, radiusM)), gslimit: String(Math.min(500, limit)),
       gsprop: "type|name", maxlag: "5",
     }));
+    guard(status, "geosearch");
     if (status !== 200) return [];
     return (data?.query?.geosearch || []).map((g) => ({
       pageid: g.pageid, title: g.title, lat: g.lat, lon: g.lon, dist: g.dist, type: g.type || null,
@@ -108,6 +117,7 @@ export async function extractsBatch(pageids) {
       exintro: "1", explaintext: "1", exsentences: "4", exlimit: "20",
       ppprop: "disambiguation", pvipdays: "30", maxlag: "5",
     }));
+    guard(status, "extracts");
     if (status !== 200) continue;
     for (const p of data?.query?.pages || []) {
       if (p.missing) continue;
