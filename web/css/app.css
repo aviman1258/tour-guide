@@ -49,6 +49,8 @@ body {
 .status-bar.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
 .status-bar.tight { background: color-mix(in srgb, var(--tight) 20%, transparent); color: var(--tight); }
 .status-bar.late { background: color-mix(in srgb, var(--late) 18%, transparent); color: var(--late); }
+body.busy .status-bar::after { content: " · updating…"; font-weight: 400; opacity: .7; }
+body.busy .stops { opacity: .6; transition: opacity .2s; }
 
 .layout { display: grid; grid-template-rows: 45vh 1fr; min-height: calc(100vh - 50px); }
 #map { height: 45vh; min-height: 260px; background: #dfe6ec; }
@@ -67,6 +69,10 @@ body {
 .field label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row.three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+@media (max-width: 420px) {
+  .row.three { grid-template-columns: 1fr 1fr; }
+  .row.three .field:first-child { grid-column: 1 / -1; }
+}
 .row > input, .row > select, .row > textarea { flex: 1; min-width: 0; }
 input, select, textarea {
   font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line);

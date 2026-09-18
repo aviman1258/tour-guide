@@ -20,7 +20,8 @@ export const config = {
   // Itinerary defaults (minutes)
   departBufferMinutes: 30, // bags, rental car, getting out of the airport
   safetyBufferMinutes: 15, // arrive at the hotel this early
-  minStopsAfterTrim: 3,
+  minStopsAfterTrim: 1, // never trim below this many stops
+  compressBelowStops: 6, // with fewer stops than this, shorten stays before dropping more
   maxCorridorKm: 120, // drop candidates farther than this from the corridor center
 
   // Politeness

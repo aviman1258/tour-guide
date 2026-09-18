@@ -130,6 +130,20 @@ export async function searchPlace(q, { viewbox, limit = 3 } = {}) {
   const results = await nominatim.search(q, { viewbox, limit });
   const stops = [];
   for (const r of results) stops.push(await enrichWithWikipedia(r));
+  if (stops.length) return stops;
+
+  // Nominatim is weak on POI names (temples, restaurants). Fall back to Wikipedia search.
+  const hits = await wikipedia.search(q, limit);
+  for (const h of hits) {
+    let sum = await wikipedia.summary(h.title);
+    if (sum && !sum.coordinates) {
+      // some summaries omit coordinates even when the article has them
+      const batch = await wikipedia.coordinatesBatch([sum.title]);
+      const hit = batch.get(sum.title.toLowerCase());
+      if (hit?.coordinates) sum = { ...sum, coordinates: hit.coordinates, thumbnail: sum.thumbnail || hit.thumbnail };
+    }
+    if (sum?.coordinates) stops.push(stopFromSummary(sum));
+  }
   return stops;
 }
 

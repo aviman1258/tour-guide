@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0f1216" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Drive · Tour Guide</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="css/drive.css" />
+</head>
+<body class="drive">
+  <div id="map"></div>
+
+  <header id="banner" class="banner">
+    <a href="index.html" class="back" aria-label="Back to plan">‹</a>
+    <div class="banner-main">
+      <div id="banner-primary" class="banner-primary">Ready</div>
+      <div id="banner-secondary" class="banner-secondary"></div>
+    </div>
+    <div id="banner-arrow" class="arrow" hidden>➤</div>
+  </header>
+
+  <div id="notice" class="notice" hidden></div>
+
+  <section id="sheet" class="sheet">
+    <div class="handle"></div>
+
+    <div id="next-stop" class="card next-stop">
+      <img id="next-thumb" class="thumb" alt="" hidden />
+      <div class="grow">
+        <div class="label">Next stop</div>
+        <div id="next-name" class="name">—</div>
+        <div id="next-meta" class="meta"></div>
+      </div>
+      <button type="button" id="skip-stop" class="btn btn-sm" title="Mark visited">Visited</button>
+    </div>
+
+    <div id="now-playing" class="card now-playing" hidden>
+      <div class="grow">
+        <div class="label">🔊 Now playing</div>
+        <div id="np-title" class="name"></div>
+        <div id="np-text" class="np-text"></div>
+      </div>
+      <div class="np-controls">
+        <button type="button" id="np-replay" class="btn btn-sm" title="Replay">↻</button>
+        <button type="button" id="np-skip" class="btn btn-sm" title="Skip">⏭</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button type="button" id="start-btn" class="btn btn-primary">Start drive</button>
+      <button type="button" id="stop-btn" class="btn" hidden>End drive</button>
+      <button type="button" id="mute-btn" class="btn" aria-pressed="false">🔊</button>
+      <label class="toggle"><input type="checkbox" id="speak-turns" /> Speak turns</label>
+    </div>
+
+    <div id="sim-panel" class="card sim" hidden>
+      <div class="label">Simulation</div>
+      <div class="controls">
+        <button type="button" id="sim-play" class="btn btn-sm">▶︎</button>
+        <select id="sim-speed">
+          <option value="1">1×</option>
+          <option value="5" selected>5×</option>
+          <option value="20">20×</option>
+          <option value="60">60×</option>
+        </select>
+        <button type="button" id="sim-jump" class="btn btn-sm" title="Jump to next event">⤼ next</button>
+        <button type="button" id="sim-nudge" class="btn btn-sm" title="Go off route for 30 s">off-route</button>
+      </div>
+      <input type="range" id="sim-scrub" min="0" max="1000" value="0" />
+      <div id="sim-log" class="sim-log"></div>
+    </div>
+
+    <details class="card checklist">
+      <summary>Pre-drive checklist</summary>
+      <ul>
+        <li>Trip prepared and imported <b>inside this installed app</b> (open once in airplane mode to be sure).</li>
+        <li>iPhone: Settings › Safari › Location → Allow for this site. Ringer not on silent. If iOS is older than 18.4, set Auto-Lock to Never.</li>
+        <li>Android: site Location = Allow; Chrome battery optimisation off.</li>
+        <li>Phone on the mount and charging. Google Maps on the car screen (CarPlay / Android Auto).</li>
+        <li>Tap <b>Start drive</b> and listen for "Starting tour" through the car speakers.</li>
+      </ul>
+    </details>
+  </section>
+
+  <div id="overlay" class="overlay">
+    <div class="overlay-card">
+      <h1>Tour Guide</h1>
+      <p id="overlay-msg">Loading trip…</p>
+      <div id="overlay-trips" class="trip-list"></div>
+      <div class="row">
+        <label class="btn" for="overlay-import">Import trip file</label>
+        <input id="overlay-import" type="file" accept="application/json,.json" hidden />
+        <a class="btn btn-ghost" href="index.html">Plan screen</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="js/drive.js"></script>
+</body>
+</html>

@@ -1,8 +1,9 @@
-// IndexedDB wrapper for the prepared drive package and drive-time state.
+// IndexedDB wrapper for the prepared drive package and in-drive state.
 // Stores: trips (key tripId), driveState (key tripId), settings (key name).
 
 const DB_NAME = "tourguide";
 const DB_VERSION = 1;
+const ACTIVE_KEY = "tourguide.activeTripId";
 let dbPromise = null;
 
 function open() {
@@ -11,9 +12,9 @@ function open() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains("trips")) db.createObjectStore("trips", { keyPath: "tripId" });
-      if (!db.objectStoreNames.contains("driveState")) db.createObjectStore("driveState", { keyPath: "tripId" });
-      if (!db.objectStoreNames.contains("settings")) db.createObjectStore("settings", { keyPath: "name" });
+      for (const name of ["trips", "driveState", "settings"]) {
+        if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -27,35 +28,39 @@ function tx(store, mode, fn) {
       new Promise((resolve, reject) => {
         const t = db.transaction(store, mode);
         const req = fn(t.objectStore(store));
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+        t.oncomplete = () => resolve(req?.result);
+        t.onerror = () => reject(t.error);
+        t.onabort = () => reject(t.error);
       })
   );
 }
 
-export const getTrip = (tripId) => tx("trips", "readonly", (s) => s.get(tripId));
-export const putTrip = (pkg) => tx("trips", "readwrite", (s) => s.put(pkg));
-export const listTrips = () => tx("trips", "readonly", (s) => s.getAll());
-export const deleteTrip = (tripId) => tx("trips", "readwrite", (s) => s.delete(tripId));
+export const get = (store, key) => tx(store, "readonly", (s) => s.get(key));
+export const put = (store, key, value) => tx(store, "readwrite", (s) => s.put(value, key));
+export const del = (store, key) => tx(store, "readwrite", (s) => s.delete(key));
+export const keys = (store) => tx(store, "readonly", (s) => s.getAllKeys());
+export const all = (store) => tx(store, "readonly", (s) => s.getAll());
 
-export const getDriveState = (tripId) => tx("driveState", "readonly", (s) => s.get(tripId));
-export const putDriveState = (st) => tx("driveState", "readwrite", (s) => s.put(st));
-export const clearDriveState = (tripId) => tx("driveState", "readwrite", (s) => s.delete(tripId));
+export async function saveTrip(pkg) {
+  await put("trips", pkg.tripId, pkg);
+  setActiveTripId(pkg.tripId);
+  return pkg;
+}
+export const getTrip = (tripId) => get("trips", tripId);
+export const listTrips = () => all("trips");
 
-export const getSetting = (name) => tx("settings", "readonly", (s) => s.get(name)).then((r) => r?.value);
-export const putSetting = (name, value) => tx("settings", "readwrite", (s) => s.put({ name, value }));
+export const getDriveState = (tripId) => get("driveState", tripId);
+export const putDriveState = (tripId, st) => put("driveState", tripId, st);
+export const clearDriveState = (tripId) => del("driveState", tripId);
 
-const ACTIVE_KEY = "tourguide.activeTripId";
-export function activeTripId() {
+export function getActiveTripId() {
   try { return localStorage.getItem(ACTIVE_KEY); } catch { return null; }
 }
 export function setActiveTripId(id) {
   try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* ignore */ }
 }
 
-export async function requestPersistence() {
-  try {
-    if (navigator.storage?.persist) return await navigator.storage.persist();
-  } catch { /* ignore */ }
-  return false;
+/** Ask the browser not to evict our data (best-effort). */
+export async function persist() {
+  try { return await navigator.storage?.persist?.(); } catch { return false; }
 }
