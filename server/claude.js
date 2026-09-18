@@ -98,6 +98,8 @@ Lengths: kind=stop scripts 90 to 150 words. kind=driveby scripts 40 to 70 words.
 
 Selection: write one script for every planned stop. For drive-bys, pick at most two candidates per leg, favoring the strongest stories; skip legs shorter than three kilometers and skip weak candidates entirely. Quiet stretches are fine. Never pick two drive-bys within two kilometers of each other along the route.
 
+Tone guard: this is a pleasure drive. Skip tragedies, crimes, disasters, accidents and deaths as drive-by subjects, and leave them out of stop scripts too, unless the place is historically defined by that event (a memorial, a battlefield, a famous cemetery) and the traveler's interests point there. A hotel fire or a shooting is not a story for this ride; pick something else or stay quiet.
+
 You must call the write_narration tool with your answer.`;
 
 // ---------- transport ----------
