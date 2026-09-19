@@ -123,14 +123,14 @@ async function viaSdk({ model, system, user, tool, maxTokens, signal }) {
     tool_choice: { type: "auto", disable_parallel_tool_use: true },
     output_config: { effort: "medium" },
   }, { signal });
-  if (res.stop_reason === "refusal") throw httpError(502, "Claude declined this request");
-  if (res.stop_reason === "max_tokens") throw httpError(502, "Claude ran out of room; try fewer stops");
+  if (res.stop_reason === "refusal") throw httpError(502, "Deodap couldn't help with that request");
+  if (res.stop_reason === "max_tokens") throw httpError(502, "Deodap ran out of room; try fewer stops");
   const block = res.content.find((b) => b.type === "tool_use" && b.name === tool.name);
   if (block) return block.input;
   // fall back: JSON in text
   const text = res.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
   const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw httpError(502, "Claude did not return structured output");
+  if (!m) throw httpError(502, "Deodap didn't return a usable answer; try again");
   return JSON.parse(m[0]);
 }
 
@@ -167,12 +167,12 @@ function viaCli({ model, system, user, tool, signal }) {
     const child = execFile(cliBinary(), args, { cwd: CLI_CWD, timeout: 300_000, maxBuffer: 8 * 1024 * 1024, windowsHide: true, signal },
       (err, stdout, stderr) => {
         if (err?.name === "AbortError" || signal?.aborted) return reject(Object.assign(new Error("cancelled"), { status: 499, name: "AbortError" }));
-        if (err && !stdout) return reject(httpError(502, `claude CLI failed: ${(stderr || err.message).slice(0, 300)}`));
+        if (err && !stdout) return reject(httpError(502, `Deodap is unavailable right now: ${(stderr || err.message).slice(0, 300)}`));
         let out;
-        try { out = JSON.parse(stdout); } catch { return reject(httpError(502, `claude CLI returned non-JSON: ${stdout.slice(0, 200)}`)); }
-        if (out.is_error) return reject(httpError(502, `claude CLI error: ${String(out.result || "").slice(0, 300)}`));
+        try { out = JSON.parse(stdout); } catch { return reject(httpError(502, `Deodap gave an unreadable answer; try again (${stdout.slice(0, 120)})`)); }
+        if (out.is_error) return reject(httpError(502, `Deodap hit a problem: ${String(out.result || "").slice(0, 300)}`));
         const data = out.structured_output ?? (() => { try { return JSON.parse(out.result); } catch { return null; } })();
-        if (!data) return reject(httpError(502, "claude CLI returned no structured output"));
+        if (!data) return reject(httpError(502, "Deodap didn't return a usable answer; try again"));
         resolve(data);
       });
     child.stdin.on("error", () => {});

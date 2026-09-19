@@ -526,7 +526,7 @@ function bindUi() {
     if (!file) return;
     try {
       const pkg = JSON.parse(await file.text());
-      if (!pkg?.itinerary?.route || !Array.isArray(pkg.narration)) throw new Error("Not a Tour Guide trip file");
+      if (!pkg?.itinerary?.route || !Array.isArray(pkg.narration)) throw new Error("Not a Deodapper trip file");
       pkg.tripId = pkg.tripId || `trip_${Date.now().toString(36)}`;
       await storage.saveTrip(pkg);
       await usePackage(pkg);

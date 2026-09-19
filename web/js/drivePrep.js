@@ -23,7 +23,7 @@ function msg(text, isError = false) {
 const PHASE = {
   route: "Getting the route with turn-by-turn steps",
   scan: "Scanning Wikipedia along the route for things worth a mention",
-  claude: "Claude is writing the narration",
+  claude: "Deodap is writing the narration",
   assemble: "Assembling the drive package",
 };
 
@@ -104,7 +104,7 @@ export function exportPackage(pkg) {
   const name = `trip-${(pkg.itinerary.end?.label || "tour").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${(pkg.itinerary.date || "").slice(0, 10)}.json`;
   const file = new File([blob], name, { type: "application/json" });
   if (navigator.canShare?.({ files: [file] })) {
-    return navigator.share({ files: [file], title: "Tour Guide trip" }).catch(() => {});
+    return navigator.share({ files: [file], title: "Deodapper trip" }).catch(() => {});
   }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -117,7 +117,7 @@ export function exportPackage(pkg) {
 export async function importPackage(file) {
   const text = await file.text();
   const pkg = JSON.parse(text);
-  if (!pkg?.itinerary?.stops || !Array.isArray(pkg.narration)) throw new Error("That file isn't a Tour Guide trip.");
+  if (!pkg?.itinerary?.stops || !Array.isArray(pkg.narration)) throw new Error("That file isn't a Deodapper trip.");
   pkg.tripId = pkg.tripId || state.tripId(pkg.itinerary);
   await storage.saveTrip(pkg);
   state.replace(pkg.itinerary);

@@ -58,7 +58,7 @@ export async function runPlan(input, { emit = () => {}, signal } = {}) {
   if (gone()) return null;
   timings.record("plan.claude", Date.now() - t);
   emit("phase", { phase: "claude", status: "end", ms: Date.now() - t, count: proposal.stops.length });
-  if (!proposal.stops.length) throw httpError(502, "Claude returned no stops");
+  if (!proposal.stops.length) throw httpError(502, "Deodap couldn't come up with stops for that; try different interests or a longer day");
   emit("candidates", proposal.stops.map((c) => ({ name: c.name, category: c.category, whyItMatches: c.whyItMatches, approxArea: c.approxArea })));
   emit("estimate", timings.planEstimate(proposal.stops.length));
 

@@ -120,14 +120,14 @@ export async function plan() {
   const ctrl = new AbortController();
   planController = ctrl;
   const startedAt = Date.now();
-  const task = busy.begin("Asking Claude for stops…", { onCancel: () => ctrl.abort() });
+  const task = busy.begin("Asking Deodap for stops…", { onCancel: () => ctrl.abort() });
 
   // progress shown in the sidebar while we wait: candidates appear, then turn into real stops
   const progress = { startedAt, phase: "claude", estimate: null, candidates: [], found: [], dropped: [] };
   const publish = () => state.set({ planning: { ...progress, candidates: [...progress.candidates], found: [...progress.found], dropped: [...progress.dropped] } });
   publish();
 
-  const PHASE_LABEL = { claude: "Asking Claude for stops…", ground: "Checking each place on Wikipedia and the map…", route: "Routing and timing the day…" };
+  const PHASE_LABEL = { claude: "Asking Deodap for stops…", ground: "Checking each place on Wikipedia and the map…", route: "Routing and timing the day…" };
   let serverEstimate = null;
   const refreshEstimate = () => {
     progress.estimate = timings.planEstimate(serverEstimate, progress.candidates.length || serverEstimate?.candidateCount || 12);
@@ -184,7 +184,7 @@ export async function plan() {
 }
 
 export async function suggest(count = 3) {
-  return busy.run("Asking Claude for more ideas…", async () => {
+  return busy.run("Asking Deodap for more ideas…", async () => {
     const { candidates } = await api.suggest(state.get(), count);
     return candidates;
   });
