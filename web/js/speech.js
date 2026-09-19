@@ -134,10 +134,10 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
     speakChunk();
   }
 
-  /** Queue narration. Stops interrupt drive-bys; everything else waits its turn. */
+  /** Queue narration. Stops interrupt drive-bys and previews; everything else waits its turn. */
   function enqueue(item) {
     if (!item?.text) return;
-    if (current && item.kind === "stop" && current.item.kind === "driveby") {
+    if (current && item.kind === "stop" && (current.item.kind === "driveby" || current.item.kind === "preview")) {
       synth?.cancel();
       const dropped = current;
       current = null;

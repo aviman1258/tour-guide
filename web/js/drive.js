@@ -76,6 +76,7 @@ async function usePackage(pkg) {
 
   drawRoute();
   renderNextStop(null);
+  renderStopList();
   $("overlay").hidden = true;
   $("banner-primary").textContent = "Ready to drive";
   $("banner-secondary").textContent = `${state.it.stops.length} stops · ${fmtMiles(state.total)} · ${pkg.narration.length} narrations`;
@@ -228,12 +229,90 @@ function onFix(pos) {
   persistDriveState();
 }
 
+function recomputeNext() {
+  const i = state.it.stops.findIndex((s) => !state.geofence.visited.has(s.id));
+  state.nextStopIdx = i < 0 ? state.it.stops.length : i;
+}
+
 function onVisited(stopId) {
-  const i = state.it.stops.findIndex((s) => s.id === stopId);
-  if (i >= 0 && i >= state.nextStopIdx) state.nextStopIdx = i + 1;
-  while (state.nextStopIdx < state.it.stops.length && state.geofence.visited.has(state.it.stops[state.nextStopIdx].id)) state.nextStopIdx++;
+  recomputeNext();
   refreshMarkers();
+  renderStopList();
+  renderNextStop(state.lastFix, state.offRoute ? null : state.lastProj?.progressM);
   log(`visited:${stopId}`);
+}
+
+/** Manual "Visited" with an 8-second Undo. */
+function markVisitedByUser(stopId) {
+  const s = state.it.stops.find((x) => x.id === stopId);
+  if (!s) return;
+  state.geofence.markVisited(stopId);
+  onVisited(stopId);
+  persistDriveState();
+  showUndo(`Marked ${s.name} as visited`, () => {
+    state.geofence.unmarkVisited(stopId);
+    recomputeNext();
+    refreshMarkers();
+    renderStopList();
+    renderNextStop(state.lastFix, state.offRoute ? null : state.lastProj?.progressM);
+    persistDriveState();
+    log(`unvisited:${stopId}`);
+  });
+}
+
+let undoTimer = null, undoAction = null;
+function showUndo(text, action) {
+  const el = $("undo");
+  $("undo-text").textContent = text;
+  undoAction = action;
+  el.hidden = false;
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { el.hidden = true; undoAction = null; }, 8000);
+}
+
+/** Every stop, with status, scheduled times, a Play preview and Visited / Undo. */
+function renderStopList() {
+  const root = $("stop-list");
+  if (!root || !state.it) return;
+  const playingId = state.speech.current?.previewOf || null;
+  root.innerHTML = `<div class="label">All stops · tap ▶ to hear a stop's narration now</div>`;
+  state.it.stops.forEach((s, i) => {
+    const visited = state.geofence.visited.has(s.id);
+    const isNext = i === state.nextStopIdx;
+    const sched = state.it.schedule?.items?.find((x) => x.stopId === s.id);
+    const narration = state.pkg.narration.find((n) => n.kind === "stop" && n.targetId === s.id);
+    const row = document.createElement("div");
+    row.className = `stop-row ${visited ? "visited" : ""} ${isNext ? "next" : ""}`;
+    row.innerHTML = `
+      <div class="num">${visited ? "✓" : i + 1}</div>
+      <div class="grow">
+        <div class="name">${escapeHtml(s.name)}</div>
+        <div class="sub">${visited ? "Visited" : isNext ? "Next up" : "Upcoming"}${sched ? ` · ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : ""}${s.lunch !== "none" ? " · lunch" : ""}</div>
+      </div>
+      <div class="acts">
+        <button type="button" class="btn btn-sm ${playingId === s.id ? "playing" : ""}" data-act="play" title="Hear this stop's narration" ${narration ? "" : "disabled"}>${playingId === s.id ? "■" : "▶"}</button>
+        <button type="button" class="btn btn-sm" data-act="${visited ? "unvisit" : "visit"}">${visited ? "Undo" : "Visited"}</button>
+      </div>`;
+    row.addEventListener("click", (e) => {
+      const act = e.target.closest("button")?.dataset.act;
+      if (act === "play") togglePreview(s.id, narration);
+      else if (act === "visit") markVisitedByUser(s.id);
+      else if (act === "unvisit") { state.geofence.unmarkVisited(s.id); onVisited(s.id); persistDriveState(); }
+      else { state.follow = false; clearTimeout(state.followTimer); state.followTimer = setTimeout(() => (state.follow = true), 15000); state.map.setView([s.lat, s.lon], 15); }
+    });
+    root.appendChild(row);
+  });
+}
+
+/** Play a stop's narration on demand (a real geofenced stop will interrupt it). */
+function togglePreview(stopId, narration) {
+  const sp = state.speech;
+  if (sp.current?.previewOf === stopId) { sp.skip(); renderStopList(); return; }
+  if (!narration) return;
+  if (!sp.unlocked) sp.unlock(" ");
+  if (sp.current) sp.skip();
+  sp.enqueue({ ...narration, id: `preview_${narration.id}_${Date.now()}`, kind: "preview", previewOf: stopId, title: `${narration.title} (preview)` });
+  renderStopList();
 }
 
 function isStaleNarration(item) {
@@ -340,6 +419,7 @@ function bindSpeech() {
     log(`${interrupted ? "interrupted" : "ended"}:${item.id}`);
     if (!sp.current) setTimeout(() => { if (!sp.current) card.hidden = true; }, 4000);
     refreshMarkers();
+    if (item.kind === "preview") renderStopList();
   });
 }
 
@@ -431,11 +511,13 @@ function bindUi() {
   $("np-replay").addEventListener("click", () => state.speech.replay());
   $("skip-stop").addEventListener("click", () => {
     const s = state.it.stops[state.nextStopIdx];
-    if (!s) return;
-    state.geofence.markVisited(s.id);
-    onVisited(s.id);
-    renderNextStop(state.lastFix, state.offRoute ? null : state.lastProj?.progressM);
-    persistDriveState();
+    if (s) markVisitedByUser(s.id);
+  });
+  $("undo-btn").addEventListener("click", () => {
+    undoAction?.();
+    undoAction = null;
+    $("undo").hidden = true;
+    clearTimeout(undoTimer);
   });
   $("overlay-import").addEventListener("change", async (e) => {
     const file = e.target.files?.[0];

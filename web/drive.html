@@ -53,6 +53,8 @@
       </div>
     </div>
 
+    <section id="stop-list" class="card stops-list" aria-label="All stops"></section>
+
     <div class="controls">
       <button type="button" id="start-btn" class="btn btn-primary">Start drive</button>
       <button type="button" id="stop-btn" class="btn" hidden>End drive</button>
@@ -104,6 +106,7 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
+  <div id="undo" class="undo" hidden><span id="undo-text"></span><button type="button" id="undo-btn" class="btn btn-sm">Undo</button></div>
 
   <script src="vendor/leaflet/leaflet.js"></script>
   <script type="module" src="js/drive.js"></script>

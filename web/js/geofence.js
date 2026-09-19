@@ -127,9 +127,16 @@ export function createGeofence(items, { fired = {}, visited = [], options = {} }
     state.visited.add(stopId);
   }
 
+  /** Undo a visit; also forget that we were inside, so it isn't re-marked the moment we move. */
+  function unmarkVisited(stopId) {
+    state.visited.delete(stopId);
+    state.wasInside.delete(stopId);
+    state.insideSince.delete(stopId);
+  }
+
   function snapshot() {
     return { fired: { ...state.fired }, visited: [...state.visited] };
   }
 
-  return { update, onNarrationEnd, markVisited, snapshot, get fired() { return state.fired; }, get visited() { return state.visited; } };
+  return { update, onNarrationEnd, markVisited, unmarkVisited, snapshot, get fired() { return state.fired; }, get visited() { return state.visited; } };
 }
