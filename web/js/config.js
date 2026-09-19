@@ -18,6 +18,15 @@ export function setServerUrl(url) {
   } catch { /* ignore */ }
 }
 
+// Passphrase for a hosted server (APP_SECRET). Asked for once per device, kept in localStorage.
+const KEY_KEY = "tourguide.appKey";
+export function getAppKey() {
+  try { return localStorage.getItem(KEY_KEY) || ""; } catch { return ""; }
+}
+export function setAppKey(v) {
+  try { if (v) localStorage.setItem(KEY_KEY, v); else localStorage.removeItem(KEY_KEY); } catch { /* ignore */ }
+}
+
 /** Resolved at boot by pinging /api/health. */
 export const runtime = {
   hasServer: null, // null = unknown, true/false after probe

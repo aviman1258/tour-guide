@@ -27,9 +27,19 @@ const num = (v, name) => {
   return n;
 };
 
+// Hosted deployments set APP_SECRET so strangers can't run up the Claude bill.
+// The health check stays open (Render pings it). Locally, with no secret, everything is open.
+app.use("/api", (req, res, next) => {
+  if (!config.appSecret || req.path === "/health") return next();
+  const key = req.get("x-app-key") || req.query.key;
+  if (key === config.appSecret) return next();
+  res.status(401).json({ error: "This server needs the app passphrase.", needsKey: true });
+});
+
 app.get("/api/health", h(async (_req, res) => {
   res.json({
     ok: true,
+    protected: Boolean(config.appSecret),
     claude: config.anthropicKey ? "sdk" : "cli",
     models: { strong: config.modelStrong, fast: config.modelFast },
     osrm: config.osrmBase,

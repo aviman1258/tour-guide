@@ -158,6 +158,23 @@ inside each stop, has a scrub bar, "jump to next event" and an "off-route" nudge
 downstream (geofence, speech, banner, persistence) is the real code. Desktop Chrome speaks
 after the Start click.
 
+### Hosting the server (Render)
+
+`Dockerfile` + `render.yaml` run the whole app (API + web) as one always-on Render Starter
+service with a 1 GB disk at `/app/data` for the learned estimates. In Render: **New → Blueprint**,
+pick this repo, then set the secrets it asks for:
+
+- `ANTHROPIC_API_KEY` — planning and narration go through the API on a hosted server (there is no
+  Claude Code login there). Set a monthly spend limit in the Anthropic console.
+- `APP_SECRET` — a passphrase; every `/api/*` call except the health check must carry it. The app
+  asks for it once per device (`x-app-key` header, kept in localStorage).
+- `CONTACT` — an email or URL for the Wikipedia/OSM User-Agent.
+
+Point your domain at the service (Cloudflare CNAME → the `onrender.com` host, then add the custom
+domain in Render for the certificate). Install the PWA from that domain; planning, prepare-drive
+and drive mode all work from the phone. The browser also keeps its own history of run times
+(`web/js/timings.js`), so estimates survive redeploys and host changes regardless.
+
 ### PWA and hosting
 
 Live at https://aviman1258.github.io/tour-guide/ (drive screen: `/drive.html`). Every push to

@@ -6,6 +6,7 @@ import * as state from "./state.js";
 import * as api from "./api.js";
 import * as storage from "./storage.js";
 import * as busy from "./busy.js";
+import * as timings from "./timings.js";
 import { toast } from "./itinerary.js";
 import { escapeHtml } from "./format.js";
 
@@ -61,14 +62,16 @@ export async function prepare() {
   controller = ctrl;
   const startedAt = Date.now();
   const task = busy.begin("Preparing the drive…", { onCancel: () => ctrl.abort(), startedAt });
-  const progress = { phase: "route", estimate: null, scan: null, legs: [], narration: [] };
+  const progress = { phase: "route", estimate: timings.narrateEstimate(null), scan: null, legs: [], narration: [] };
+  task.update({ estimateMs: progress.estimate.totalMs, startedAt });
   renderProgress(progress);
   try {
     const pkg = await api.prepareDriveStream(it, {
       signal: ctrl.signal,
       onEvent: (event, data) => {
-        if (event === "estimate") { progress.estimate = data; task.update({ estimateMs: data.totalMs, startedAt }); }
+        if (event === "estimate") { progress.estimate = timings.narrateEstimate(data); task.update({ estimateMs: progress.estimate.totalMs, startedAt }); }
         else if (event === "phase" && data.status === "start") { progress.phase = data.phase; task.update({ label: `${PHASE[data.phase] || "Working"}…` }); }
+        else if (event === "phase" && data.status === "end" && data.ms && (data.phase === "scan" || data.phase === "claude")) timings.record(`narrate.${data.phase}`, data.ms);
         else if (event === "scan") { progress.scan = data; task.update({ label: data.stage === "extracts" ? `Reading ${data.total} nearby articles…` : `Scanning the road: ${data.done}/${data.total}, ${data.found} places…` }); }
         else if (event === "candidates") progress.legs = data;
         else if (event === "narration") progress.narration.push(data.item);

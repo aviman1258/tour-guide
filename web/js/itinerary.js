@@ -265,7 +265,7 @@ function renderPlanning(it, root) {
   const card = document.createElement("section");
   card.className = "card planning";
   const PHASE = { claude: "Claude is choosing stops for your interests", ground: "Checking each place on Wikipedia and the map", route: "Routing and timing the day" };
-  const est = p.estimate ? ` <small>· usually about ${Math.max(1, Math.round(p.estimate.totalMs / 60000))} min${p.estimate.basedOnRuns ? ` (from your last ${p.estimate.basedOnRuns} run${p.estimate.basedOnRuns === 1 ? "" : "s"})` : ""}</small>` : "";
+  const est = p.estimate ? ` <small>· usually about ${Math.max(1, Math.round(p.estimate.totalMs / 60000))} min${p.estimate.basedOnRuns ? ` (from your last ${p.estimate.basedOnRuns} run${p.estimate.basedOnRuns === 1 ? "" : "s"}${p.estimate.source === "device" ? " on this device" : ""})` : ""}</small>` : "";
   card.innerHTML = `<div class="phase"><span class="dot checking"></span><span>${PHASE[p.phase] || "Working"}…${est}</span></div>`;
 
   if (!p.candidates.length) {

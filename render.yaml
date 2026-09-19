@@ -1,0 +1,29 @@
+# Render Blueprint: one always-on web service (Starter) running the Node server, which also
+# serves the web app. Create it in Render with "New → Blueprint" pointing at this repo.
+# Secrets (ANTHROPIC_API_KEY, APP_SECRET) are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: tour-guide
+    runtime: docker
+    plan: starter
+    region: oregon
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: APP_SECRET
+        sync: false
+      - key: CONTACT
+        sync: false
+      - key: MODEL_STRONG
+        value: claude-opus-5
+      - key: MODEL_FAST
+        value: claude-haiku-4-5
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: tour-guide-data
+      mountPath: /app/data
+      sizeGB: 1

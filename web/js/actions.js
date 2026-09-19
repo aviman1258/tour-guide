@@ -4,6 +4,7 @@
 import * as state from "./state.js";
 import * as api from "./api.js";
 import * as busy from "./busy.js";
+import * as timings from "./timings.js";
 import { runtime } from "./config.js";
 import { bestInsertIndex } from "./routeMath.js";
 
@@ -125,6 +126,12 @@ export async function plan() {
   publish();
 
   const PHASE_LABEL = { claude: "Asking Claude for stops…", ground: "Checking each place on Wikipedia and the map…", route: "Routing and timing the day…" };
+  let serverEstimate = null;
+  const refreshEstimate = () => {
+    progress.estimate = timings.planEstimate(serverEstimate, progress.candidates.length || serverEstimate?.candidateCount || 12);
+    task.update({ estimateMs: progress.estimate.totalMs, startedAt });
+  };
+  refreshEstimate();
   try {
     const result = await api.planStream({
       start: it.start, end: it.end, date: it.date, arrivalTime: it.arrivalTime, deadline: it.deadline,
@@ -133,11 +140,16 @@ export async function plan() {
     }, {
       signal: ctrl.signal,
       onEvent: (event, data) => {
-        if (event === "estimate") { progress.estimate = data; task.update({ estimateMs: data.totalMs, startedAt }); }
+        if (event === "estimate") { serverEstimate = data; refreshEstimate(); }
         else if (event === "phase") {
           if (data.status === "start") { progress.phase = data.phase; task.update({ label: PHASE_LABEL[data.phase] || "Working…" }); }
+          else if (data.status === "end" && data.ms) {
+            // remember how long it really took, on this device
+            if (data.phase === "ground") timings.record("plan.groundPerCandidate", data.ms / Math.max(1, progress.candidates.length));
+            else timings.record(`plan.${data.phase}`, data.ms);
+          }
         }
-        else if (event === "candidates") progress.candidates = data.map((c) => ({ ...c, status: "checking" }));
+        else if (event === "candidates") { progress.candidates = data.map((c) => ({ ...c, status: "checking" })); refreshEstimate(); }
         else if (event === "stop") {
           progress.found.push(data.stop);
           const c = progress.candidates.find((x) => x.status === "checking" && x.name.toLowerCase() === data.stop.name.toLowerCase());

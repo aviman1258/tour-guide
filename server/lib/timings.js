@@ -70,6 +70,8 @@ export function planEstimate(candidateCount = 12) {
   const route = typical("plan.route");
   return {
     phases: { claude, ground: perCand * candidateCount, route },
+    perCandidateMs: perCand,
+    candidateCount,
     totalMs: claude + perCand * candidateCount + route,
     basedOnRuns: samples("plan.claude"),
   };

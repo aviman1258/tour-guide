@@ -6,6 +6,8 @@ export const config = {
   port: Number(process.env.PORT) || 3001,
 
   anthropicKey: process.env.ANTHROPIC_API_KEY || "",
+  // When set, every /api route except /api/health needs `x-app-key: <secret>` (hosted deployments).
+  appSecret: process.env.APP_SECRET || "",
   modelStrong: process.env.MODEL_STRONG || "claude-opus-5",
   modelFast: process.env.MODEL_FAST || "claude-haiku-4-5",
 

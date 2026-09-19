@@ -1,0 +1,12 @@
+node_modules
+data
+samples
+scripts
+test
+.github
+.git
+*.log
+*.png
+*.md
+plan-*.json
+env.sample

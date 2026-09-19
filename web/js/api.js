@@ -1,12 +1,27 @@
-import { apiBase, runtime } from "./config.js";
+import { apiBase, runtime, getAppKey, setAppKey } from "./config.js";
 
-async function call(method, path, body, signal) {
+const authHeaders = () => (getAppKey() ? { "x-app-key": getAppKey() } : {});
+
+/** On a 401 from a protected server, ask for the passphrase once and let the caller retry. */
+async function askForKey(res) {
+  if (res.status !== 401) return false;
+  let needs = false;
+  try { needs = Boolean((await res.clone().json()).needsKey); } catch { /* not ours */ }
+  if (!needs) return false;
+  const entered = window.prompt("This server needs the app passphrase:", "");
+  if (!entered) return false;
+  setAppKey(entered.trim());
+  return true;
+}
+
+async function call(method, path, body, signal, retried = false) {
   const res = await fetch(apiBase() + path, {
     method,
-    headers: body ? { "content-type": "application/json" } : undefined,
+    headers: { ...(body ? { "content-type": "application/json" } : {}), ...authHeaders() },
     body: body ? JSON.stringify(body) : undefined,
     signal,
   });
+  if (!retried && (await askForKey(res))) return call(method, path, body, signal, true);
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = { error: text.slice(0, 200) }; }
@@ -40,13 +55,15 @@ export const prepareDriveStream = (itinerary, opts) => stream("/api/prepare-driv
  * POST with Accept: text/event-stream and parse server-sent events.
  * Resolves to done[doneKey]; rejects on an `error` event or a broken stream.
  */
-async function stream(path, body, { onEvent = () => {}, signal, doneKey } = {}) {
+async function stream(path, body, opts = {}) {
+  const { onEvent = () => {}, signal, doneKey, retried = false } = opts;
   const res = await fetch(apiBase() + path, {
     method: "POST",
-    headers: { "content-type": "application/json", accept: "text/event-stream" },
+    headers: { "content-type": "application/json", accept: "text/event-stream", ...authHeaders() },
     body: JSON.stringify(body),
     signal,
   });
+  if (!retried && (await askForKey(res))) return stream(path, body, { ...opts, retried: true });
   if (!res.ok || !res.headers.get("content-type")?.includes("text/event-stream")) {
     let msg = `${res.status} ${res.statusText}`;
     try { msg = (await res.json()).error || msg; } catch { /* keep msg */ }
