@@ -272,12 +272,29 @@ function showUndo(text, action) {
   undoTimer = setTimeout(() => { el.hidden = true; undoAction = null; }, 8000);
 }
 
-/** Every stop, with status, scheduled times, a Play preview and Visited / Undo. */
+// collapsed by default so the map stays visible; remembered per device
+let stopsOpen = (() => { try { return localStorage.getItem("tourguide.driveStopsOpen") === "1"; } catch { return false; } })();
+function setStopsOpen(open) {
+  stopsOpen = open;
+  try { localStorage.setItem("tourguide.driveStopsOpen", open ? "1" : "0"); } catch { /* ignore */ }
+  renderStopList();
+}
+
+/** Every stop, with status, scheduled times, a Play preview and Visited / Undo. Collapsible. */
 function renderStopList() {
   const root = $("stop-list");
   if (!root || !state.it) return;
   const playingId = state.speech.current?.previewOf || null;
-  root.innerHTML = `<div class="label">All stops · tap ▶ to hear a stop's narration now</div>`;
+  const visitedCount = state.it.stops.filter((s) => state.geofence.visited.has(s.id)).length;
+  root.classList.toggle("collapsed", !stopsOpen);
+  root.innerHTML = `
+    <button type="button" class="list-toggle" aria-expanded="${stopsOpen}">
+      <span class="label">All stops · ${visitedCount}/${state.it.stops.length} visited</span>
+      <span class="chevron">${stopsOpen ? "▾" : "▸"}</span>
+    </button>
+    ${stopsOpen ? `<div class="label sub-label">Tap ▶ to hear a stop's narration now</div>` : ""}`;
+  root.querySelector(".list-toggle").addEventListener("click", () => setStopsOpen(!stopsOpen));
+  if (!stopsOpen) return;
   state.it.stops.forEach((s, i) => {
     const visited = state.geofence.visited.has(s.id);
     const isNext = i === state.nextStopIdx;
