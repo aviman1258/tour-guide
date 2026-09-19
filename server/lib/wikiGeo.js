@@ -50,11 +50,13 @@ async function geosearchPatient(s, log) {
  * @param interests  free text
  * @returns { candidatesByLeg: Map<legIndex, [{pageid,title,type,lat,lon,alongM,alongLegM,extract,score}]>, stats }
  */
-export async function findDriveBys({ samples, points, cum, boundaries, stops, interests, log = () => {} }) {
+export async function findDriveBys({ samples, points, cum, boundaries, stops, interests, log = () => {}, onProgress = () => {}, signal }) {
   // 1. geosearch each sample, strictly one at a time
   const raw = new Map(); // pageid → hit
   let failures = 0;
+  let done = 0;
   await mapLimit(samples, 1, async (s, i) => {
+    if (signal?.aborted) return;
     if (i > 0) await sleep(CALL_GAP_MS);
     try {
       const hits = await geosearchPatient(s, log);
@@ -64,7 +66,9 @@ export async function findDriveBys({ samples, points, cum, boundaries, stops, in
       failures++;
       log(`geosearch failed at ${Math.round(s.alongM / 1000)} km: ${err.message}`);
     }
+    onProgress({ stage: "geosearch", done: ++done, total: samples.length, found: raw.size });
   });
+  if (signal?.aborted) return { candidatesByLeg: new Map(), stats: { cancelled: true } };
   log(`geosearch: ${samples.length} calls (${failures} empty/failed) → ${raw.size} unique articles`);
 
   // 2. exact corridor test + cheap prefilter
@@ -83,7 +87,9 @@ export async function findDriveBys({ samples, points, cum, boundaries, stops, in
   // 3. quality fetch, 20 pages per call, patient about "busy" replies
   const byId = new Map();
   for (let i = 0; i < pre.length; i += 20) {
+    if (signal?.aborted) break;
     if (i > 0) await sleep(CALL_GAP_MS);
+    onProgress({ stage: "extracts", done: i, total: pre.length, found: raw.size });
     const chunk = pre.slice(i, i + 20).map((h) => h.pageid);
     for (let attempt = 0; ; attempt++) {
       try {

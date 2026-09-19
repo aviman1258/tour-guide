@@ -112,11 +112,34 @@ app.post("/api/suggest", h(async (req, res) => {
   res.json({ candidates: grounded.filter((s) => !existing.has(s.name.toLowerCase()) && !existing.has((s.wikipediaTitle || "").toLowerCase())).slice(0, n) });
 }));
 
-// Narration package for drive mode.
+// Narration package for drive mode. Streams progress events with Accept: text/event-stream.
 app.post("/api/prepare-drive", h(async (req, res) => {
   const { itinerary } = req.body || {};
-  if (!itinerary?.route?.geometry) throw httpError(400, "itinerary with a route is required");
-  res.json(await narrate.prepareDrive(itinerary));
+  if (!itinerary?.start || !itinerary?.end) throw httpError(400, "itinerary with start and end is required");
+
+  const ac = new AbortController();
+  res.on("close", () => { if (!res.writableFinished) { ac.abort(); console.log("[prepare-drive] cancelled by client"); } });
+
+  if (!String(req.headers.accept || "").includes("text/event-stream")) {
+    const pkg = await narrate.prepareDrive(itinerary, { signal: ac.signal });
+    if (pkg) res.json(pkg);
+    return;
+  }
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache, no-transform", connection: "keep-alive", "x-accel-buffering": "no" });
+  res.flushHeaders?.();
+  const send = (event, data) => { if (!res.writableEnded && !ac.signal.aborted) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
+  const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(": ping\n\n"); }, 15000);
+  try {
+    await narrate.prepareDrive(itinerary, { emit: send, signal: ac.signal });
+  } catch (err) {
+    if (!ac.signal.aborted) {
+      if ((err.status || 500) >= 500) console.error(err);
+      send("error", { message: err.message, status: err.status || 500 });
+    }
+  } finally {
+    clearInterval(heartbeat);
+    res.end();
+  }
 }));
 
 app.use(express.static(WEB_DIR, { extensions: ["html"] }));

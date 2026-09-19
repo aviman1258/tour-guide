@@ -119,6 +119,10 @@ the drive itself needs no server and no Claude, only cell data for map tiles.
    drive-bys per leg, none on legs under 3 km, only facts from the supplied extract, no
    "left/right". The server validates word counts and drops scripts that name unknown places.
    A stop Claude skipped gets a plain fallback so it is never silent.
+   With `Accept: text/event-stream` the endpoint streams progress (`estimate`, `phase`, `scan`,
+   `candidates`, `narration`, `done`), so the page shows the scan advancing, what was found on
+   each leg, and each script as it lands; Cancel aborts the Claude call. Estimates come from
+   the recorded durations of earlier runs (`data/timings.json`).
 5. The result is a *drive package*: `{ tripId, preparedAt, itinerary (with route.steps),
    narration:[{id, kind:"stop"|"driveby", targetId|pageid, title, text, lat, lon, radiusM, alongM, legIndex}] }`,
    saved to IndexedDB (`web/js/storage.js`). Export/Import moves it between devices as a JSON file.

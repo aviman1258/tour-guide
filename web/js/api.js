@@ -31,16 +31,20 @@ export const reverse = (lat, lon) => call("GET", `/api/reverse?lat=${lat}&lon=${
 export const plan = (input, signal) => call("POST", "/api/plan", input, signal);
 export const estimate = () => call("GET", "/api/estimate");
 
+/** Streaming plan: resolves to the final itinerary; onEvent(name, data) for progress. */
+export const planStream = (input, opts) => stream("/api/plan", input, { ...opts, doneKey: "itinerary" });
+/** Streaming prepare-drive: resolves to the DrivePackage; onEvent for progress. */
+export const prepareDriveStream = (itinerary, opts) => stream("/api/prepare-drive", { itinerary }, { ...opts, doneKey: "package" });
+
 /**
- * Streaming plan: POST with Accept: text/event-stream, parse server-sent events.
- * onEvent(name, data) fires for estimate / phase / candidates / stop / dropped / done / error.
- * Resolves to the final itinerary (from `done`), rejects on `error` or a broken stream.
+ * POST with Accept: text/event-stream and parse server-sent events.
+ * Resolves to done[doneKey]; rejects on an `error` event or a broken stream.
  */
-export async function planStream(input, { onEvent = () => {}, signal } = {}) {
-  const res = await fetch(apiBase() + "/api/plan", {
+async function stream(path, body, { onEvent = () => {}, signal, doneKey } = {}) {
+  const res = await fetch(apiBase() + path, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "text/event-stream" },
-    body: JSON.stringify(input),
+    body: JSON.stringify(body),
     signal,
   });
   if (!res.ok || !res.headers.get("content-type")?.includes("text/event-stream")) {
@@ -59,8 +63,8 @@ export async function planStream(input, { onEvent = () => {}, signal } = {}) {
     }
     if (!data) return;
     const payload = JSON.parse(data);
-    if (event === "done") result = payload.itinerary;
-    if (event === "error") failure = new Error(payload.message || "planning failed");
+    if (event === "done") result = doneKey ? payload[doneKey] : payload;
+    if (event === "error") failure = new Error(payload.message || "request failed");
     onEvent(event, payload);
   };
   for (;;) {
@@ -75,7 +79,7 @@ export async function planStream(input, { onEvent = () => {}, signal } = {}) {
     }
   }
   if (failure) throw failure;
-  if (!result) throw new Error("The planning stream ended before a result arrived.");
+  if (!result) throw new Error("The connection ended before a result arrived.");
   return result;
 }
 export const suggest = (itinerary, count = 3) => call("POST", "/api/suggest", { itinerary, count });

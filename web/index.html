@@ -110,7 +110,11 @@
         <button type="button" id="share-btn" class="btn">Copy shareable link</button>
         <button type="button" id="gmaps-btn" class="btn">Open in Google Maps</button>
         <div id="gmaps-legs" class="results"></div>
-        <button type="button" id="prepare-btn" class="btn btn-primary">Prepare drive (narration)</button>
+        <div class="row">
+          <button type="button" id="prepare-btn" class="btn btn-primary">Prepare drive (narration)</button>
+          <button type="button" id="cancel-prepare-btn" class="btn btn-danger" hidden>Cancel</button>
+        </div>
+        <div id="prepare-progress" class="planning" hidden></div>
         <div id="prepare-msg" class="msg" hidden></div>
         <div class="row">
           <button type="button" id="export-btn" class="btn btn-ghost">Export trip</button>

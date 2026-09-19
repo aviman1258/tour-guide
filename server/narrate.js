@@ -1,11 +1,18 @@
 // POST /api/prepare-drive: build the DrivePackage — route with turn steps, drive-by
 // candidates along the way, and Claude-written narration for stops + drive-bys.
+// Runs as a stream of events so the browser can show progress:
+//   estimate  {phases, totalMs, basedOnRuns}
+//   phase     {phase:"route"|"scan"|"claude"|"assemble", status:"start"|"end", ms?}
+//   scan      {done, total, found}                 (geosearch / extract progress)
+//   candidates [{legIndex, from, to, places:[{title, offRouteM}]}]
+//   narration {item}                               (each script, in route order)
+//   done      {package}
 
 import { httpError } from "./lib/http.js";
-import { routeFor } from "./schedule.js";
-import * as timings from "./lib/timings.js";
 import * as wikipedia from "./wikipedia.js";
 import * as claude from "./claude.js";
+import { routeFor } from "./schedule.js";
+import * as timings from "./lib/timings.js";
 import { findDriveBys, SAMPLE_STEP_M } from "./lib/wikiGeo.js";
 import { lineToPoints, cumulative, project, sampleAlong } from "../web/js/routeMath.js";
 
@@ -14,18 +21,23 @@ const DEFAULT_STOP_RADIUS = 250;
 const DRIVEBY_RADIUS = 300;
 const WORDS = { stop: [60, 200], driveby: [25, 110] };
 
-export async function prepareDrive(itinerary) {
+export async function prepareDrive(itinerary, { emit = () => {}, signal } = {}) {
   const t0 = Date.now();
+  const gone = () => Boolean(signal?.aborted);
   const log = (m) => console.log(`[prepare-drive] ${m}`);
   const { start, end, stops = [] } = itinerary;
   if (!start || !end) throw httpError(400, "itinerary needs start and end");
   if (!stops.length) throw httpError(400, "add at least one stop before preparing the drive");
 
+  emit("estimate", timings.narrateEstimate());
+
   // 1. route with turn-by-turn steps
+  emit("phase", { phase: "route", status: "start" });
+  let t = Date.now();
   let route = itinerary.route;
-  if (!route?.geometry || !route.legs?.[0]?.steps) {
-    route = await routeFor(itinerary);
-  }
+  if (!route?.geometry || !route.legs?.[0]?.steps) route = await routeFor(itinerary);
+  if (gone()) return null;
+  emit("phase", { phase: "route", status: "end", ms: Date.now() - t });
   const points = lineToPoints(route.geometry);
   const cum = cumulative(points);
   const total = cum[cum.length - 1];
@@ -34,11 +46,23 @@ export async function prepareDrive(itinerary) {
   const stopAlong = stops.map((s) => project(points, cum, s).progressM);
   const boundaries = [0, ...stopAlong, total];
 
-  // 3. drive-by candidates
+  // 3. drive-by candidates (the slow, rate-limited part)
+  emit("phase", { phase: "scan", status: "start" });
+  t = Date.now();
   const samples = sampleAlong(points, cum, SAMPLE_STEP_M);
-  const tScan = Date.now();
-  const { candidatesByLeg, stats } = await findDriveBys({ samples, points, cum, boundaries, stops, interests: itinerary.interests, log });
-  timings.record("narrate.scan", Date.now() - tScan);
+  const { candidatesByLeg, stats } = await findDriveBys({
+    samples, points, cum, boundaries, stops, interests: itinerary.interests, log, signal,
+    onProgress: (p) => emit("scan", p),
+  });
+  if (gone()) return null;
+  timings.record("narrate.scan", Date.now() - t);
+  emit("phase", { phase: "scan", status: "end", ms: Date.now() - t });
+  emit("candidates", [...candidatesByLeg].map(([legIndex, list]) => ({
+    legIndex,
+    from: legIndex === 0 ? start.label : stops[legIndex - 1].name,
+    to: legIndex === stops.length ? end.label : stops[legIndex].name,
+    places: list.map((c) => ({ title: c.title, offRouteM: c.offRouteM })),
+  })));
 
   // 4. fuller text for each stop (REST summary extract; blurb as fallback)
   const stopExtracts = await Promise.all(stops.map(async (s) => {
@@ -47,8 +71,11 @@ export async function prepareDrive(itinerary) {
     }
     return s.blurb || s.whyItMatches || s.name;
   }));
+  if (gone()) return null;
 
   // 5. Claude writes everything in one call
+  emit("phase", { phase: "claude", status: "start" });
+  t = Date.now();
   const legs = [];
   for (let i = 0; i < stops.length + 1; i++) {
     const from = i === 0 ? start.label : stops[i - 1].name;
@@ -58,16 +85,25 @@ export async function prepareDrive(itinerary) {
     if (lengthM < 3000) continue; // quiet: too short for a drive-by
     legs.push({ legIndex: i, from, to, lengthM, candidates });
   }
-  const tClaude = Date.now();
-  const scripts = await claude.writeNarration({
-    interests: itinerary.interests,
-    stops: stops.map((s, i) => ({ id: s.id, name: s.name, category: s.category, whyItMatches: s.whyItMatches, dwellMinutes: s.dwellMinutes, extract: stopExtracts[i] })),
-    legs,
-  });
-  timings.record("narrate.claude", Date.now() - tClaude);
+  let scripts;
+  try {
+    scripts = await claude.writeNarration({
+      interests: itinerary.interests,
+      stops: stops.map((s, i) => ({ id: s.id, name: s.name, category: s.category, whyItMatches: s.whyItMatches, dwellMinutes: s.dwellMinutes, extract: stopExtracts[i] })),
+      legs,
+      signal,
+    });
+  } catch (err) {
+    if (gone()) return null;
+    throw err;
+  }
+  if (gone()) return null;
+  timings.record("narrate.claude", Date.now() - t);
+  emit("phase", { phase: "claude", status: "end", ms: Date.now() - t, count: scripts.length });
   log(`claude returned ${scripts.length} scripts`);
 
   // 6. validate + assemble narration items
+  emit("phase", { phase: "assemble", status: "start" });
   const candidateById = new Map();
   for (const list of candidatesByLeg.values()) for (const c of list) candidateById.set(String(c.pageid), c);
   const narration = [];
@@ -116,17 +152,21 @@ export async function prepareDrive(itinerary) {
     });
   }
   narration.sort((a, b) => a.alongM - b.alongM);
+  for (const item of narration) emit("narration", { item });
+  emit("phase", { phase: "assemble", status: "end" });
 
   const drivebys = narration.filter((n) => n.kind === "driveby").length;
   log(`done in ${Math.round((Date.now() - t0) / 1000)} s: ${narration.length - drivebys} stop scripts, ${drivebys} drive-bys`);
 
-  return {
+  const pkg = {
     version: 1,
     preparedAt: new Date().toISOString(),
     itinerary: { ...itinerary, route },
     narration,
     stats: { ...stats, scripts: scripts.length, seconds: Math.round((Date.now() - t0) / 1000) },
   };
+  emit("done", { package: pkg });
+  return pkg;
 }
 
 /** TTS-friendly cleanup: strip markup, parentheses, URLs, collapse whitespace. */

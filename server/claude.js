@@ -225,7 +225,7 @@ export async function suggestMore({ itinerary, count = 3, corridor }) {
   return Array.isArray(data.stops) ? data.stops.slice(0, count + 2) : [];
 }
 
-export async function writeNarration({ interests, stops, legs }) {
+export async function writeNarration({ interests, stops, legs, signal }) {
   const user = JSON.stringify({
     interests,
     stops: stops.map((s) => ({ id: s.id, name: s.name, category: s.category, whyItMatches: s.whyItMatches, dwellMinutes: s.dwellMinutes, extract: s.extract })),
@@ -235,6 +235,6 @@ export async function writeNarration({ interests, stops, legs }) {
     })),
     note: "Call the write_narration tool. targetId = stop id for stops, pageid string for drive-bys.",
   }, null, 1);
-  const data = await structuredCall({ model: config.modelStrong, system: NARRATION_SYSTEM, user, tool: NARRATION_TOOL, maxTokens: 16000 });
+  const data = await structuredCall({ model: config.modelStrong, system: NARRATION_SYSTEM, user, tool: NARRATION_TOOL, maxTokens: 16000, signal });
   return Array.isArray(data.scripts) ? data.scripts : [];
 }
