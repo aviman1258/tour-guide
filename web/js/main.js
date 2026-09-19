@@ -12,7 +12,7 @@ async function boot() {
   share.bind();
   drivePrep.bind();
 
-  // URL hash beats localStorage
+  // a shared link (#i=…) restores a trip; otherwise every load starts with a clean form
   const fromHash = await share.loadFromHash();
   if (fromHash) {
     state.replace(fromHash);

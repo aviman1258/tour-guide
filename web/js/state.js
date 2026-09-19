@@ -1,18 +1,23 @@
-// Single itinerary store with subscribe() and debounced localStorage autosave.
+// Single itinerary store with subscribe(). Starts fresh on every page load (a refresh
+// clears the form); a shared link (#i=…) still restores a trip, and prepared drive
+// packages live in IndexedDB, so nothing needed for the drive is lost.
 
-const KEY = "tourguide.itinerary.v1";
 const subs = new Set();
-let itinerary = load() || emptyItinerary();
-let saveTimer = null;
+let itinerary = emptyItinerary();
+
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export function emptyItinerary() {
   return {
     version: 1,
     start: null,
     end: null,
-    date: "",
-    arrivalTime: "11:30",
-    deadline: "15:00",
+    date: todayLocal(),
+    arrivalTime: "09:00",
+    deadline: "21:00",
     departBufferMinutes: 30,
     safetyBufferMinutes: 15,
     interests: "",
@@ -29,17 +34,15 @@ export function get() {
   return itinerary;
 }
 
-/** Shallow patch or updater function. Notifies subscribers and autosaves. */
+/** Shallow patch or updater function. Notifies subscribers. */
 export function set(patch) {
   itinerary = typeof patch === "function" ? patch(itinerary) : { ...itinerary, ...patch };
   notify();
-  scheduleSave();
 }
 
 export function replace(next) {
   itinerary = { ...emptyItinerary(), ...next };
   notify();
-  scheduleSave();
 }
 
 export function subscribe(fn) {
@@ -50,26 +53,6 @@ export function subscribe(fn) {
 
 function notify() {
   for (const fn of subs) fn(itinerary);
-}
-
-function scheduleSave() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(itinerary));
-    } catch { /* storage unavailable */ }
-  }, 300);
-}
-
-function load() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && parsed.version === 1 ? { ...emptyItinerary(), ...parsed } : null;
-  } catch {
-    return null;
-  }
 }
 
 /** Stable id for a planned trip (used as IndexedDB key for the drive package). */
