@@ -1,6 +1,7 @@
 # Deodapper — Self-Guided Tour Creator
 
-Named for Deodap, an elephant Avishek met; his face is the app's icon (`web/img/deodap-wide.jpg`).
+Named for Deodap, an elephant Avishek met; a cartoon of him (`web/img/deodap.svg`, with his
+speckled ears and a garland) is the logo, and the PNG icons are rendered from it.
 Live at https://deodapper.com.
 
 Plan a self-drive day between an airport (or wherever you are) and your hotel, built around

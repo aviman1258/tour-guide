@@ -100,7 +100,7 @@ body.drive {
 .overlay[hidden] { display: none; }
 .overlay-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; width: min(440px, 100%); }
 .overlay-card h1 { margin: 0 0 8px; font-size: 22px; }
-.overlay-logo { width: 100%; max-width: 280px; height: auto; aspect-ratio: 1000 / 538; border-radius: 14px; object-fit: cover; box-shadow: 0 0 0 2px var(--accent); margin-bottom: 12px; display: block; }
+.overlay-logo { width: 128px; height: 128px; margin: 0 auto 8px; display: block; }
 .overlay-card p { color: var(--muted); margin: 0 0 12px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .trip-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }

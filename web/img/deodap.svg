@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Deodap, a friendly cartoon elephant">
+  <defs>
+    <radialGradient id="skin" cx="45%" cy="38%" r="70%">
+      <stop offset="0" stop-color="#a9b4c4"/>
+      <stop offset="1" stop-color="#7c879a"/>
+    </radialGradient>
+    <radialGradient id="ear" cx="50%" cy="50%" r="60%">
+      <stop offset="0" stop-color="#f6c6d2"/>
+      <stop offset="1" stop-color="#eaa3b5"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ears (behind the head) -->
+  <g id="ears">
+    <ellipse cx="58" cy="128" rx="46" ry="58" fill="#7c879a" transform="rotate(-8 58 128)"/>
+    <ellipse cx="198" cy="128" rx="46" ry="58" fill="#7c879a" transform="rotate(8 198 128)"/>
+    <ellipse cx="60" cy="130" rx="32" ry="44" fill="url(#ear)" transform="rotate(-8 60 130)"/>
+    <ellipse cx="196" cy="130" rx="32" ry="44" fill="url(#ear)" transform="rotate(8 196 130)"/>
+    <!-- Deodap's speckles -->
+    <g fill="#6b5560" opacity=".55">
+      <circle cx="48" cy="112" r="2.2"/><circle cx="62" cy="122" r="1.8"/><circle cx="52" cy="140" r="2.4"/>
+      <circle cx="68" cy="150" r="1.7"/><circle cx="44" cy="156" r="1.9"/><circle cx="60" cy="164" r="2.1"/>
+      <circle cx="208" cy="112" r="2.2"/><circle cx="194" cy="122" r="1.8"/><circle cx="204" cy="140" r="2.4"/>
+      <circle cx="188" cy="150" r="1.7"/><circle cx="212" cy="156" r="1.9"/><circle cx="196" cy="164" r="2.1"/>
+    </g>
+  </g>
+
+  <!-- head -->
+  <circle cx="128" cy="128" r="74" fill="url(#skin)"/>
+  <!-- forehead bumps -->
+  <ellipse cx="108" cy="72" rx="26" ry="18" fill="#a9b4c4" opacity=".6"/>
+  <ellipse cx="148" cy="72" rx="26" ry="18" fill="#a9b4c4" opacity=".6"/>
+
+  <!-- trunk -->
+  <path d="M128 168 C 128 196, 122 222, 146 234 C 164 242, 176 228, 168 216"
+        fill="none" stroke="#7c879a" stroke-width="30" stroke-linecap="round"/>
+  <path d="M128 168 C 128 196, 122 222, 146 234 C 164 242, 176 228, 168 216"
+        fill="none" stroke="#98a3b4" stroke-width="18" stroke-linecap="round" opacity=".55"/>
+  <!-- trunk wrinkles -->
+  <g stroke="#6b768a" stroke-width="2.2" stroke-linecap="round" opacity=".7" fill="none">
+    <path d="M115 186 q13 4 26 0"/><path d="M113 200 q14 4 28 0"/><path d="M114 214 q13 5 26 2"/>
+  </g>
+
+  <!-- eyes -->
+  <g>
+    <ellipse cx="104" cy="122" rx="7.5" ry="8.5" fill="#2b2f36"/>
+    <ellipse cx="152" cy="122" rx="7.5" ry="8.5" fill="#2b2f36"/>
+    <circle cx="106.5" cy="119" r="2.6" fill="#fff"/>
+    <circle cx="154.5" cy="119" r="2.6" fill="#fff"/>
+    <!-- gentle lids -->
+    <path d="M95 112 q9 -6 18 -1" stroke="#5f6a7d" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <path d="M143 111 q9 -5 18 1" stroke="#5f6a7d" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  </g>
+  <!-- blush -->
+  <circle cx="90" cy="146" r="9" fill="#f2a9bb" opacity=".45"/>
+  <circle cx="166" cy="146" r="9" fill="#f2a9bb" opacity=".45"/>
+
+  <!-- garland on the forehead -->
+  <g>
+    <path d="M96 84 Q128 66 160 84" stroke="#e0b64c" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <g fill="#f7b731"><circle cx="100" cy="83" r="5.5"/><circle cx="114" cy="76" r="5.5"/><circle cx="128" cy="73" r="6"/><circle cx="142" cy="76" r="5.5"/><circle cx="156" cy="83" r="5.5"/></g>
+    <g fill="#ff7a5c"><circle cx="100" cy="83" r="2.2"/><circle cx="114" cy="76" r="2.2"/><circle cx="128" cy="73" r="2.4"/><circle cx="142" cy="76" r="2.2"/><circle cx="156" cy="83" r="2.2"/></g>
+  </g>
+</svg>
