@@ -1,7 +1,7 @@
 // Service worker: offline app shell, polite tile cache (only tiles the map asked for),
 // network-only API. Bump SHELL_VERSION when shipping changes so clients refresh.
 
-const SHELL_VERSION = "v22"; // bump on every deploy that changes web/ — the shell is cache-first
+const SHELL_VERSION = "v23"; // bump on every deploy that changes web/ — the shell is cache-first
 const SHELL = `tg-shell-${SHELL_VERSION}`;
 const TILES = "tg-tiles";
 const IMAGES = "tg-images";
@@ -44,7 +44,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET") return;
 
-  if (url.origin === location.origin && url.pathname.includes("/api/")) return; // network only
+  if (url.origin === location.origin && (url.pathname.includes("/api/") || url.pathname.includes("/admin"))) return; // network only
 
   if (url.hostname === "tile.openstreetmap.org") {
     event.respondWith(networkFirst(event.request, TILES, TILE_CAP));

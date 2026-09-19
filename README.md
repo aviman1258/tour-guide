@@ -45,6 +45,19 @@ refused so nobody publishes their home), `DELETE /api/routes/:id` removes one.
 
 Later: real accounts + Stripe replace the passphrase; the tier check is the one place to change.
 
+## Usage analytics and the admin page
+
+`server/lib/analytics.js` records one row per page open and per API action (plan, prepare,
+publish, route search/use, errors): time, IP, coarse location, tier, device and browser
+family, event kind, a short detail, duration. Nothing typed into forms, no names, no phone GPS.
+Location comes from Cloudflare's visitor-location headers when the domain is proxied through
+Cloudflare (Rules → Settings → *Add visitor location headers*), otherwise from a cached
+ipwho.is lookup per IP (`GEO_LOOKUP=0` to disable). Rows older than 90 days are purged.
+
+`/admin.html` shows it: cards, visitors per day, where from, devices, pages, actions, most active
+addresses, recent events. It has its own password, `ADMIN_SECRET` (asked once per browser
+session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answers 404.
+
 ## How planning works
 
 1. **Claude proposes** 10-14 candidate stops for your interests along the start→end corridor,

@@ -12,6 +12,7 @@ import * as narrate from "./narrate.js";
 import * as plan from "./plan.js";
 import * as timings from "./lib/timings.js";
 import * as library from "./lib/library.js";
+import * as analytics from "./lib/analytics.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
 import { toMinutes } from "../web/js/format.js";
@@ -19,7 +20,18 @@ import { toMinutes } from "../web/js/format.js";
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "web");
 
 const app = express();
+app.set("trust proxy", 1); // Render / Cloudflare sit in front: req.ip comes from X-Forwarded-For
 app.use(express.json({ limit: "4mb" }));
+
+// ---------- usage analytics: page opens (HTML only) ----------
+app.use((req, res, next) => {
+  if (req.method === "GET" && !req.path.startsWith("/api/") && !req.path.startsWith("/admin")) {
+    const page = req.path === "/" ? "/index.html" : req.path;
+    if (page.endsWith(".html")) analytics.track(req, "page", page + (req.query.tier ? `?tier=${req.query.tier}` : "") + (req.query.trip ? "?trip" : ""));
+  }
+  next();
+});
+setInterval(() => { try { analytics.purge(); } catch { /* ignore */ } }, 6 * 3600_000).unref();
 
 // wraps async handlers so thrown httpErrors reach the error middleware
 const h = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
@@ -47,6 +59,21 @@ app.use(["/api/plan", "/api/suggest", "/api/prepare-drive"], requireSubscriber);
 
 app.get("/api/whoami", h(async (req, res) => {
   res.json({ tier: req.tier, protected: Boolean(config.appSecret) });
+}));
+
+// ---------- admin dashboard (own password) ----------
+const requireAdmin = (req, res, next) => {
+  if (!config.adminSecret) return res.status(404).json({ error: "admin is not enabled on this server" });
+  const key = req.get("x-admin-key") || req.query.adminKey;
+  if (key === config.adminSecret) return next();
+  res.status(401).json({ error: "admin password required", needsAdmin: true });
+};
+app.get("/api/admin/summary", requireAdmin, h(async (req, res) => {
+  const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+  res.json(analytics.summary(days));
+}));
+app.get("/api/admin/events", requireAdmin, h(async (req, res) => {
+  res.json({ events: analytics.recent(Number(req.query.limit) || 200) });
 }));
 
 app.get("/api/health", h(async (_req, res) => {
@@ -88,9 +115,13 @@ app.post("/api/plan", h(async (req, res) => {
   const ac = new AbortController();
   res.on("close", () => { if (!res.writableFinished) { ac.abort(); console.log("[plan] cancelled by client"); } });
 
+  const t0 = Date.now();
+  const done = (result) => analytics.track(req, "plan", result ? `${result.stops.length} stops · ${Math.round((result.route?.totalM || 0) / 1609)} mi` : "cancelled", Date.now() - t0);
+
   const streaming = String(req.headers.accept || "").includes("text/event-stream");
   if (!streaming) {
     const result = await plan.runPlan(input, { signal: ac.signal });
+    done(result);
     if (result) res.json(result);
     return;
   }
@@ -100,8 +131,9 @@ app.post("/api/plan", h(async (req, res) => {
   const send = (event, data) => { if (!res.writableEnded && !ac.signal.aborted) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
   const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(": ping\n\n"); }, 15000);
   try {
-    await plan.runPlan(input, { emit: send, signal: ac.signal });
+    done(await plan.runPlan(input, { emit: send, signal: ac.signal }));
   } catch (err) {
+    analytics.track(req, "plan_error", err.message, Date.now() - t0);
     if (!ac.signal.aborted) {
       if ((err.status || 500) >= 500) console.error(err);
       send("error", { message: err.message, status: err.status || 500 });
@@ -126,12 +158,16 @@ app.get("/api/routes", h(async (req, res) => {
     if (Number.isFinite(lat) && Number.isFinite(lon)) near = { lat, lon };
   }
   const radiusKm = Math.min(300, Math.max(5, Number(req.query.radiusKm) || 50));
-  res.json({ routes: library.search({ near, radiusKm, q: String(req.query.q || ""), limit: Number(req.query.limit) || 20 }), total: library.count() });
+  const routes = library.search({ near, radiusKm, q: String(req.query.q || ""), limit: Number(req.query.limit) || 20 });
+  analytics.track(req, "route_search", `${near ? "near" : ""}${req.query.q ? ` q=${String(req.query.q).slice(0, 40)}` : ""} → ${routes.length}`);
+  res.json({ routes, total: library.count() });
 }));
 
 // Full package for one route (counts a use).
 app.get("/api/routes/:id", h(async (req, res) => {
-  res.json(library.get(req.params.id, { countUse: req.query.use !== "0" }));
+  const r = library.get(req.params.id, { countUse: req.query.use !== "0" });
+  analytics.track(req, "route_use", `${req.params.id} ${r.summary.title}`);
+  res.json(r);
 }));
 
 // Publish (subscriber). Body: { package, title, description }. Region is derived from the start point.
@@ -145,6 +181,7 @@ app.post("/api/routes", requireSubscriber, h(async (req, res) => {
   } catch { /* region is optional */ }
   const summary = library.publish({ pkg, title, description, region, author: "subscriber" });
   console.log(`[library] published ${summary.id} "${summary.title}" (${summary.stopsCount} stops, ${summary.region})`);
+  analytics.track(req, "publish", `${summary.id} ${summary.title}`);
   res.status(201).json(summary);
 }));
 
@@ -180,8 +217,11 @@ app.post("/api/prepare-drive", h(async (req, res) => {
   const ac = new AbortController();
   res.on("close", () => { if (!res.writableFinished) { ac.abort(); console.log("[prepare-drive] cancelled by client"); } });
 
+  const t0 = Date.now();
+  const done = (pkg) => analytics.track(req, "prepare", pkg ? `${pkg.narration.length} narrations` : "cancelled", Date.now() - t0);
   if (!String(req.headers.accept || "").includes("text/event-stream")) {
     const pkg = await narrate.prepareDrive(itinerary, { signal: ac.signal });
+    done(pkg);
     if (pkg) res.json(pkg);
     return;
   }
@@ -190,8 +230,9 @@ app.post("/api/prepare-drive", h(async (req, res) => {
   const send = (event, data) => { if (!res.writableEnded && !ac.signal.aborted) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
   const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(": ping\n\n"); }, 15000);
   try {
-    await narrate.prepareDrive(itinerary, { emit: send, signal: ac.signal });
+    done(await narrate.prepareDrive(itinerary, { emit: send, signal: ac.signal }));
   } catch (err) {
+    analytics.track(req, "prepare_error", err.message, Date.now() - t0);
     if (!ac.signal.aborted) {
       if ((err.status || 500) >= 500) console.error(err);
       send("error", { message: err.message, status: err.status || 500 });

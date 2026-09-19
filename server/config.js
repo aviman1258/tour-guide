@@ -8,6 +8,10 @@ export const config = {
   anthropicKey: process.env.ANTHROPIC_API_KEY || "",
   // When set, every /api route except /api/health needs `x-app-key: <secret>` (hosted deployments).
   appSecret: process.env.APP_SECRET || "",
+  // Separate password for the /admin usage dashboard. Empty = admin disabled.
+  adminSecret: process.env.ADMIN_SECRET || "",
+  // Fall back to a cached ipwho.is lookup for visitor location when Cloudflare headers are absent.
+  geoLookup: (process.env.GEO_LOOKUP ?? "1") !== "0",
   modelStrong: process.env.MODEL_STRONG || "claude-opus-5",
   modelFast: process.env.MODEL_FAST || "claude-haiku-4-5",
 
