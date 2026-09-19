@@ -74,7 +74,8 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 ## Upstream etiquette
 
 - **Wikipedia**: identifying `User-Agent` (set `CONTACT` in `.env`), ≤5 concurrent, results cached 24 h.
-- **Nominatim**: strictly 1 request/second through one queue, no autocomplete, cached 7 days.
+- **Photon** (komoot, `photon.komoot.io`): the start/end type-ahead, called from the browser, debounced 250 ms, min 3 chars, cached per query. Also reverse-labels "current location".
+- **Nominatim**: strictly 1 request/second through one queue, never autocomplete (policy), cached 7 days. Used for explicit "Add a stop" searches, map taps and grounding.
 - **Valhalla public server** (FOSSGIS): fair use, spaced requests, no uptime guarantee. `VALHALLA_BASE_URL` to self-host.
 - **OSRM demo server**: 1 request/second, no uptime guarantee, no toll/highway avoidance. Fallback only; `OSRM_BASE_URL` to change.
 - **OSM tiles**: attribution stays visible; no bulk pre-fetch (policy). Drive mode uses live tiles over cell data.

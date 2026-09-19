@@ -5,11 +5,13 @@ import * as actions from "./actions.js";
 import * as api from "./api.js";
 import * as map from "./map.js";
 import * as busy from "./busy.js";
-import { AIRPORTS, runtime } from "./config.js";
+import * as typeahead from "./typeahead.js";
+import { runtime } from "./config.js";
 import { escapeHtml, to12h, fmtDuration, fmtMiles } from "./format.js";
 import { haversineM } from "./routeMath.js";
 
 const $ = (id) => document.getElementById(id);
+const boxes = {}; // typeahead handles for start / end
 
 export function toast(msg, ms = 2500) {
   const el = $("toast");
@@ -33,15 +35,47 @@ const CATEGORY_ICON = {
 
 // ---------- form ----------
 
-/**
- * Search a place, biased toward `near` and sorted by distance from it.
- * Used for start (near the end), end (near the start) and add-a-stop (near the route).
- */
+/** Start/end boxes: type-ahead (biased to the other endpoint) + current-location icon. */
+function bindEndpoint(which) {
+  const input = $(`${which}-query`);
+  const other = () => (which === "start" ? state.get().end : state.get().start);
+  const set = which === "start" ? actions.setStart : actions.setEnd;
+
+  boxes[which] = typeahead.attach(input, {
+    near: other,
+    onPick: (it) => set({ label: it.label, lat: it.lat, lon: it.lon }),
+  });
+
+  const btn = $(`${which}-loc`);
+  btn.addEventListener("click", () => {
+    if (!navigator.geolocation) return toast("Location isn't available in this browser");
+    btn.classList.add("locating");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        set({ label: "Current location", lat, lon });
+        input.value = "Current location";
+        const nice = await typeahead.reverseLabel(lat, lon);
+        btn.classList.remove("locating");
+        if (nice) {
+          set({ label: `Current location (${nice})`, lat, lon });
+          if (document.activeElement !== input) input.value = `Current location (${nice})`;
+        }
+      },
+      (err) => {
+        btn.classList.remove("locating");
+        toast(err.code === 1 ? "Location permission was denied. Allow it for this site and try again." : `Location failed: ${err.message}`, 4000);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+}
+
+/** Explicit search (Nominatim + Wikipedia enrichment) for adding stops; biased and sorted by `near`. */
 async function searchPlace(q, near, label) {
   return busy.run(label, async () => {
     const { results } = await api.place(q, near);
     if (near) results.sort((a, b) => haversineM(a, near) - haversineM(b, near));
-    // Nominatim often returns several map objects for one place (station, building, entrance…)
     const seen = new Set();
     return results.filter((s) => {
       const key = (s.wikipediaTitle || `${s.name}@${s.lat.toFixed(3)},${s.lon.toFixed(3)}`).toLowerCase();
@@ -75,44 +109,8 @@ function bindSearch({ input, button, results, near, pickLabel, onPick, busyLabel
 }
 
 export function bindForm() {
-  // start: free search, my location, or an airport quick-pick
-  bindSearch({
-    input: "start-query", button: "start-search", results: "start-results",
-    near: () => state.get().end, pickLabel: "Start here", busyLabel: "Finding your start…",
-    onPick: (s) => { actions.setStart({ label: s.name, lat: s.lat, lon: s.lon }); $("start-preset").value = ""; },
-  });
-  const preset = $("start-preset");
-  for (const a of AIRPORTS) {
-    const o = document.createElement("option");
-    o.value = a.code;
-    o.textContent = a.label;
-    preset.appendChild(o);
-  }
-  preset.addEventListener("change", () => {
-    const a = AIRPORTS.find((x) => x.code === preset.value);
-    if (a) { actions.setStart({ label: a.label, lat: a.lat, lon: a.lon }); $("start-query").value = ""; }
-  });
-  $("use-location").addEventListener("click", () => {
-    if (!navigator.geolocation) return toast("Geolocation not available");
-    const end = busy.begin("Getting your location…");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        end();
-        actions.setStart({ label: "My location", lat: pos.coords.latitude, lon: pos.coords.longitude });
-        preset.value = "";
-        $("start-query").value = "";
-      },
-      (err) => { end(); toast(`Location failed: ${err.message}`); },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  });
-
-  // end: anything, searched near the start first
-  bindSearch({
-    input: "end-query", button: "end-search", results: "end-results",
-    near: () => state.get().start, pickLabel: "End here", busyLabel: "Finding your destination…",
-    onPick: (s) => actions.setEnd({ label: s.name, lat: s.lat, lon: s.lon }),
-  });
+  bindEndpoint("start");
+  bindEndpoint("end");
 
   for (const [id, key] of [["date", "date"], ["arrival", "arrivalTime"], ["deadline", "deadline"], ["interests", "interests"]]) {
     $(id).addEventListener("change", () => {
@@ -141,7 +139,6 @@ export function bindForm() {
   $("reset-btn").addEventListener("click", () => {
     if (confirm("Clear this trip?")) {
       actions.reset();
-      preset.value = "";
       $("start-query").value = "";
       $("end-query").value = "";
     }
@@ -216,11 +213,10 @@ export function render(it) {
   setVal("interests", it.interests);
   $("avoid-tolls").checked = Boolean(it.routeOptions?.avoidTolls);
   $("avoid-highways").checked = Boolean(it.routeOptions?.avoidHighways);
+  boxes.start?.setValue(it.start?.label || "");
+  boxes.end?.setValue(it.end?.label || "");
   $("start-label").textContent = it.start ? `From: ${it.start.label}` : "";
   $("end-label").textContent = it.end ? `To: ${it.end.label}` : "";
-  const preset = $("start-preset");
-  const match = AIRPORTS.find((a) => it.start && Math.abs(a.lat - it.start.lat) < 1e-6 && Math.abs(a.lon - it.start.lon) < 1e-6);
-  if (match && preset.value !== match.code) preset.value = match.code;
 
   $("summary").textContent = it.summary || "";
   $("summary").hidden = !it.summary;
