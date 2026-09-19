@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Tour Guide",
-  "short_name": "Tour Guide",
-  "description": "Audio tour guide that narrates places as you drive past them.",
+  "name": "Deodapper — Self-Guided Tour Creator",
+  "short_name": "Deodapper",
+  "description": "Plan a self-guided driving day around what you love, then let Deodap narrate the places as you pass them.",
   "start_url": "./drive.html",
   "scope": "./",
   "display": "standalone",

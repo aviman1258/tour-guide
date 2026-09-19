@@ -1,4 +1,7 @@
-# Tour Guide
+# Deodapper — Self-Guided Tour Creator
+
+Named for Deodap, an elephant Avishek met; his face is the app's icon (`web/img/deodap-wide.jpg`).
+Live at https://deodapper.com.
 
 Plan a self-drive day between an airport (or wherever you are) and your hotel, built around
 what you're into, timed to your check-in, drawn on a map. Then take it in the car: an
