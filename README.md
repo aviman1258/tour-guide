@@ -75,6 +75,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 
 - **Wikipedia**: identifying `User-Agent` (set `CONTACT` in `.env`), ≤5 concurrent, results cached 24 h.
 - **Photon** (komoot, `photon.komoot.io`): the start/end type-ahead, called from the browser, debounced 250 ms, min 3 chars, cached per query. Also reverse-labels "current location".
+- **OurAirports** (public domain): `web/data/airports.json` bundles ~4,000 airports with IATA codes and scheduled service so "SNA" or "heathrow" resolve instantly and offline. Regenerate with `node scripts/build-airports.mjs`.
 - **Nominatim**: strictly 1 request/second through one queue, never autocomplete (policy), cached 7 days. Used for explicit "Add a stop" searches, map taps and grounding.
 - **Valhalla public server** (FOSSGIS): fair use, spaced requests, no uptime guarantee. `VALHALLA_BASE_URL` to self-host.
 - **OSRM demo server**: 1 request/second, no uptime guarantee, no toll/highway avoidance. Fallback only; `OSRM_BASE_URL` to change.

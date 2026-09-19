@@ -42,6 +42,53 @@ async function query(q, near, signal) {
   return items;
 }
 
+// ---------- airports (bundled, so IATA codes like SNA work, offline too) ----------
+
+let airportsPromise = null;
+function airports() {
+  if (!airportsPromise) {
+    // rows are [code, name, city, region, country, lat, lon, size]
+    airportsPromise = fetch(new URL("../data/airports.json", import.meta.url))
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => rows.map(([c, n, m, r, k, lat, lon, s]) => ({ c, n, m, r, k, lat, lon, s })))
+      .catch(() => []);
+  }
+  return airportsPromise;
+}
+
+const US_STATE_NAMES = { AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "Washington DC" };
+
+/**
+ * Airport matches for a query: an exact IATA code ("SNA", "sna airport") wins outright;
+ * otherwise name / city prefix matches, biggest airports first. Returns typeahead items.
+ */
+async function airportMatches(q, near) {
+  const list = await airports();
+  if (!list.length) return [];
+  const raw = q.trim().toLowerCase();
+  const stripped = raw.replace(/\b(airport|intl|international)\b/g, "").trim();
+  const toItem = (a) => ({
+    label: `${a.n} (${a.c})`,
+    sub: [a.m, a.k === "US" ? US_STATE_NAMES[a.r] || a.r : a.r, a.k === "US" ? null : a.k].filter(Boolean).join(", "),
+    kind: "airport", lat: a.lat, lon: a.lon, code: a.c,
+  });
+  if (/^[a-z]{3}$/.test(stripped)) {
+    const exact = list.filter((a) => a.c.toLowerCase() === stripped);
+    if (exact.length) return exact.map(toItem);
+  }
+  if (stripped.length < 3) return [];
+  const words = stripped.split(/\s+/).filter(Boolean);
+  const scored = [];
+  for (const a of list) {
+    const hay = `${a.n} ${a.m} ${a.c}`.toLowerCase();
+    if (!words.every((w) => hay.includes(w))) continue;
+    let score = a.s * 10 + (a.c.toLowerCase() === stripped ? 100 : 0) + (a.n.toLowerCase().startsWith(stripped) || a.m.toLowerCase().startsWith(stripped) ? 5 : 0);
+    if (near) score -= Math.min(20, Math.hypot(a.lat - near.lat, (a.lon - near.lon) * Math.cos((near.lat * Math.PI) / 180)) / 5);
+    scored.push({ a, score });
+  }
+  return scored.sort((x, y) => y.score - x.score).slice(0, 3).map(({ a }) => toItem(a));
+}
+
 /** Reverse geocode for a friendly "current location" label; null on failure. */
 export async function reverseLabel(lat, lon) {
   try {
@@ -67,6 +114,7 @@ export function attach(input, { near = () => null, onPick }) {
   input.setAttribute("aria-expanded", "false");
 
   let items = [], active = -1, timer = null, ctrl = null, blurTimer = null;
+  let pickWhenReady = false; // Enter pressed while a search was still running
 
   function hide() {
     list.hidden = true;
@@ -110,10 +158,19 @@ export function attach(input, { near = () => null, onPick }) {
     if (q.length < MIN_CHARS) { items = []; hide(); return; }
     ctrl?.abort();
     ctrl = new AbortController();
+    items = []; // never leave the previous query's rows pickable while the new one is in flight
     render("Searching…");
     try {
-      items = await query(q, near(), ctrl.signal);
+      const [fromAirports, fromPhoton] = await Promise.all([
+        airportMatches(q, near()),
+        query(q, near(), ctrl.signal).catch((err) => { if (err.name === "AbortError") throw err; return []; }),
+      ]);
+      // airports first (a code like SNA should win), then Photon minus its own copy of the same airfield
+      const sameAirport = (p) => p.kind === "aerodrome" && fromAirports.some((a) => Math.hypot(a.lat - p.lat, (a.lon - p.lon) * Math.cos((a.lat * Math.PI) / 180)) < 0.04);
+      items = [...fromAirports, ...fromPhoton.filter((p) => !sameAirport(p))].slice(0, 7);
       active = -1;
+      if (pickWhenReady && items.length) { pickWhenReady = false; pick(0); return; }
+      pickWhenReady = false;
       render(items.length ? "" : "No matches. Try adding the city.");
     } catch (err) {
       if (err.name === "AbortError") return;
@@ -130,10 +187,15 @@ export function attach(input, { near = () => null, onPick }) {
   input.addEventListener("blur", () => { blurTimer = setTimeout(hide, 150); });
   input.addEventListener("keydown", (e) => {
     if (list.hidden && e.key === "ArrowDown" && items.length) { render(""); return; }
-    if (list.hidden) { if (e.key === "Enter") { e.preventDefault(); if (items.length === 1) pick(0); else search(); } return; }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (items.length) pick(active >= 0 ? active : 0);
+      else if (input.value.trim().length >= MIN_CHARS) { pickWhenReady = true; clearTimeout(timer); search(); } // results are cached, so re-searching is cheap
+      return;
+    }
+    if (list.hidden) return;
     if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(items.length - 1, active + 1); render(""); }
     else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(0, active - 1); render(""); }
-    else if (e.key === "Enter") { e.preventDefault(); pick(active >= 0 ? active : 0); }
     else if (e.key === "Escape") { hide(); }
   });
 
