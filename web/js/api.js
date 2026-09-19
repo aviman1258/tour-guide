@@ -29,6 +29,55 @@ export const health = () => call("GET", "/api/health");
 export const place = (q, near) => call("GET", `/api/place?q=${encodeURIComponent(q)}${near ? `&near=${near.lat},${near.lon}` : ""}`);
 export const reverse = (lat, lon) => call("GET", `/api/reverse?lat=${lat}&lon=${lon}`);
 export const plan = (input, signal) => call("POST", "/api/plan", input, signal);
+export const estimate = () => call("GET", "/api/estimate");
+
+/**
+ * Streaming plan: POST with Accept: text/event-stream, parse server-sent events.
+ * onEvent(name, data) fires for estimate / phase / candidates / stop / dropped / done / error.
+ * Resolves to the final itinerary (from `done`), rejects on `error` or a broken stream.
+ */
+export async function planStream(input, { onEvent = () => {}, signal } = {}) {
+  const res = await fetch(apiBase() + "/api/plan", {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "text/event-stream" },
+    body: JSON.stringify(input),
+    signal,
+  });
+  if (!res.ok || !res.headers.get("content-type")?.includes("text/event-stream")) {
+    let msg = `${res.status} ${res.statusText}`;
+    try { msg = (await res.json()).error || msg; } catch { /* keep msg */ }
+    throw new Error(msg);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "", result = null, failure = null;
+  const handle = (block) => {
+    let event = "message", data = "";
+    for (const line of block.split("\n")) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) data += line.slice(5).trim();
+    }
+    if (!data) return;
+    const payload = JSON.parse(data);
+    if (event === "done") result = payload.itinerary;
+    if (event === "error") failure = new Error(payload.message || "planning failed");
+    onEvent(event, payload);
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, idx).replace(/\r/g, "");
+      buffer = buffer.slice(idx + 2);
+      if (block.trim() && !block.startsWith(":")) handle(block);
+    }
+  }
+  if (failure) throw failure;
+  if (!result) throw new Error("The planning stream ended before a result arrived.");
+  return result;
+}
 export const suggest = (itinerary, count = 3) => call("POST", "/api/suggest", { itinerary, count });
 export const schedule = (itinerary, trim = false) => call("POST", "/api/schedule", { itinerary, trim });
 export const prepareDrive = (itinerary) => call("POST", "/api/prepare-drive", { itinerary });

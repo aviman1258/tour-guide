@@ -116,17 +116,47 @@ export async function plan() {
   planController?.abort();
   const ctrl = new AbortController();
   planController = ctrl;
-  const end = busy.begin("Asking Claude for stops, then checking each one…", { onCancel: () => ctrl.abort() });
+  const startedAt = Date.now();
+  const task = busy.begin("Asking Claude for stops…", { onCancel: () => ctrl.abort() });
+
+  // progress shown in the sidebar while we wait: candidates appear, then turn into real stops
+  const progress = { startedAt, phase: "claude", estimate: null, candidates: [], found: [], dropped: [] };
+  const publish = () => state.set({ planning: { ...progress, candidates: [...progress.candidates], found: [...progress.found], dropped: [...progress.dropped] } });
+  publish();
+
+  const PHASE_LABEL = { claude: "Asking Claude for stops…", ground: "Checking each place on Wikipedia and the map…", route: "Routing and timing the day…" };
   try {
-    const result = await api.plan({
+    const result = await api.planStream({
       start: it.start, end: it.end, date: it.date, arrivalTime: it.arrivalTime, deadline: it.deadline,
       interests: it.interests, departBufferMinutes: it.departBufferMinutes, safetyBufferMinutes: it.safetyBufferMinutes,
       routeOptions: it.routeOptions,
-    }, ctrl.signal);
+    }, {
+      signal: ctrl.signal,
+      onEvent: (event, data) => {
+        if (event === "estimate") { progress.estimate = data; task.update({ estimateMs: data.totalMs, startedAt }); }
+        else if (event === "phase") {
+          if (data.status === "start") { progress.phase = data.phase; task.update({ label: PHASE_LABEL[data.phase] || "Working…" }); }
+        }
+        else if (event === "candidates") progress.candidates = data.map((c) => ({ ...c, status: "checking" }));
+        else if (event === "stop") {
+          progress.found.push(data.stop);
+          const c = progress.candidates.find((x) => x.status === "checking" && x.name.toLowerCase() === data.stop.name.toLowerCase());
+          if (c) { c.status = "ok"; c.stopId = data.stop.id; }
+          task.update({ label: `Verified ${progress.found.length} of ${progress.candidates.length} places…` });
+        }
+        else if (event === "dropped") {
+          progress.dropped.push(data);
+          const c = progress.candidates.find((x) => x.status === "checking" && x.name.toLowerCase() === data.name.toLowerCase());
+          if (c) { c.status = "dropped"; c.reason = data.reason; }
+        }
+        publish();
+      },
+    });
     if (ctrl.signal.aborted) return null;
-    state.replace({ ...it, ...result });
+    state.replace({ ...it, ...result, planning: null });
     return result;
   } catch (err) {
+    state.set({ planning: null });
     if (ctrl.signal.aborted || err.name === "AbortError") {
       const e = new Error("Planning cancelled.");
       e.cancelled = true;
@@ -134,7 +164,7 @@ export async function plan() {
     }
     throw err;
   } finally {
-    end();
+    task.done();
     if (planController === ctrl) planController = null;
   }
 }

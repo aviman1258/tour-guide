@@ -38,11 +38,17 @@ export function cityFromText(text) {
  * Resolve candidates (Claude tool output items) into Stops.
  * Returns { stops, dropped:[{name, reason}] } preserving candidate order.
  */
-export async function resolveCandidates(candidates, corridor) {
+export async function resolveCandidates(candidates, corridor, { onResult } = {}) {
   const center = bboxCenter(corridor);
   const seen = new Set();
 
   const resolved = await mapLimit(candidates, config.wikiConcurrency, async (c) => {
+    const r = await resolveWithRetry(c);
+    try { onResult?.(r); } catch { /* a listener must never break grounding */ }
+    return r;
+  });
+
+  async function resolveWithRetry(c) {
     const extra = {
       name: c.name, category: c.category, whyItMatches: c.whyItMatches, dwellMinutes: c.dwellMinutes,
       priority: c.priority, isFoodOption: c.isFoodOption, approxArea: c.approxArea,
@@ -62,7 +68,7 @@ export async function resolveCandidates(candidates, corridor) {
         return { drop: { name: c.name, reason: busy ? "lookup_failed" : "not_found" }, c };
       }
     }
-  });
+  }
 
   const stops = [], dropped = [];
   for (const r of resolved) {

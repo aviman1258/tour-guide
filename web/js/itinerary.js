@@ -123,7 +123,7 @@ export function bindForm() {
 
   $("plan-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    showMsg("plan-msg", "Claude picks candidate stops, then each one is checked on Wikipedia and routed. Usually 1-3 minutes.");
+    showMsg("plan-msg", ""); // progress (phase, estimate, places as they're verified) shows in the stops list
     $("plan-btn").disabled = true;
     $("cancel-plan-btn").hidden = false;
     try {
@@ -259,9 +259,45 @@ function renderStatus(it) {
   bar.title = (s.warnings || []).join("\n");
 }
 
+/** While a plan streams in: phase, estimate, and every candidate with its verification status. */
+function renderPlanning(it, root) {
+  const p = it.planning;
+  const card = document.createElement("section");
+  card.className = "card planning";
+  const PHASE = { claude: "Claude is choosing stops for your interests", ground: "Checking each place on Wikipedia and the map", route: "Routing and timing the day" };
+  const est = p.estimate ? ` <small>· usually about ${Math.max(1, Math.round(p.estimate.totalMs / 60000))} min${p.estimate.basedOnRuns ? ` (from your last ${p.estimate.basedOnRuns} run${p.estimate.basedOnRuns === 1 ? "" : "s"})` : ""}</small>` : "";
+  card.innerHTML = `<div class="phase"><span class="dot checking"></span><span>${PHASE[p.phase] || "Working"}…${est}</span></div>`;
+
+  if (!p.candidates.length) {
+    card.insertAdjacentHTML("beforeend", `<div class="skeleton" style="width:70%"></div><div class="skeleton" style="width:55%"></div><div class="skeleton" style="width:62%"></div>`);
+  } else {
+    const ul = document.createElement("ul");
+    for (const c of p.candidates) {
+      const li = document.createElement("li");
+      li.className = c.status;
+      li.innerHTML = `<span class="dot ${c.status}">${c.status === "ok" ? "✓" : c.status === "dropped" ? "✕" : ""}</span><div><div>${escapeHtml(c.name)}</div>${c.whyItMatches ? `<div class="why">${escapeHtml(c.whyItMatches)}</div>` : ""}</div>`;
+      ul.appendChild(li);
+    }
+    card.appendChild(ul);
+    const pending = p.candidates.filter((c) => c.status === "checking").length;
+    if (pending) card.insertAdjacentHTML("beforeend", `<div class="more">Still checking ${pending} more place${pending === 1 ? "" : "s"}…</div>`);
+    else if (p.phase === "route") card.insertAdjacentHTML("beforeend", `<div class="more">All places checked. Working out the route and what fits in the day…</div>`);
+  }
+  root.appendChild(card);
+
+  // verified stops so far, as real cards (read-only until the schedule lands)
+  p.found.forEach((s, i) => root.appendChild(stopCard(it, s, i, null, { readOnly: true })));
+}
+
 function renderStops(it) {
   const root = $("stops");
   root.innerHTML = "";
+  if (it.planning) {
+    if (it.start) root.appendChild(endpoint("S", `Start: ${it.start.label}`, ""));
+    renderPlanning(it, root);
+    if (it.end) root.appendChild(endpoint("E", `End: ${it.end.label}`, `Be there by ${to12h(it.deadline)}`));
+    return;
+  }
   if (!it.start && !it.stops.length) {
     root.innerHTML = `<div class="hint" style="padding:0 6px">Pick where you start and where you need to end up, describe what you like, and hit Plan. Works for any city. Or search a place below to add stops by hand.</div>`;
     return;
@@ -270,6 +306,17 @@ function renderStops(it) {
 
   it.stops.forEach((s, i) => {
     const sched = it.schedule?.items?.find((x) => x.stopId === s.id);
+    root.appendChild(stopCard(it, s, i, sched));
+  });
+
+  if (it.end) {
+    const s = it.schedule;
+    root.appendChild(endpoint("E", `End: ${it.end.label}`, s ? `Arrive ${to12h(s.hotelArrive)} · need to be there by ${to12h(it.deadline)}` : `Be there by ${to12h(it.deadline)}`));
+  }
+}
+
+function stopCard(it, s, i, sched, { readOnly = false } = {}) {
+  {
     const el = document.createElement("article");
     el.className = "stop";
     el.dataset.id = s.id;
@@ -287,13 +334,13 @@ function renderStops(it) {
         <div class="times">
           ${sched ? `<span>🚗 ${fmtDuration(sched.legMinutes)}</span><span>arrive <b>${to12h(sched.arrive)}</b></span><span>leave <b>${to12h(sched.depart)}</b></span>` : `<span>${s.dwellMinutes} min stop</span>`}
         </div>
-        <div class="controls">
+        ${readOnly ? "" : `<div class="controls">
           <button type="button" class="btn btn-sm btn-icon" data-act="up" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
           <button type="button" class="btn btn-sm btn-icon" data-act="down" title="Move down" ${i === it.stops.length - 1 ? "disabled" : ""}>↓</button>
           <label>stay <input type="number" min="5" max="240" step="5" value="${s.dwellMinutes}" data-act="dwell"> min</label>
           <button type="button" class="btn btn-sm" data-act="lunch">${s.lunch === "user" ? "Not lunch" : "Lunch here"}</button>
           <button type="button" class="btn btn-sm btn-icon" data-act="remove" title="Remove">✕</button>
-        </div>
+        </div>`}
       </div>`;
     el.addEventListener("click", (e) => {
       const act = e.target.dataset.act;
@@ -303,16 +350,11 @@ function renderStops(it) {
       else if (act === "lunch") actions.toggleLunch(s.id);
       else if (act === "remove") actions.removeStop(s.id);
     });
-    el.querySelector("[data-act=dwell]").addEventListener("change", (e) => {
+    el.querySelector("[data-act=dwell]")?.addEventListener("change", (e) => {
       const v = Math.max(5, Math.min(240, Number(e.target.value) || s.dwellMinutes));
       actions.updateStop(s.id, { dwellMinutes: v });
     });
-    root.appendChild(el);
-  });
-
-  if (it.end) {
-    const s = it.schedule;
-    root.appendChild(endpoint("E", `End: ${it.end.label}`, s ? `Arrive ${to12h(s.hotelArrive)} · need to be there by ${to12h(it.deadline)}` : `Be there by ${to12h(it.deadline)}`));
+    return el;
   }
 }
 

@@ -3,6 +3,7 @@
 
 import { httpError } from "./lib/http.js";
 import { routeFor } from "./schedule.js";
+import * as timings from "./lib/timings.js";
 import * as wikipedia from "./wikipedia.js";
 import * as claude from "./claude.js";
 import { findDriveBys, SAMPLE_STEP_M } from "./lib/wikiGeo.js";
@@ -35,7 +36,9 @@ export async function prepareDrive(itinerary) {
 
   // 3. drive-by candidates
   const samples = sampleAlong(points, cum, SAMPLE_STEP_M);
+  const tScan = Date.now();
   const { candidatesByLeg, stats } = await findDriveBys({ samples, points, cum, boundaries, stops, interests: itinerary.interests, log });
+  timings.record("narrate.scan", Date.now() - tScan);
 
   // 4. fuller text for each stop (REST summary extract; blurb as fallback)
   const stopExtracts = await Promise.all(stops.map(async (s) => {
@@ -55,11 +58,13 @@ export async function prepareDrive(itinerary) {
     if (lengthM < 3000) continue; // quiet: too short for a drive-by
     legs.push({ legIndex: i, from, to, lengthM, candidates });
   }
+  const tClaude = Date.now();
   const scripts = await claude.writeNarration({
     interests: itinerary.interests,
     stops: stops.map((s, i) => ({ id: s.id, name: s.name, category: s.category, whyItMatches: s.whyItMatches, dwellMinutes: s.dwellMinutes, extract: stopExtracts[i] })),
     legs,
   });
+  timings.record("narrate.claude", Date.now() - tClaude);
   log(`claude returned ${scripts.length} scripts`);
 
   // 6. validate + assemble narration items

@@ -9,6 +9,8 @@ import * as claude from "./claude.js";
 import * as resolve from "./resolve.js";
 import * as schedule from "./schedule.js";
 import * as narrate from "./narrate.js";
+import * as plan from "./plan.js";
+import * as timings from "./lib/timings.js";
 import { toMinutes } from "../web/js/format.js";
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "web");
@@ -52,50 +54,43 @@ app.get("/api/reverse", h(async (req, res) => {
   res.json(await stops.stopAtPoint(lat, lon));
 }));
 
-// Claude proposes → Wikipedia/Nominatim ground → OSRM route → schedule + trim.
+// Claude proposes → Wikipedia/Nominatim ground → route → schedule + trim.
+// With `Accept: text/event-stream` the response is a stream of progress events (see server/plan.js);
+// otherwise the finished itinerary as one JSON document.
 app.post("/api/plan", h(async (req, res) => {
-  const b = req.body || {};
-  const input = {
-    version: 1,
-    start: b.start, end: b.end, date: b.date || "",
-    arrivalTime: b.arrivalTime, deadline: b.deadline,
-    departBufferMinutes: Number(b.departBufferMinutes) || config.departBufferMinutes,
-    safetyBufferMinutes: Number(b.safetyBufferMinutes) || config.safetyBufferMinutes,
-    interests: String(b.interests || "").trim(),
-    routeOptions: b.routeOptions || {},
-    stops: [],
-  };
-  schedule.validateItinerary(input);
-  if (!input.interests) throw httpError(400, "interests is required");
-
-  const corridor = bbox([input.start, input.end], 25);
-  const budgetMinutes = toMinutes(input.deadline) - toMinutes(input.arrivalTime) - input.departBufferMinutes - input.safetyBufferMinutes;
+  const input = plan.parsePlanInput(req.body);
 
   // If the browser cancels (connection closed before we answered), stop the Claude call and skip the rest.
+  // Note: `req` emits close as soon as the body is consumed, so listen on `res` and check it never finished.
   const ac = new AbortController();
-  req.on("close", () => { if (!res.writableEnded) { ac.abort(); console.log("[plan] cancelled by client"); } });
-  const gone = () => ac.signal.aborted;
+  res.on("close", () => { if (!res.writableFinished) { ac.abort(); console.log("[plan] cancelled by client"); } });
 
-  let proposal;
-  try {
-    proposal = await claude.proposeStops({ ...input, budgetMinutes, corridor, signal: ac.signal });
-  } catch (err) {
-    if (gone()) return; // nobody is listening
-    throw err;
+  const streaming = String(req.headers.accept || "").includes("text/event-stream");
+  if (!streaming) {
+    const result = await plan.runPlan(input, { signal: ac.signal });
+    if (result) res.json(result);
+    return;
   }
-  if (gone()) return;
-  if (!proposal.stops.length) throw httpError(502, "Claude returned no stops");
 
-  const grounded = await resolve.resolveCandidates(proposal.stops, corridor);
-  if (gone()) return;
-  console.log(`[plan] ${proposal.stops.length} proposed → ${grounded.stops.length} grounded, ${grounded.dropped.length} dropped`);
-  if (!grounded.stops.length) throw httpError(502, "None of the proposed stops could be verified");
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache, no-transform", connection: "keep-alive", "x-accel-buffering": "no" });
+  res.flushHeaders?.();
+  const send = (event, data) => { if (!res.writableEnded && !ac.signal.aborted) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
+  const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(": ping\n\n"); }, 15000);
+  try {
+    await plan.runPlan(input, { emit: send, signal: ac.signal });
+  } catch (err) {
+    if (!ac.signal.aborted) {
+      if ((err.status || 500) >= 500) console.error(err);
+      send("error", { message: err.message, status: err.status || 500 });
+    }
+  } finally {
+    clearInterval(heartbeat);
+    res.end();
+  }
+}));
 
-  const result = await schedule.computeItinerary(
-    { ...input, stops: grounded.stops, dropped: grounded.dropped, summary: proposal.summary },
-    { trim: true, reorder: true }
-  );
-  res.json(result);
+app.get("/api/estimate", h(async (_req, res) => {
+  res.json({ plan: timings.planEstimate(), narrate: timings.narrateEstimate() });
 }));
 
 // Re-route + re-schedule after client edits. Never trims.

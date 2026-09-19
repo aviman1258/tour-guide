@@ -42,6 +42,13 @@ Wikipedia and Nominatim lookups for every candidate.
 Edits (reorder, remove, add by search, tap the map, "Suggest more", lunch toggle, dwell) all
 re-route and re-schedule but never trim on their own.
 
+**Progress while planning.** `POST /api/plan` with `Accept: text/event-stream` streams events
+(`estimate`, `phase`, `candidates`, `stop`, `dropped`, `done`, `error`; see `server/plan.js`), so
+the page lists Claude's candidates as soon as they exist and ticks each one off as it is
+verified. The estimate comes from the medians of the last 20 real runs per phase, stored in
+`data/timings.json` (gitignored; priors until the first run). `GET /api/estimate` exposes it.
+Cancel closes the connection; the server aborts the Claude call and stops.
+
 ## Shapes
 
 ```js
