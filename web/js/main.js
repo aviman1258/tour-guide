@@ -5,13 +5,21 @@ import * as itinerary from "./itinerary.js";
 import * as share from "./share.js";
 import * as drivePrep from "./drivePrep.js";
 import * as storage from "./storage.js";
-import { runtime } from "./config.js";
+import * as library from "./library.js";
+import { runtime, tier, isFree } from "./config.js";
 
 async function boot() {
+  // tier decides which controls exist on this screen (CSS hides the other tier's)
+  document.body.classList.add(tier());
+  const badge = document.getElementById("tier-badge");
+  if (badge) badge.textContent = isFree() ? "Free · saved routes" : "Subscriber";
+  history.replaceState(null, "", location.pathname + (new URLSearchParams(location.search).get("trip") ? location.search : "") + location.hash);
+
   map.init(document.getElementById("map"));
   itinerary.bindForm();
   share.bind();
   drivePrep.bind();
+  library.bind();
 
   // a shared link (#i=…) or ?trip=<id> (back from drive mode) restores a trip;
   // otherwise the form starts clean, with an offer to reopen the last prepared trip.
@@ -43,6 +51,10 @@ async function boot() {
   });
 
   const ok = await api.probe();
+  if (ok && !isFree()) {
+    const sub = await api.ensureSubscriber();
+    if (!sub) itinerary.toast("Without the passphrase you can still use saved routes. Planning needs a subscription.", 6000);
+  }
   if (!ok) {
     itinerary.toast("No planning server here. Drive mode and import still work.", 5000);
     document.getElementById("plan-msg").hidden = false;

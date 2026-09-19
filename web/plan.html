@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f5f8b" />
+  <title>Deodapper · Self-Guided Tour Creator</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+  <link rel="icon" type="image/svg+xml" href="img/deodap.svg" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html" title="Deodapper home">
+      <img class="brand-logo" src="img/deodap.svg" alt="Deodap the elephant" width="44" height="44" />
+      <span class="brand-text"><h1>Self-Guided Tour Creator</h1><span class="brand-sub" id="tier-badge">deodapper.com</span></span>
+    </a>
+    <div id="status-bar" class="status-bar" hidden></div>
+    <nav>
+      <a href="drive.html" id="drive-link" class="btn btn-ghost">Drive mode</a>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <section id="map" aria-label="Map"></section>
+
+    <aside id="sidebar">
+      <div id="resume-banner" class="card resume" hidden>
+        <div class="grow"><div class="resume-title">You have a prepared trip on this device</div><div id="resume-sub" class="hint"></div></div>
+        <button type="button" id="resume-open" class="btn btn-primary btn-sm">Open it</button>
+        <button type="button" id="resume-dismiss" class="btn btn-ghost btn-sm" title="Start a new trip">✕</button>
+      </div>
+
+      <!-- Free tier: pick a route someone published -->
+      <section id="library-card" class="card library">
+        <h2 id="library-title">Find a saved route</h2>
+        <p class="hint free-only">Routes built and narrated by subscribers. Pick one, set your own date and start time, save it to your phone and drive.</p>
+        <div class="row">
+          <div class="input-wrap grow">
+            <button type="button" class="loc-btn" id="library-near" title="Routes near me" aria-label="Routes near my location">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <input id="library-query" type="text" placeholder="City, airport, or a word from the route…" autocomplete="off" spellcheck="false" />
+          </div>
+          <button type="button" id="library-search" class="btn">Find</button>
+        </div>
+        <div id="library-results" class="results"></div>
+        <div id="library-msg" class="hint"></div>
+      </section>
+
+      <form id="plan-form" class="card" autocomplete="off">
+        <div class="subscriber-only">
+          <div class="field">
+            <label for="start-query">Start</label>
+            <div class="input-wrap">
+              <button type="button" class="loc-btn" id="start-loc" title="Use my current location" aria-label="Use my current location as the start">
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+              <input id="start-query" type="text" placeholder="Airport, hotel, address, landmark…" autocomplete="off" spellcheck="false" />
+            </div>
+            <div id="start-label" class="hint"></div>
+          </div>
+
+          <div class="field">
+            <label for="end-query">End</label>
+            <div class="input-wrap">
+              <button type="button" class="loc-btn" id="end-loc" title="Use my current location" aria-label="Use my current location as the end">
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+              <input id="end-query" type="text" placeholder="Hotel, venue, a friend's place…" autocomplete="off" spellcheck="false" />
+            </div>
+            <div id="end-label" class="hint"></div>
+          </div>
+        </div>
+
+        <div class="free-only hint" id="retime-hint">Set the day you're driving this route and when you'll start. Times below re-fit to your schedule.</div>
+
+        <div class="row three">
+          <div class="field">
+            <label for="date">Date</label>
+            <input id="date" type="date" />
+          </div>
+          <div class="field">
+            <label for="arrival">Start at</label>
+            <input id="arrival" type="time" value="09:00" required />
+          </div>
+          <div class="field">
+            <label for="deadline">Be at the end by</label>
+            <input id="deadline" type="time" value="21:00" required />
+          </div>
+        </div>
+
+        <div class="subscriber-only">
+          <div class="field">
+            <label for="interests">Interests</label>
+            <textarea id="interests" rows="2" placeholder="e.g. indian food, historic neighborhoods, upscale areas, street art"></textarea>
+          </div>
+
+          <div class="field">
+            <label>Route</label>
+            <div class="row checks">
+              <label class="check"><input type="checkbox" id="avoid-tolls" /> Avoid tolls</label>
+              <label class="check"><input type="checkbox" id="avoid-highways" /> Avoid highways</label>
+            </div>
+          </div>
+
+          <div class="row">
+            <button type="submit" id="plan-btn" class="btn btn-primary">Plan my tour</button>
+            <button type="button" id="cancel-plan-btn" class="btn btn-danger" hidden>Cancel planning</button>
+            <button type="button" id="reset-btn" class="btn btn-ghost">Reset</button>
+          </div>
+        </div>
+        <div id="plan-msg" class="msg" hidden></div>
+      </form>
+
+      <p id="summary" class="summary" hidden></p>
+
+      <section id="stops" class="stops" aria-label="Stops"></section>
+
+      <section class="card add-card subscriber-only">
+        <h2>Add a stop</h2>
+        <div class="row">
+          <input id="add-query" type="search" placeholder="Search a place by name" />
+          <button type="button" id="add-search" class="btn">Find</button>
+        </div>
+        <div id="add-results" class="results"></div>
+        <div class="row">
+          <button type="button" id="suggest-btn" class="btn">Suggest more</button>
+          <span class="hint">or tap the map to drop a pin</span>
+        </div>
+        <div id="suggest-results" class="results"></div>
+      </section>
+
+      <section id="dropped" class="card dropped subscriber-only" hidden>
+        <h2>Didn't fit / not found</h2>
+        <ul id="dropped-list"></ul>
+      </section>
+
+      <section class="card actions">
+        <button type="button" id="share-btn" class="btn">Copy shareable link</button>
+        <button type="button" id="gmaps-btn" class="btn">Open in Google Maps</button>
+        <div id="gmaps-legs" class="results"></div>
+
+        <div class="row subscriber-only">
+          <button type="button" id="prepare-btn" class="btn btn-primary">Prepare drive (narration)</button>
+          <button type="button" id="cancel-prepare-btn" class="btn btn-danger" hidden>Cancel</button>
+        </div>
+        <div id="prepare-progress" class="planning subscriber-only" hidden></div>
+        <div id="prepare-msg" class="msg" hidden></div>
+
+        <button type="button" id="save-phone-btn" class="btn btn-primary free-only">Save to this phone for driving</button>
+
+        <div class="subscriber-only">
+          <button type="button" id="publish-btn" class="btn">Publish this route for free-tier drivers</button>
+          <form id="publish-form" class="publish" hidden>
+            <div class="field"><label for="publish-title">Title</label><input id="publish-title" type="text" maxlength="80" placeholder="e.g. Houston: Heights, Little India and the Mandir" required /></div>
+            <div class="field"><label for="publish-desc">Short description</label><textarea id="publish-desc" rows="2" maxlength="500" placeholder="Who is this for? What's the best part?"></textarea></div>
+            <div class="hint">Start and end must be place names, not street addresses. The route, times and all narration are shared as they are now.</div>
+            <div class="row">
+              <button type="submit" class="btn btn-primary">Publish</button>
+              <button type="button" id="publish-cancel" class="btn btn-ghost">Cancel</button>
+            </div>
+            <div id="publish-msg" class="msg" hidden></div>
+          </form>
+        </div>
+
+        <div class="row">
+          <button type="button" id="export-btn" class="btn btn-ghost">Export trip</button>
+          <label class="btn btn-ghost" for="import-file">Import trip</label>
+          <input id="import-file" type="file" accept="application/json,.json" hidden />
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

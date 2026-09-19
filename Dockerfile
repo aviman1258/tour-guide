@@ -1,5 +1,5 @@
 # Tour Guide server + static app in one container (Render, App Runner, anywhere Docker runs).
-FROM node:22-alpine
+FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 

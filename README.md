@@ -24,6 +24,27 @@ With no API key the server shells out to the Claude Code CLI (`claude -p --json-
 so it works on a Claude subscription. Each plan is one Claude call (about 10-40 s) plus
 Wikipedia and Nominatim lookups for every candidate.
 
+## Tiers and the shared route library
+
+`/` is a landing page with two doors. **Subscriber** (`plan.html?tier=subscriber`) is the full
+planner; on a hosted server it asks once per device for the passphrase (`APP_SECRET`), which the
+server treats as the subscriber tier. **Free** (`plan.html?tier=free`) hides every AI control and
+shows "Find a saved route" instead: routes that subscribers published, searchable by text or
+"near me". A free driver picks one, sets their own date and start time (re-timing only; stops are
+fixed because the narration is tied to them), saves it to the phone and drives it exactly like a
+subscriber would.
+
+Server side (`server/index.js`): every `/api` request is stamped `subscriber` or `free`. Plan,
+suggest, prepare-drive and publish require subscriber; place search, re-timing and the library are
+open but rate-limited per IP for free traffic (`server/lib/ratelimit.js`, 90 requests / 10 min).
+The library (`server/lib/library.js`) is SQLite via Node's built-in `node:sqlite` at
+`data/deodapper.db` on the persistent disk: `GET /api/routes?near=lat,lon&q=` searches,
+`GET /api/routes/:id` returns the full drive package (and counts a use), `POST /api/routes`
+publishes `{package, title, description}` (start/end labels that look like street addresses are
+refused so nobody publishes their home), `DELETE /api/routes/:id` removes one.
+
+Later: real accounts + Stripe replace the passphrase; the tier check is the one place to change.
+
 ## How planning works
 
 1. **Claude proposes** 10-14 candidate stops for your interests along the start→end corridor,

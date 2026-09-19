@@ -102,3 +102,31 @@ async function stream(path, body, opts = {}) {
 export const suggest = (itinerary, count = 3) => call("POST", "/api/suggest", { itinerary, count });
 export const schedule = (itinerary, trim = false) => call("POST", "/api/schedule", { itinerary, trim });
 export const prepareDrive = (itinerary) => call("POST", "/api/prepare-drive", { itinerary });
+export const whoami = () => call("GET", "/api/whoami");
+
+// shared route library
+export const searchRoutes = ({ near, q, radiusKm } = {}) => {
+  const p = new URLSearchParams();
+  if (near) p.set("near", `${near.lat},${near.lon}`);
+  if (q) p.set("q", q);
+  if (radiusKm) p.set("radiusKm", String(radiusKm));
+  return call("GET", `/api/routes?${p}`);
+};
+export const getRoute = (id) => call("GET", `/api/routes/${encodeURIComponent(id)}`);
+export const publishRoute = (pkg, title, description) => call("POST", "/api/routes", { package: pkg, title, description });
+export const deleteRoute = (id) => call("DELETE", `/api/routes/${encodeURIComponent(id)}`);
+
+/**
+ * For the subscriber tier: make sure this device is recognised as a subscriber, prompting for
+ * the passphrase if the server is protected and we don't have it. Returns true if subscriber.
+ */
+export async function ensureSubscriber() {
+  let me = await whoami().catch(() => null);
+  if (!me) return false;
+  if (me.tier === "subscriber") return true;
+  const entered = window.prompt("Subscriber features need the app passphrase:", "");
+  if (!entered) return false;
+  setAppKey(entered.trim());
+  me = await whoami().catch(() => null);
+  return me?.tier === "subscriber";
+}

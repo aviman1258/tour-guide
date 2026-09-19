@@ -299,7 +299,9 @@ function renderStops(it) {
     return;
   }
   if (!it.start && !it.stops.length) {
-    root.innerHTML = `<div class="hint" style="padding:0 6px">Pick where you start and where you need to end up, describe what you like, and hit Plan. Works for any city. Or search a place below to add stops by hand.</div>`;
+    root.innerHTML = document.body.classList.contains("free")
+      ? `<div class="hint" style="padding:0 6px">Find a saved route above. Once it's loaded you'll see every stop and the times here.</div>`
+      : `<div class="hint" style="padding:0 6px">Pick where you start and where you need to end up, describe what you like, and hit Plan. Works for any city. Or search a place below to add stops by hand.</div>`;
     return;
   }
   if (it.start) root.appendChild(endpoint("S", `Start: ${it.start.label}`, it.arrivalTime ? `Arrive ${to12h(it.arrivalTime)} · on the road by ${to12h(addMin(it.arrivalTime, it.departBufferMinutes))}` : ""));

@@ -1,0 +1,40 @@
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #1c1f24; --muted: #5d6673; --line: #e1e5ea;
+  --accent: #1f5f8b; --accent-text: #ffffff; --free: #1e8e4f;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14171c; --card: #1d2229; --text: #e8ebef; --muted: #9aa4b1; --line: #2c333d; --accent: #5aa5dc; --accent-text: #0b1520; --free: #3ccb7a; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body.landing {
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg);
+  padding: calc(24px + env(safe-area-inset-top, 0)) 20px calc(32px + env(safe-area-inset-bottom, 0));
+}
+.hero { max-width: 620px; margin: 0 auto; text-align: center; }
+.mascot { width: 180px; height: 180px; display: block; margin: 8px auto 4px; }
+h1 { margin: 0; font-size: 40px; letter-spacing: -.01em; }
+.tag { margin: 2px 0 14px; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: .12em; font-size: 13px; }
+.lede { margin: 0 auto 26px; max-width: 520px; color: var(--muted); font-size: 17px; }
+
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 28px; }
+@media (max-width: 520px) { .choices { grid-template-columns: 1fr; } }
+.choice {
+  display: flex; flex-direction: column; gap: 6px; padding: 18px 16px; border-radius: 16px; text-decoration: none; color: var(--text);
+  background: var(--card); border: 2px solid var(--line); min-height: 120px; justify-content: center; text-align: left;
+  transition: transform .12s, border-color .12s;
+}
+.choice:hover { transform: translateY(-2px); }
+.choice.free { border-color: var(--free); }
+.choice.sub { border-color: var(--accent); }
+.choice-title { font-size: 19px; font-weight: 800; }
+.choice.free .choice-title { color: var(--free); }
+.choice.sub .choice-title { color: var(--accent); }
+.choice-sub { font-size: 14px; color: var(--muted); }
+
+.how { text-align: left; margin: 0 auto 22px; padding: 0 0 0 22px; max-width: 520px; color: var(--muted); }
+.how li { margin-bottom: 8px; }
+.how b { color: var(--text); }
+.foot { color: var(--muted); font-size: 14px; }
+.foot a { color: var(--accent); }

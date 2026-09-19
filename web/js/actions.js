@@ -91,9 +91,11 @@ export function reschedule() {
       const next = await api.schedule(it, false);
       // only apply if the stops haven't changed while we waited
       const cur = state.get();
+      const norm = (o) => `${Boolean(o?.avoidTolls)}|${Boolean(o?.avoidHighways)}`;
       const same = cur.stops.map((s) => s.id).join() === next.stops.map((s) => s.id).join()
-        && JSON.stringify(cur.routeOptions) === JSON.stringify(next.routeOptions);
-      if (same) state.set({ route: next.route, schedule: next.schedule, stops: next.stops });
+        && norm(cur.routeOptions) === norm(next.routeOptions)
+        && cur.arrivalTime === it.arrivalTime && cur.deadline === it.deadline;
+      if (same) state.set({ route: next.route, schedule: next.schedule, stops: next.stops, routeOptions: next.routeOptions });
     } catch (err) {
       console.warn("reschedule failed:", err.message);
     } finally {

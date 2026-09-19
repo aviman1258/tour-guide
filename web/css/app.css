@@ -62,7 +62,9 @@ body.busy .stops { opacity: .6; transition: opacity .2s; }
 /* isolate: Leaflet's controls use z-index 1000 internally; keep that inside the map so they
    never paint over the sticky header or the sidebar when the page scrolls */
 #map { height: 45vh; min-height: 260px; background: #dfe6ec; position: relative; isolation: isolate; z-index: 0; }
-#sidebar { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+/* min-width: 0 — as a grid item the sidebar would otherwise grow to the widest unbreakable
+   text inside it (long one-line result summaries) and push the page wider than the phone */
+#sidebar { padding: 12px; display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow-x: hidden; }
 
 @media (min-width: 768px) {
   .layout { grid-template-columns: 400px 1fr; grid-template-rows: 1fr; height: calc(100vh - 50px); }
@@ -250,6 +252,17 @@ select.quiet { min-height: 36px; padding: 4px 8px; font-size: 13px; color: var(-
 @keyframes spin { to { transform: rotate(360deg); } }
 .skeleton { background: linear-gradient(90deg, var(--line) 25%, color-mix(in srgb, var(--line) 50%, var(--card)) 50%, var(--line) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; height: 14px; }
 @keyframes shimmer { to { background-position: -200% 0; } }
+
+/* tiers: the landing page sets body.free or body.subscriber; each hides the other's controls */
+body.free .subscriber-only { display: none !important; }
+body.subscriber .free-only { display: none !important; }
+body.free .stop .controls { display: none; }           /* saved routes are driven as published */
+body.free #library-card { border-color: var(--ok); }
+.library .results { margin-top: 8px; }
+.result.route { align-items: flex-start; }
+.result.route .sub.desc { white-space: normal; }
+.publish { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.publish[hidden] { display: none !important; }
 
 /* Leaflet marker icons */
 .marker-num {

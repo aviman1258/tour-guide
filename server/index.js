@@ -11,6 +11,9 @@ import * as schedule from "./schedule.js";
 import * as narrate from "./narrate.js";
 import * as plan from "./plan.js";
 import * as timings from "./lib/timings.js";
+import * as library from "./lib/library.js";
+import * as nominatim from "./nominatim.js";
+import { createLimiter, limitFree } from "./lib/ratelimit.js";
 import { toMinutes } from "../web/js/format.js";
 
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "web");
@@ -27,14 +30,24 @@ const num = (v, name) => {
   return n;
 };
 
-// Hosted deployments set APP_SECRET so strangers can't run up the Claude bill.
-// The health check stays open (Render pings it). Locally, with no secret, everything is open.
-app.use("/api", (req, res, next) => {
-  if (!config.appSecret || req.path === "/health") return next();
+// Tiers. Every /api request is stamped "subscriber" (knows APP_SECRET, or no secret set = local dev)
+// or "free". AI routes require subscriber; the rest are open but rate-limited per IP for free traffic.
+app.use("/api", (req, _res, next) => {
   const key = req.get("x-app-key") || req.query.key;
-  if (key === config.appSecret) return next();
-  res.status(401).json({ error: "This server needs the app passphrase.", needsKey: true });
+  req.tier = !config.appSecret || key === config.appSecret ? "subscriber" : "free";
+  next();
 });
+const requireSubscriber = (req, res, next) => {
+  if (req.tier === "subscriber") return next();
+  res.status(401).json({ error: "This feature is for subscribers. Enter the app passphrase.", needsKey: true });
+};
+const freeLimiter = createLimiter({ max: 90, windowMs: 10 * 60_000 });
+app.use(["/api/place", "/api/reverse", "/api/schedule", "/api/routes"], limitFree(freeLimiter));
+app.use(["/api/plan", "/api/suggest", "/api/prepare-drive"], requireSubscriber);
+
+app.get("/api/whoami", h(async (req, res) => {
+  res.json({ tier: req.tier, protected: Boolean(config.appSecret) });
+}));
 
 app.get("/api/health", h(async (_req, res) => {
   res.json({
@@ -101,6 +114,43 @@ app.post("/api/plan", h(async (req, res) => {
 
 app.get("/api/estimate", h(async (_req, res) => {
   res.json({ plan: timings.planEstimate(), narrate: timings.narrateEstimate() });
+}));
+
+// ---------- shared route library ----------
+
+// Search: ?near=lat,lon (routes starting/ending within 50 km) and/or ?q=text.
+app.get("/api/routes", h(async (req, res) => {
+  let near;
+  if (req.query.near) {
+    const [lat, lon] = String(req.query.near).split(",").map(Number);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) near = { lat, lon };
+  }
+  const radiusKm = Math.min(300, Math.max(5, Number(req.query.radiusKm) || 50));
+  res.json({ routes: library.search({ near, radiusKm, q: String(req.query.q || ""), limit: Number(req.query.limit) || 20 }), total: library.count() });
+}));
+
+// Full package for one route (counts a use).
+app.get("/api/routes/:id", h(async (req, res) => {
+  res.json(library.get(req.params.id, { countUse: req.query.use !== "0" }));
+}));
+
+// Publish (subscriber). Body: { package, title, description }. Region is derived from the start point.
+app.post("/api/routes", requireSubscriber, h(async (req, res) => {
+  const { package: pkg, title, description } = req.body || {};
+  if (!pkg) throw httpError(400, "package is required");
+  let region = "";
+  try {
+    const r = await nominatim.reverse(pkg.itinerary.start.lat, pkg.itinerary.start.lon, 10);
+    region = [r?.address?.city || r?.address?.town || r?.address?.county, r?.address?.state, r?.address?.country_code?.toUpperCase()].filter(Boolean).join(", ");
+  } catch { /* region is optional */ }
+  const summary = library.publish({ pkg, title, description, region, author: "subscriber" });
+  console.log(`[library] published ${summary.id} "${summary.title}" (${summary.stopsCount} stops, ${summary.region})`);
+  res.status(201).json(summary);
+}));
+
+app.delete("/api/routes/:id", requireSubscriber, h(async (req, res) => {
+  library.remove(req.params.id);
+  res.status(204).end();
 }));
 
 // Re-route + re-schedule after client edits. Never trims.
