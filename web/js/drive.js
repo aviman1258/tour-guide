@@ -3,7 +3,7 @@
 
 import * as storage from "./storage.js";
 import { createGeofence } from "./geofence.js";
-import { createSpeech } from "./speech.js";
+import { createSpeech, VOICE_PRESETS, matchVoice } from "./speech.js";
 import { createSim } from "./sim.js";
 import { lineToPoints, cumulative, project, haversineM, bearingDeg } from "./routeMath.js";
 import { fmtMiles, fmtDuration, to12h, escapeHtml, toMinutes as toMin, toHHMM } from "./format.js";
@@ -72,6 +72,7 @@ async function usePackage(pkg) {
   state.geofence = createGeofence(pkg.narration, { fired: state.driveState.fired, visited: state.driveState.visited });
   state.speech = createSpeech({ isStale: isStaleNarration });
   bindSpeech();
+  bindVoicePicker();
 
   state.nextStopIdx = state.it.stops.findIndex((s) => !state.geofence.visited.has(s.id));
   if (state.nextStopIdx < 0) state.nextStopIdx = state.it.stops.length;
@@ -516,6 +517,59 @@ document.addEventListener("visibilitychange", () => {
   state.speech.recoverAfterResume();
   log("resumed");
 });
+
+// ---------- voice picker ----------
+
+function bindVoicePicker() {
+  const sel = $("voice-preset");
+  const sp = state.speech;
+  if (!sel || sel.dataset.bound) return;
+  sel.dataset.bound = "1";
+
+  const render = () => {
+    const voices = sp.availableVoices();
+    sel.innerHTML = "";
+    for (const [id, p] of Object.entries(VOICE_PRESETS)) {
+      const match = voices.length ? matchVoice(id, voices) : null;
+      const o = document.createElement("option");
+      o.value = id;
+      o.textContent = id === "auto" ? p.label : `${p.label}${match ? ` — ${match.name.replace(/\(.*?\)/g, "").trim()}` : " (not on this device)"}`;
+      o.disabled = id !== "auto" && voices.length > 0 && !match;
+      sel.appendChild(o);
+    }
+    // any other English voices the device has, by name
+    const extra = voices.filter((v) => !Object.keys(VOICE_PRESETS).some((id) => matchVoice(id, voices) === v));
+    if (extra.length) {
+      const grp = document.createElement("optgroup");
+      grp.label = "All English voices on this device";
+      for (const v of extra) { const o = document.createElement("option"); o.value = `voice:${v.name}`; o.textContent = `${v.name} (${v.lang})`; grp.appendChild(o); }
+      sel.appendChild(grp);
+    }
+    sel.value = sp.preset.startsWith("voice:") ? sp.preset : (VOICE_PRESETS[sp.preset] ? sp.preset : "auto");
+    $("voice-current").textContent = sp.voice ? `${sp.voice.name.replace(/\(.*?\)/g, "").trim()}` : "";
+    $("voice-note").textContent = voices.length
+      ? "Voices come from the phone. Missing an accent? iPhone: Settings › Accessibility › Spoken Content › Voices. Android: Settings › Text-to-speech › Google engine › Install voice data."
+      : "No voices reported yet. Tap Test once; some phones only list voices after the first use.";
+  };
+  sp.on("voices", render);
+  render();
+
+  sel.addEventListener("change", () => {
+    const v = sel.value;
+    if (v.startsWith("voice:")) {
+      const name = v.slice(6);
+      const exact = sp.availableVoices().find((x) => x.name === name);
+      VOICE_PRESETS[v] = { label: name, lang: exact?.lang || "en", prefer: [new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))] };
+    }
+    sp.setPreset(v);
+    render();
+  });
+  $("voice-test").addEventListener("click", () => {
+    if (!sp.unlocked) sp.unlock(" ");
+    if (sp.current) sp.skip();
+    sp.enqueue({ id: `voicetest_${Date.now()}`, kind: "preview", title: "Voice test", text: "Hi, I'm Deodap. Coming up on this stretch is a place worth a look. I'll tell you about it as we get closer." });
+  });
+}
 
 // ---------- bottom sheet: drag or tap the grip to hide / show ----------
 

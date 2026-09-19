@@ -65,6 +65,15 @@
       <label class="toggle"><input type="checkbox" id="speak-turns" /> Speak turns</label>
     </div>
 
+    <details class="card voice">
+      <summary>Voice <span id="voice-current" class="hint"></span></summary>
+      <div class="row">
+        <select id="voice-preset" aria-label="Narration voice"></select>
+        <button type="button" id="voice-test" class="btn btn-sm">Test</button>
+      </div>
+      <div id="voice-note" class="hint"></div>
+    </details>
+
     <div id="sim-panel" class="card sim" hidden>
       <div class="label">Simulation</div>
       <div class="controls">

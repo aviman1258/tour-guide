@@ -6,15 +6,46 @@
 
 const MAX_CHUNK = 200;
 
+// Voice presets: accent + gender, matched against whatever voices this device has.
+// Names are what iOS / Android / Windows ship; gender words appear in Android voice names.
+export const VOICE_PRESETS = {
+  auto: { label: "Device default", lang: "en", prefer: [] },
+  "us-male": { label: "American · male", lang: "en-US", prefer: [/aaron/i, /fred/i, /alex\b/i, /guy/i, /davis/i, /male/i], avoid: [/female/i] },
+  "us-female": { label: "American · female", lang: "en-US", prefer: [/samantha/i, /ava/i, /allison/i, /zira/i, /jenny/i, /aria/i, /female/i] },
+  "gb-female": { label: "British · female", lang: "en-GB", prefer: [/kate/i, /serena/i, /martha/i, /stephanie/i, /hazel/i, /sonia/i, /libby/i, /female/i] },
+  "gb-male": { label: "British · male", lang: "en-GB", prefer: [/daniel/i, /arthur/i, /oliver/i, /george/i, /ryan/i, /male/i], avoid: [/female/i] },
+  "in-female": { label: "Indian · female", lang: "en-IN", prefer: [/veena/i, /neerja/i, /heera/i, /isha/i, /female/i] },
+  "in-male": { label: "Indian · male", lang: "en-IN", prefer: [/rishi/i, /prabhat/i, /ravi/i, /male/i], avoid: [/female/i] },
+};
+const VOICE_KEY = "tourguide.voice";
+export function getVoicePreset() { try { return localStorage.getItem(VOICE_KEY) || "auto"; } catch { return "auto"; } }
+export function setVoicePreset(id) { try { localStorage.setItem(VOICE_KEY, id); } catch { /* ignore */ } }
+
+/** Best available voice for a preset; null if none of that accent exists on this device. */
+export function matchVoice(presetId, voices) {
+  const p = VOICE_PRESETS[presetId] || VOICE_PRESETS.auto;
+  const norm = (s) => String(s || "").toLowerCase().replace("_", "-");
+  const inLang = voices.filter((v) => norm(v.lang).startsWith(norm(p.lang)));
+  const pool = inLang.length ? inLang : voices.filter((v) => norm(v.lang).startsWith("en"));
+  const notAvoided = pool.filter((v) => !(p.avoid || []).some((re) => re.test(v.name)));
+  for (const re of p.prefer) {
+    const hit = notAvoided.find((v) => re.test(v.name) && v.localService) || notAvoided.find((v) => re.test(v.name));
+    if (hit) return hit;
+  }
+  if (presetId === "auto") return pool.find((v) => v.default) || pool.find((v) => v.localService) || pool[0] || null;
+  return inLang.length ? (notAvoided.find((v) => v.localService) || notAvoided[0] || inLang[0]) : null;
+}
+
 export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false } = {}) {
   const synth = globalThis.speechSynthesis;
-  const listeners = { start: new Set(), chunk: new Set(), end: new Set() };
+  const listeners = { start: new Set(), chunk: new Set(), end: new Set(), voices: new Set() };
   const keep = []; // strong references to utterances
   let queue = [];
   let current = null;   // { item, chunks, index }
   let muted = false;
   let unlocked = false;
   let voice = null;
+  let presetId = getVoicePreset();
   let watchdog = null;
   let lastItem = null;
 
@@ -25,12 +56,8 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
     if (!synth) return;
     const voices = synth.getVoices();
     if (!voices.length) return;
-    const en = voices.filter((v) => v.lang?.toLowerCase().startsWith(lang.slice(0, 2).toLowerCase()));
-    voice =
-      en.find((v) => v.localService && /samantha|ava|allison|google us|en-us/i.test(v.name + v.lang)) ||
-      en.find((v) => v.localService) ||
-      en[0] ||
-      null;
+    voice = matchVoice(presetId, voices) || matchVoice("auto", voices);
+    emit("voices", { voices, voice, presetId });
   }
   if (synth) {
     pickVoice();
@@ -39,6 +66,15 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
     let tries = 0;
     const t = setInterval(() => { pickVoice(); if (voice || ++tries > 8) clearInterval(t); }, 250);
   }
+
+  /** Switch preset (persisted) and re-pick. Returns the matched voice or null. */
+  function setPreset(id) {
+    presetId = VOICE_PRESETS[id] ? id : "auto";
+    setVoicePreset(presetId);
+    pickVoice();
+    return voice;
+  }
+  const availableVoices = () => (synth?.getVoices() || []).filter((v) => /^en/i.test(v.lang));
 
   function chunkText(text) {
     const sentences = String(text).replace(/\s+/g, " ").trim().match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
@@ -59,7 +95,7 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
 
   function makeUtterance(text) {
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang;
+    u.lang = voice?.lang || lang;
     u.rate = rate;
     if (voice) u.voice = voice;
     keep.push(u);
@@ -194,6 +230,9 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
 
   return {
     on, unlock, enqueue, skip, replay, setMuted, recoverAfterResume, stop,
+    setPreset, availableVoices,
+    get preset() { return presetId; },
+    get voice() { return voice; },
     get current() { return current?.item || null; },
     get muted() { return muted; },
     get supported() { return Boolean(synth); },

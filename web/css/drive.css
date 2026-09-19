@@ -129,6 +129,12 @@ body.drive {
 .sim input[type=range] { width: 100%; }
 .sim-log { font: 12px/1.4 ui-monospace, monospace; color: var(--muted); max-height: 6em; overflow-y: auto; white-space: pre-wrap; }
 
+.voice { display: block; }
+.voice summary { cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+.voice summary .hint { font-weight: 400; font-size: 13px; color: var(--muted); }
+.voice .row { margin-top: 10px; }
+.voice select { flex: 1; font: inherit; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-height: 44px; min-width: 0; }
+.voice .hint { font-size: 13px; color: var(--muted); margin-top: 6px; }
 .checklist { display: block; }
 .checklist summary { cursor: pointer; font-weight: 600; }
 .checklist ul { margin: 8px 0 0; padding-left: 18px; font-size: 14px; color: var(--muted); }
