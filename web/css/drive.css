@@ -129,8 +129,9 @@ body.drive {
 .trip-list .btn small { color: var(--muted); font-weight: 500; }
 
 .toast {
-  position: fixed; left: 50%; bottom: calc(50% ); transform: translateX(-50%);
-  background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; z-index: 30; max-width: 90vw;
+  position: fixed; left: 50%; top: calc(140px + env(safe-area-inset-top, 0)); transform: translateX(-50%);
+  background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 14px; font-weight: 600; z-index: 30;
+  width: max-content; max-width: min(92vw, 520px); text-align: center; line-height: 1.35; box-shadow: 0 6px 24px rgba(0,0,0,.35);
 }
 
 /* markers */

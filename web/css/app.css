@@ -156,8 +156,8 @@ input[type="date"], input[type="time"] { font-size: 13px; padding: 9px 6px; lett
 
 .toast {
   position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0)); transform: translateX(-50%);
-  background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; z-index: 2000;
-  max-width: 90vw;
+  background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 14px; font-weight: 600; z-index: 2000;
+  width: max-content; max-width: min(92vw, 520px); text-align: center; line-height: 1.35; box-shadow: 0 6px 24px rgba(0,0,0,.25);
 }
 
 /* start / end: location icon inside the box, type-ahead list below */
