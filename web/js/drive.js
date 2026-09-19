@@ -421,6 +421,7 @@ function renderNextStop(fix, progressM) {
     status = diff <= -15 ? `<span class="ok">before check-in</span>` : diff <= 0 ? `<span class="tight">just in time</span>` : `<span class="late">${Math.round(diff)} min past ${to12h(state.it.deadline)}</span>`;
   }
   $("next-meta").innerHTML = `<b>${fmtMiles(distM)}</b> · ${fmtDuration(etaMin)} · ETA ${to12h(etaHHMM)} ${status}`;
+  updatePeek();
 }
 
 function bindSpeech() {
@@ -428,6 +429,7 @@ function bindSpeech() {
   const card = $("now-playing");
   sp.on("start", ({ item }) => {
     card.hidden = false;
+    updatePeek();
     $("np-title").textContent = item.title || (item.kind === "stop" ? "Stop" : "Along the way");
     renderNowPlaying(item, -1);
     if (item.kind === "driveby") state.poiMarkers.get(item.id)?.openPopup();
@@ -438,6 +440,7 @@ function bindSpeech() {
     log(`${interrupted ? "interrupted" : "ended"}:${item.id}`);
     if (!sp.current) setTimeout(() => { if (!sp.current) card.hidden = true; }, 4000);
     refreshMarkers();
+    updatePeek();
     if (item.kind === "preview") renderStopList();
   });
 }
@@ -514,9 +517,62 @@ document.addEventListener("visibilitychange", () => {
   log("resumed");
 });
 
+// ---------- bottom sheet: drag or tap the grip to hide / show ----------
+
+let sheetMin = false;
+function setSheet(min) {
+  sheetMin = min;
+  $("sheet").classList.toggle("minimized", min);
+  $("sheet-grip").setAttribute("aria-label", min ? "Show the panel" : "Hide the panel");
+  updatePeek();
+}
+function updatePeek() {
+  const el = $("peek");
+  if (!el || !state.it) return;
+  const s = state.it.stops[state.nextStopIdx];
+  const playing = state.speech?.current;
+  el.innerHTML = playing ? `🔊 <b>${escapeHtml(playing.title || "Narration")}</b>`
+    : s ? `Next: <b>${escapeHtml(s.name)}</b>${$("next-meta").textContent ? ` · ${escapeHtml($("next-meta").textContent.split("·")[0].trim())}` : ""}`
+    : `Next: <b>${escapeHtml(state.it.end.label)}</b>`;
+}
+function bindSheet() {
+  const grip = $("sheet-grip");
+  const sheet = $("sheet");
+  let startY = null, moved = false, base = 0;
+  grip.addEventListener("pointerdown", (e) => {
+    startY = e.clientY; moved = false;
+    base = sheetMin ? sheet.getBoundingClientRect().height - 52 : 0;
+    sheet.classList.add("dragging");
+    grip.setPointerCapture(e.pointerId);
+  });
+  grip.addEventListener("pointermove", (e) => {
+    if (startY == null) return;
+    const dy = e.clientY - startY;
+    if (Math.abs(dy) > 6) moved = true;
+    const max = sheet.getBoundingClientRect().height - 52;
+    const y = Math.max(0, Math.min(max, base + dy));
+    sheet.style.transform = `translateY(${y}px)`;
+  });
+  const finish = (e) => {
+    if (startY == null) return;
+    const dy = e.clientY - startY;
+    sheet.classList.remove("dragging");
+    sheet.style.transform = "";
+    if (!moved) setSheet(!sheetMin);                 // tap toggles
+    else if (dy > 60) setSheet(true);                // dragged down → hide
+    else if (dy < -60) setSheet(false);              // dragged up → show
+    else setSheet(sheetMin);                         // small wobble → stay
+    startY = null;
+  };
+  grip.addEventListener("pointerup", finish);
+  grip.addEventListener("pointercancel", finish);
+  grip.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSheet(!sheetMin); } });
+}
+
 // ---------- UI ----------
 
 function bindUi() {
+  bindSheet();
   $("start-btn").addEventListener("click", startDrive);
   $("stop-btn").addEventListener("click", stopDrive);
   $("mute-btn").addEventListener("click", () => {
