@@ -6,11 +6,13 @@ import * as share from "./share.js";
 import * as drivePrep from "./drivePrep.js";
 import * as storage from "./storage.js";
 import * as library from "./library.js";
+import { ping } from "./ping.js";
 import { runtime, tier, isFree } from "./config.js";
 
 async function boot() {
   // tier decides which controls exist on this screen (CSS hides the other tier's)
   document.body.classList.add(tier());
+  ping({ tier: tier() });
   const badge = document.getElementById("tier-badge");
   if (badge) badge.textContent = isFree() ? "Free · saved routes" : "Subscriber";
   history.replaceState(null, "", location.pathname + (new URLSearchParams(location.search).get("trip") ? location.search : "") + location.hash);

@@ -23,14 +23,9 @@ const app = express();
 app.set("trust proxy", 1); // Render / Cloudflare sit in front: req.ip comes from X-Forwarded-For
 app.use(express.json({ limit: "4mb" }));
 
-// ---------- usage analytics: page opens (HTML only) ----------
-app.use((req, res, next) => {
-  if (req.method === "GET" && !req.path.startsWith("/api/") && !req.path.startsWith("/admin")) {
-    const page = req.path === "/" ? "/index.html" : req.path;
-    if (page.endsWith(".html")) analytics.track(req, "page", page + (req.query.tier ? `?tier=${req.query.tier}` : "") + (req.query.trip ? "?trip" : ""));
-  }
-  next();
-});
+// ---------- usage analytics ----------
+// Page opens are reported by the page itself (POST /api/ping) so visits served from the
+// offline cache or the installed app are counted too; the server only sees API calls otherwise.
 setInterval(() => { try { analytics.purge(); } catch { /* ignore */ } }, 6 * 3600_000).unref();
 
 // wraps async handlers so thrown httpErrors reach the error middleware
@@ -54,12 +49,23 @@ const requireSubscriber = (req, res, next) => {
   res.status(401).json({ error: "This feature is for subscribers. Enter the app passphrase.", needsKey: true });
 };
 const freeLimiter = createLimiter({ max: 90, windowMs: 10 * 60_000 });
-app.use(["/api/place", "/api/reverse", "/api/schedule", "/api/routes"], limitFree(freeLimiter));
+app.use(["/api/place", "/api/reverse", "/api/schedule", "/api/routes", "/api/ping"], limitFree(freeLimiter));
 app.use(["/api/plan", "/api/suggest", "/api/prepare-drive"], requireSubscriber);
 
 app.get("/api/whoami", h(async (req, res) => {
   res.json({ tier: req.tier, protected: Boolean(config.appSecret) });
 }));
+
+// Page-open beacon from the client: { page, tier?, standalone?, referrer? }. No response body needed.
+app.post("/api/ping", express.text({ type: "*/*", limit: "2kb" }), (req, res) => {
+  let b = {};
+  try { b = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {}); } catch { /* ignore */ }
+  const page = String(b.page || "").replace(/[^\w./?=&-]/g, "").slice(0, 80) || "/";
+  const bits = [page, b.standalone ? "installed" : "", b.referrer ? `from ${String(b.referrer).replace(/^https?:\/\//, "").slice(0, 60)}` : ""].filter(Boolean).join(" · ");
+  if (b.tier === "free" || b.tier === "subscriber") req.tier = b.tier;
+  analytics.track(req, "page", bits);
+  res.status(204).end();
+});
 
 // ---------- admin dashboard (own password) ----------
 const requireAdmin = (req, res, next) => {

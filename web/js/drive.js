@@ -7,6 +7,7 @@ import { createSpeech, VOICE_PRESETS, matchVoice } from "./speech.js";
 import { createSim } from "./sim.js";
 import { lineToPoints, cumulative, project, haversineM, bearingDeg } from "./routeMath.js";
 import { fmtMiles, fmtDuration, to12h, escapeHtml, toMinutes as toMin, toHHMM } from "./format.js";
+import { ping } from "./ping.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -24,6 +25,7 @@ const state = {
 // ---------- boot ----------
 
 async function boot() {
+  ping();
   initMap();
   bindUi();
   await loadTrip();

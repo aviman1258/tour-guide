@@ -1,7 +1,7 @@
 // Service worker: offline app shell, polite tile cache (only tiles the map asked for),
 // network-only API. Bump SHELL_VERSION when shipping changes so clients refresh.
 
-const SHELL_VERSION = "v23"; // bump on every deploy that changes web/ — the shell is cache-first
+const SHELL_VERSION = "v24"; // bump on every deploy that changes web/ — the shell is cache-first
 const SHELL = `tg-shell-${SHELL_VERSION}`;
 const TILES = "tg-tiles";
 const IMAGES = "tg-images";
@@ -20,7 +20,7 @@ const SHELL_FILES = [
   "./js/library.js",
   "./js/main.js", "./js/state.js", "./js/api.js", "./js/actions.js", "./js/itinerary.js", "./js/map.js",
   "./js/share.js", "./js/format.js", "./js/config.js", "./js/schedule-core.js", "./js/routeMath.js",
-  "./js/storage.js", "./js/drivePrep.js", "./js/drive.js", "./js/geofence.js", "./js/speech.js", "./js/sim.js", "./js/busy.js", "./js/typeahead.js", "./js/timings.js",
+  "./js/storage.js", "./js/drivePrep.js", "./js/drive.js", "./js/geofence.js", "./js/speech.js", "./js/sim.js", "./js/busy.js", "./js/typeahead.js", "./js/timings.js", "./js/ping.js",
   "./data/airports.json", "./img/deodap.svg",
   "./vendor/leaflet/leaflet.js", "./vendor/leaflet/leaflet.css",
   "./vendor/leaflet/images/marker-icon.png", "./vendor/leaflet/images/marker-icon-2x.png", "./vendor/leaflet/images/marker-shadow.png",
