@@ -65,8 +65,8 @@
       <label class="toggle"><input type="checkbox" id="speak-turns" /> Speak turns</label>
     </div>
 
-    <details class="card voice">
-      <summary>Voice <span id="voice-current" class="hint"></span></summary>
+    <details class="card voice" id="voice-section">
+      <summary><span class="label">Voice <span id="voice-current" class="hint"></span></span><span class="chevron">▸</span></summary>
       <div class="row">
         <select id="voice-preset" aria-label="Narration voice"></select>
         <button type="button" id="voice-test" class="btn btn-sm">Test</button>
@@ -92,7 +92,7 @@
     </div>
 
     <details class="card checklist">
-      <summary>Pre-drive checklist</summary>
+      <summary><span class="label">Pre-drive checklist</span><span class="chevron">▸</span></summary>
       <ul>
         <li>Trip prepared and imported <b>inside this installed app</b> (open once in airplane mode to be sure).</li>
         <li>iPhone: Settings › Safari › Location → Allow for this site. Ringer not on silent. If iOS is older than 18.4, set Auto-Lock to Never.</li>

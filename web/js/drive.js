@@ -526,6 +526,11 @@ function bindVoicePicker() {
   if (!sel || sel.dataset.bound) return;
   sel.dataset.bound = "1";
 
+  // remember whether the section was left open
+  const section = $("voice-section");
+  try { section.open = localStorage.getItem("tourguide.voiceOpen") === "1"; } catch { /* ignore */ }
+  section.addEventListener("toggle", () => { try { localStorage.setItem("tourguide.voiceOpen", section.open ? "1" : "0"); } catch { /* ignore */ } });
+
   const render = () => {
     const voices = sp.availableVoices();
     sel.innerHTML = "";
