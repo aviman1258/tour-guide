@@ -59,6 +59,8 @@ async function usePackage(pkg) {
   state.pkg = pkg;
   state.it = pkg.itinerary;
   storage.setActiveTripId(pkg.tripId);
+  // the back arrow reopens this trip on the plan screen instead of a blank form
+  document.querySelector(".banner .back").href = `index.html?trip=${encodeURIComponent(pkg.tripId)}`;
   const route = state.it.route;
   state.points = lineToPoints(route.geometry);
   state.cum = cumulative(state.points);

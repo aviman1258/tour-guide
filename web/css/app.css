@@ -25,6 +25,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; } /* rules that set display (flex/grid cards) must not beat the attribute */
 html, body { margin: 0; height: 100%; }
 body {
   font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -70,6 +71,9 @@ body.busy .stops { opacity: .6; transition: opacity .2s; }
 }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.resume { display: flex; align-items: center; gap: 10px; border-color: var(--accent); }
+.resume .grow { flex: 1; min-width: 0; }
+.resume-title { font-weight: 600; }
 .card h2 { font-size: 15px; margin: 0 0 8px; }
 
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; min-width: 0; }

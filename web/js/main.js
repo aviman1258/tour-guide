@@ -4,6 +4,7 @@ import * as map from "./map.js";
 import * as itinerary from "./itinerary.js";
 import * as share from "./share.js";
 import * as drivePrep from "./drivePrep.js";
+import * as storage from "./storage.js";
 import { runtime } from "./config.js";
 
 async function boot() {
@@ -12,12 +13,28 @@ async function boot() {
   share.bind();
   drivePrep.bind();
 
-  // a shared link (#i=…) restores a trip; otherwise every load starts with a clean form
+  // a shared link (#i=…) or ?trip=<id> (back from drive mode) restores a trip;
+  // otherwise the form starts clean, with an offer to reopen the last prepared trip.
   const fromHash = await share.loadFromHash();
+  const tripParam = new URLSearchParams(location.search).get("trip");
   if (fromHash) {
     state.replace(fromHash);
     history.replaceState(null, "", location.pathname);
     itinerary.toast("Loaded trip from link");
+  } else if (tripParam) {
+    const pkg = await storage.getTrip(tripParam).catch(() => null);
+    if (pkg) state.replace(pkg.itinerary);
+    history.replaceState(null, "", location.pathname);
+  } else {
+    const activeId = storage.getActiveTripId();
+    const pkg = activeId ? await storage.getTrip(activeId).catch(() => null) : null;
+    if (pkg) {
+      const it = pkg.itinerary;
+      document.getElementById("resume-sub").textContent = `${it.start?.label || "?"} → ${it.end?.label || "?"} · ${it.stops.length} stops · prepared ${(pkg.preparedAt || "").slice(0, 10)}`;
+      document.getElementById("resume-banner").hidden = false;
+      document.getElementById("resume-open").addEventListener("click", () => { state.replace(it); document.getElementById("resume-banner").hidden = true; });
+      document.getElementById("resume-dismiss").addEventListener("click", () => { document.getElementById("resume-banner").hidden = true; });
+    }
   }
 
   state.subscribe((it) => {
