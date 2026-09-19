@@ -1,10 +1,11 @@
 import { apiBase, runtime } from "./config.js";
 
-async function call(method, path, body) {
+async function call(method, path, body, signal) {
   const res = await fetch(apiBase() + path, {
     method,
     headers: body ? { "content-type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
   const text = await res.text();
   let data = null;
@@ -27,7 +28,7 @@ export async function probe() {
 export const health = () => call("GET", "/api/health");
 export const place = (q, near) => call("GET", `/api/place?q=${encodeURIComponent(q)}${near ? `&near=${near.lat},${near.lon}` : ""}`);
 export const reverse = (lat, lon) => call("GET", `/api/reverse?lat=${lat}&lon=${lon}`);
-export const plan = (input) => call("POST", "/api/plan", input);
+export const plan = (input, signal) => call("POST", "/api/plan", input, signal);
 export const suggest = (itinerary, count = 3) => call("POST", "/api/suggest", { itinerary, count });
 export const schedule = (itinerary, trim = false) => call("POST", "/api/schedule", { itinerary, trim });
 export const prepareDrive = (itinerary) => call("POST", "/api/prepare-drive", { itinerary });

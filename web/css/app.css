@@ -192,6 +192,14 @@ select.quiet { min-height: 36px; padding: 4px 8px; font-size: 13px; color: var(-
 .busy-car { position: absolute; top: 1px; left: -26px; font-size: 20px; line-height: 24px; display: inline-block; transform: scaleX(-1); animation: busy-drive 1.6s linear infinite; }
 @keyframes busy-drive { from { left: -26px; } to { left: 66px; } }
 .busy-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.busy-cancel {
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; flex: 0 0 auto;
+  min-height: 30px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--late);
+  background: transparent; color: var(--late);
+}
+.busy-cancel:hover { background: color-mix(in srgb, var(--late) 15%, transparent); }
+.btn-danger { border-color: var(--late); color: var(--late); }
+.btn-danger:hover { background: color-mix(in srgb, var(--late) 12%, transparent); }
 .busy-time { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; flex: 0 0 auto; }
 @media (prefers-reduced-motion: reduce) { .busy-car { animation-duration: 4s; } }
 

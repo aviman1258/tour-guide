@@ -1,7 +1,8 @@
 // Global "working…" indicator: a little car driving in a pill, the current task label,
-// and an elapsed timer. Several tasks can overlap; the timer runs from the first one.
+// an elapsed timer, and a Cancel button when the running task can be cancelled.
+// Several tasks can overlap; the timer runs from the first one.
 
-const tasks = new Map();
+const tasks = new Map(); // id → { label, onCancel }
 let el = null, timer = null, startedAt = 0, seq = 0;
 
 function ensure() {
@@ -12,7 +13,10 @@ function ensure() {
   el.hidden = true;
   el.setAttribute("role", "status");
   el.setAttribute("aria-live", "polite");
-  el.innerHTML = `<span class="busy-road"><span class="busy-car">🚗</span></span><span class="busy-label"></span><span class="busy-time">0:00</span>`;
+  el.innerHTML = `<span class="busy-road"><span class="busy-car">🚗</span></span><span class="busy-label"></span><span class="busy-time">0:00</span><button type="button" class="busy-cancel" hidden>Cancel</button>`;
+  el.querySelector(".busy-cancel").addEventListener("click", () => {
+    for (const t of [...tasks.values()]) t.onCancel?.();
+  });
   document.body.appendChild(el);
   return el;
 }
@@ -25,8 +29,10 @@ function render() {
     timer = null;
     return;
   }
-  const labels = [...tasks.values()];
+  const list = [...tasks.values()];
+  const labels = list.map((t) => t.label);
   el.querySelector(".busy-label").textContent = labels.length === 1 ? labels[0] : `${labels[labels.length - 1]} (+${labels.length - 1})`;
+  el.querySelector(".busy-cancel").hidden = !list.some((t) => t.onCancel);
   el.hidden = false;
 }
 
@@ -35,15 +41,15 @@ function tick() {
   ensure().querySelector(".busy-time").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** Mark a task as running. Returns a function to call when it finishes. */
-export function begin(label = "Working…") {
+/** Mark a task as running. Pass { onCancel } to get a Cancel button. Returns a done() function. */
+export function begin(label = "Working…", { onCancel } = {}) {
   const id = ++seq;
   if (!tasks.size) {
     startedAt = Date.now();
     tick();
     timer = setInterval(tick, 1000);
   }
-  tasks.set(id, label);
+  tasks.set(id, { label, onCancel });
   render();
   let done = false;
   return () => {
@@ -55,8 +61,8 @@ export function begin(label = "Working…") {
 }
 
 /** Run an async fn under a busy label. */
-export async function run(label, fn) {
-  const end = begin(label);
+export async function run(label, fn, opts) {
+  const end = begin(label, opts);
   try {
     return await fn();
   } finally {

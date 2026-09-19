@@ -111,7 +111,7 @@ function cliModelAlias(model) {
   return "opus";
 }
 
-async function viaSdk({ model, system, user, tool, maxTokens }) {
+async function viaSdk({ model, system, user, tool, maxTokens, signal }) {
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic({ apiKey: config.anthropicKey, timeout: 240_000 });
   const res = await client.messages.create({
@@ -122,7 +122,7 @@ async function viaSdk({ model, system, user, tool, maxTokens }) {
     tools: [{ ...tool, strict: true }],
     tool_choice: { type: "auto", disable_parallel_tool_use: true },
     output_config: { effort: "medium" },
-  });
+  }, { signal });
   if (res.stop_reason === "refusal") throw httpError(502, "Claude declined this request");
   if (res.stop_reason === "max_tokens") throw httpError(502, "Claude ran out of room; try fewer stops");
   const block = res.content.find((b) => b.type === "tool_use" && b.name === tool.name);
@@ -148,7 +148,7 @@ function cliBinary() {
   return "claude";
 }
 
-function viaCli({ model, system, user, tool }) {
+function viaCli({ model, system, user, tool, signal }) {
   // The user message goes over stdin: no shell quoting, no argv length limits.
   const args = [
     "-p",
@@ -163,8 +163,10 @@ function viaCli({ model, system, user, tool }) {
     "--disallowedTools", "Write", "Edit", "NotebookEdit", "Bash", "WebFetch", "WebSearch", "Read", "Glob", "Grep", "Agent",
   ];
   return new Promise((resolve, reject) => {
-    const child = execFile(cliBinary(), args, { cwd: CLI_CWD, timeout: 300_000, maxBuffer: 8 * 1024 * 1024, windowsHide: true },
+    // `signal` (an AbortSignal) kills the CLI process if the caller cancels, so a cancelled plan stops costing money.
+    const child = execFile(cliBinary(), args, { cwd: CLI_CWD, timeout: 300_000, maxBuffer: 8 * 1024 * 1024, windowsHide: true, signal },
       (err, stdout, stderr) => {
+        if (err?.name === "AbortError" || signal?.aborted) return reject(Object.assign(new Error("cancelled"), { status: 499, name: "AbortError" }));
         if (err && !stdout) return reject(httpError(502, `claude CLI failed: ${(stderr || err.message).slice(0, 300)}`));
         let out;
         try { out = JSON.parse(stdout); } catch { return reject(httpError(502, `claude CLI returned non-JSON: ${stdout.slice(0, 200)}`)); }
@@ -200,13 +202,13 @@ const structuredCall = structuredWithTool;
 
 // ---------- public API ----------
 
-export async function proposeStops({ start, end, arrivalTime, deadline, budgetMinutes, interests, date, corridor }) {
+export async function proposeStops({ start, end, arrivalTime, deadline, budgetMinutes, interests, date, corridor, signal }) {
   const user = JSON.stringify({
     start, end, arrivalTime, deadline, date: date || null,
     timeAvailableMinutes: budgetMinutes, interests, corridorBoundingBox: corridor,
     note: "Return 10-14 candidates in driving order. Call the propose_itinerary tool.",
   }, null, 1);
-  const data = await structuredCall({ model: config.modelStrong, system: PROPOSE_SYSTEM, user, tool: PROPOSE_TOOL, maxTokens: 6000 });
+  const data = await structuredCall({ model: config.modelStrong, system: PROPOSE_SYSTEM, user, tool: PROPOSE_TOOL, maxTokens: 6000, signal });
   return { summary: String(data.summary || ""), stops: Array.isArray(data.stops) ? data.stops : [] };
 }
 

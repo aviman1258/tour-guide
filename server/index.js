@@ -70,10 +70,24 @@ app.post("/api/plan", h(async (req, res) => {
 
   const corridor = bbox([input.start, input.end], 25);
   const budgetMinutes = toMinutes(input.deadline) - toMinutes(input.arrivalTime) - input.departBufferMinutes - input.safetyBufferMinutes;
-  const proposal = await claude.proposeStops({ ...input, budgetMinutes, corridor });
+
+  // If the browser cancels (connection closed before we answered), stop the Claude call and skip the rest.
+  const ac = new AbortController();
+  req.on("close", () => { if (!res.writableEnded) { ac.abort(); console.log("[plan] cancelled by client"); } });
+  const gone = () => ac.signal.aborted;
+
+  let proposal;
+  try {
+    proposal = await claude.proposeStops({ ...input, budgetMinutes, corridor, signal: ac.signal });
+  } catch (err) {
+    if (gone()) return; // nobody is listening
+    throw err;
+  }
+  if (gone()) return;
   if (!proposal.stops.length) throw httpError(502, "Claude returned no stops");
 
   const grounded = await resolve.resolveCandidates(proposal.stops, corridor);
+  if (gone()) return;
   console.log(`[plan] ${proposal.stops.length} proposed → ${grounded.stops.length} grounded, ${grounded.dropped.length} dropped`);
   if (!grounded.stops.length) throw httpError(502, "None of the proposed stops could be verified");
 

@@ -125,15 +125,23 @@ export function bindForm() {
     e.preventDefault();
     showMsg("plan-msg", "Claude picks candidate stops, then each one is checked on Wikipedia and routed. Usually 1-3 minutes.");
     $("plan-btn").disabled = true;
+    $("cancel-plan-btn").hidden = false;
     try {
       const result = await actions.plan();
       showMsg("plan-msg", "");
-      toast(`${result.stops.length} stops planned`);
+      if (result) toast(`${result.stops.length} stops planned`);
     } catch (err) {
-      showMsg("plan-msg", err.message, true);
+      if (err.cancelled) { showMsg("plan-msg", ""); toast("Planning cancelled"); }
+      else showMsg("plan-msg", err.message, true);
     } finally {
       $("plan-btn").disabled = false;
+      $("cancel-plan-btn").hidden = true;
     }
+  });
+  $("cancel-plan-btn").addEventListener("click", () => {
+    $("cancel-plan-btn").disabled = true;
+    actions.cancelPlan();
+    setTimeout(() => ($("cancel-plan-btn").disabled = false), 500);
   });
 
   $("reset-btn").addEventListener("click", () => {

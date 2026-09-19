@@ -101,19 +101,42 @@ export function reschedule() {
   }, 350);
 }
 
+let planController = null;
+
+/** Abort an in-flight plan. The server notices the dropped connection and stops its work too. */
+export function cancelPlan() {
+  planController?.abort();
+}
+export const isPlanning = () => Boolean(planController);
+
 export async function plan() {
   const it = state.get();
   if (!it.start || !it.end) throw new Error("Pick a start and an end first.");
   if (!it.interests.trim()) throw new Error("Tell me what you're interested in.");
-  return busy.run("Asking Claude for stops, then checking each one…", async () => {
+  planController?.abort();
+  const ctrl = new AbortController();
+  planController = ctrl;
+  const end = busy.begin("Asking Claude for stops, then checking each one…", { onCancel: () => ctrl.abort() });
+  try {
     const result = await api.plan({
       start: it.start, end: it.end, date: it.date, arrivalTime: it.arrivalTime, deadline: it.deadline,
       interests: it.interests, departBufferMinutes: it.departBufferMinutes, safetyBufferMinutes: it.safetyBufferMinutes,
       routeOptions: it.routeOptions,
-    });
+    }, ctrl.signal);
+    if (ctrl.signal.aborted) return null;
     state.replace({ ...it, ...result });
     return result;
-  });
+  } catch (err) {
+    if (ctrl.signal.aborted || err.name === "AbortError") {
+      const e = new Error("Planning cancelled.");
+      e.cancelled = true;
+      throw e;
+    }
+    throw err;
+  } finally {
+    end();
+    if (planController === ctrl) planController = null;
+  }
 }
 
 export async function suggest(count = 3) {
