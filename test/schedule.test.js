@@ -53,12 +53,34 @@ test("placeLunch: picks the food option nearest 12:30 within the window", () => 
   assert.ok(lunch[0].dwellMinutes >= 60);
 });
 
-test("placeLunch: respects a user-chosen lunch stop", () => {
+test("placeLunch: a user meal inside the lunch window replaces the automatic pick", () => {
   const it = houston();
-  it.stops[5].lunch = "user"; // BAPS, not a food option, but the user insists
+  it.stops[0].lunch = "user"; // Heights, reached ~12:45: not a food option, but the user insists
+  it.stops[0].dwellMinutes = 60;
   const stops = placeLunch(it, estimateLegs(it));
   assert.equal(stops.filter((s) => s.lunch !== "none").length, 1);
-  assert.equal(stops[5].lunch, "user");
+  assert.equal(stops[0].lunch, "user");
+});
+
+test("placeLunch: a user meal outside the window (dinner) keeps the automatic lunch", () => {
+  const it = houston();
+  it.deadline = "21:00";
+  it.stops[9].lunch = "user"; // Telfair, the last stop, well after 2 pm
+  it.stops[9].dwellMinutes = 60;
+  const stops = placeLunch(it, estimateLegs(it));
+  assert.equal(stops[9].lunch, "user");
+  assert.equal(stops.filter((s) => s.lunch === "auto").length, 1, "lunch is still placed at midday");
+});
+
+test("placeLunch: several user meals all survive", () => {
+  const it = houston();
+  it.deadline = "21:00";
+  for (const i of [0, 4, 9]) { it.stops[i].lunch = "user"; it.stops[i].dwellMinutes = 60; }
+  const stops = placeLunch(it, estimateLegs(it));
+  assert.deepEqual(stops.filter((s) => s.lunch === "user").map((s) => s.id), ["heights", "gandhi", "telfair"]);
+  assert.equal(stops.filter((s) => s.lunch === "auto").length, 0);
+  const sched = walk({ ...it, stops }, estimateLegs(it));
+  assert.deepEqual(sched.mealStopIds, ["heights", "gandhi", "telfair"]);
 });
 
 test("pickStopToTrim: lowest priority goes first, never the lunch stop", () => {

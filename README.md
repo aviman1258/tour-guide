@@ -107,9 +107,11 @@ session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answer
    OSRM demo server is the fallback for plain routes. The schedule is walked from your start
    time plus a 30 min buffer: drive + 3 min parking + dwell per stop.
 4. **Lunch** lands on the highest-priority food-friendly stop you reach between 11:30 and
-   2:00 (ties go to the one nearest 12:30) and gets an hour. Any stop can be made the meal
-   break by hand with **Stop here to eat** (breakfast, dinner, whatever fits the day); that
-   replaces the automatic lunch pick and is tagged "meal" instead of "lunch".
+   2:00 (ties go to the one nearest 12:30) and gets an hour. Any number of stops can be made
+   meal breaks by hand with **Stop here to eat** (breakfast, dinner, a second lunch); each gets
+   at least an hour and is tagged "meal". A hand-picked meal that falls inside the lunch window
+   replaces the automatic pick; meals at other times leave it in place. Trimming never drops a
+   meal stop while a non-meal stop of the same priority remains.
 5. **Trimming**: while there are 6+ stops, the lowest-priority stop is cut. Below that,
    stays are shortened toward sensible minimums first (low-priority stops give up their
    time first, lunch keeps 45 min) because several quick stops beat two long ones; only

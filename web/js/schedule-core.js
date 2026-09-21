@@ -27,7 +27,7 @@ export function estimateLegs(it) {
 
 /**
  * Walk the day. `legMinutes` has stops.length + 1 entries.
- * Returns { items:[{stopId, arrive, depart, legMinutes}], hotelArrive, slackMinutes, status, lunchStopId, warnings }.
+ * Returns { items:[{stopId, arrive, depart, legMinutes}], hotelArrive, slackMinutes, status, lunchStopId, mealStopIds, warnings }.
  */
 export function walk(it, legMinutes) {
   const warnings = [];
@@ -44,7 +44,8 @@ export function walk(it, legMinutes) {
   const hotelArrive = t + (legMinutes[it.stops.length] ?? 0);
   const slack = deadline - (it.safetyBufferMinutes ?? 15) - hotelArrive;
   const status = slack >= 0 ? (slack <= TIGHT_MINUTES ? "tight" : "ok") : slack >= -TIGHT_MINUTES ? "tight" : "late";
-  const lunchStop = it.stops.find((s) => s.lunch !== "none");
+  const meals = it.stops.filter((s) => s.lunch !== "none");
+  const lunchStop = meals[0];
   if (!lunchStop && hotelArrive - depart > 150) warnings.push("No lunch stop fits 11:30-2:00. Use \"Stop here to eat\" on any stop for a meal break.");
   if (deadline <= toMinutes(it.arrivalTime)) warnings.push("Deadline is before arrival.");
   return {
@@ -53,20 +54,24 @@ export function walk(it, legMinutes) {
     slackMinutes: Math.round(slack),
     status,
     lunchStopId: lunchStop?.id || null,
+    mealStopIds: meals.map((s) => s.id),
     warnings,
     _arriveMin: items.map((x) => x.arriveMin),
   };
 }
 
 /**
- * Decide the lunch stop. Respects lunch:"user"; otherwise picks the food option whose
- * arrival is nearest 12:30 within the window and marks it lunch:"auto" with dwell >= 60.
+ * Decide the automatic lunch stop. Stops the user marked (lunch:"user") are always kept, and
+ * there can be any number of them (breakfast, lunch, dinner). If one of them is reached inside
+ * the lunch window it IS lunch and nothing is added; otherwise the food option whose arrival is
+ * nearest 12:30 within the window is marked lunch:"auto" with dwell >= 60.
  * Returns a new stops array.
  */
 export function placeLunch(it, legMinutes) {
   const stops = it.stops.map((s) => (s.lunch === "auto" ? { ...s, lunch: "none" } : { ...s }));
-  if (stops.some((s) => s.lunch === "user")) return stops;
   const sched = walk({ ...it, stops }, legMinutes);
+  const inWindow = (i) => sched._arriveMin[i] >= LUNCH_WINDOW.start && sched._arriveMin[i] <= LUNCH_WINDOW.end;
+  if (stops.some((s, i) => s.lunch === "user" && inWindow(i))) return stops;
   // highest-priority food option inside the window wins; ties go to the one nearest 12:30
   let best = -1, bestScore = -Infinity;
   stops.forEach((s, i) => {

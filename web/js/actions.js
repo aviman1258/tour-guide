@@ -61,13 +61,13 @@ export function updateStop(id, patch) {
   reschedule();
 }
 
+/** Mark / unmark a stop as a meal break. Any number of stops can be meals (breakfast, lunch, dinner). */
 export function toggleLunch(id) {
   state.set((it) => ({
     ...it,
-    stops: it.stops.map((s) => {
-      if (s.id === id) return { ...s, lunch: s.lunch === "user" ? "none" : "user", dwellMinutes: s.lunch === "user" ? s.dwellMinutes : Math.max(s.dwellMinutes, 60) };
-      return s.lunch === "user" || s.lunch === "auto" ? { ...s, lunch: "none" } : s;
-    }),
+    stops: it.stops.map((s) => (s.id === id
+      ? { ...s, lunch: s.lunch === "user" ? "none" : "user", dwellMinutes: s.lunch === "user" ? s.dwellMinutes : Math.max(s.dwellMinutes, 60) }
+      : s)),
   }));
   reschedule();
 }
