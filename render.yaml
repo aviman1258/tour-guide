@@ -23,6 +23,8 @@ services:
         value: claude-opus-5
       - key: MODEL_FAST
         value: claude-haiku-4-5
+      - key: TRUST_PROXY
+        value: "2"
       - key: NODE_ENV
         value: production
     disk:

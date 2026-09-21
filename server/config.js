@@ -12,6 +12,10 @@ export const config = {
   adminSecret: process.env.ADMIN_SECRET || "",
   // Fall back to a cached ipwho.is lookup for visitor location when Cloudflare headers are absent.
   geoLookup: (process.env.GEO_LOOKUP ?? "1") !== "0",
+  // Proxy hops between the visitor and this process. Render's edge runs through Cloudflare, so
+  // X-Forwarded-For arrives as "visitor, cloudflare-edge" = 2 hops. Add one more if you also proxy
+  // your own domain through Cloudflare. Wrong value = every visitor logged (and rate-limited) as the proxy.
+  trustProxy: Number(process.env.TRUST_PROXY ?? "2"),
   modelStrong: process.env.MODEL_STRONG || "claude-opus-5",
   modelFast: process.env.MODEL_FAST || "claude-haiku-4-5",
 

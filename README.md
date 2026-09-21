@@ -116,6 +116,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | Route | Body / query | Returns |
 |---|---|---|
 | `GET /api/health` | | `{ok, claude:"sdk"\|"cli", models, osrm, data:{dir, exists, writable, events, routes, admin, analytics}}` |
+| `GET /api/whoami` | | `{tier, protected, ip, forwarded}` — the tier the server sees for you, your resolved IP and the raw `X-Forwarded-For` chain |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |
 | `POST /api/suggest` | `{itinerary, count}` | `{candidates: Stop[]}` not already in the plan |
@@ -214,6 +215,11 @@ pick this repo, then set the secrets it asks for:
 - `APP_SECRET` — a passphrase; every `/api/*` call except the health check must carry it. The app
   asks for it once per device (`x-app-key` header, kept in localStorage).
 - `CONTACT` — an email or URL for the Wikipedia/OSM User-Agent.
+- `TRUST_PROXY` — how many proxy hops sit in front of the app (default `2`: Render's edge goes
+  through Cloudflare, so `X-Forwarded-For` is `visitor, cloudflare`). If you later proxy your own
+  domain through Cloudflare too, set `3`. `GET /api/whoami` echoes the `ip` the app resolved and the
+  raw `forwarded` chain, so you can check it. A wrong value logs and rate-limits every visitor as
+  one address.
 
 Point your domain at the service (Cloudflare CNAME → the `onrender.com` host, then add the custom
 domain in Render for the certificate). Install the PWA from that domain; planning, prepare-drive

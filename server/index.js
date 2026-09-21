@@ -21,7 +21,7 @@ import { toMinutes } from "../web/js/format.js";
 const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "web");
 
 const app = express();
-app.set("trust proxy", 1); // Render / Cloudflare sit in front: req.ip comes from X-Forwarded-For
+app.set("trust proxy", config.trustProxy); // see config.trustProxy; GET /api/whoami echoes ip + forwarded chain
 app.use(express.json({ limit: "4mb" }));
 
 // ---------- usage analytics ----------
