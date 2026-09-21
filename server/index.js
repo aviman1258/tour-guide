@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
@@ -83,10 +84,21 @@ app.get("/api/admin/events", requireAdmin, h(async (req, res) => {
 }));
 
 app.get("/api/health", h(async (_req, res) => {
+  // storage diagnostics: is the data dir writable, and are events actually being recorded?
+  let data = {};
+  try {
+    const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "data");
+    let writable = false;
+    try { fs.accessSync(dir, fs.constants.W_OK); writable = true; } catch { /* not writable / missing */ }
+    data = { dir, exists: fs.existsSync(dir), writable, events: analytics.recent(1).length ? analytics.summary(3650).totals.events : 0, routes: library.count(), admin: Boolean(config.adminSecret) };
+  } catch (err) {
+    data = { error: err.message };
+  }
   res.json({
     ok: true,
     protected: Boolean(config.appSecret),
     claude: config.anthropicKey ? "sdk" : "cli",
+    data,
     models: { strong: config.modelStrong, fast: config.modelFast },
     osrm: config.osrmBase,
   });
