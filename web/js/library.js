@@ -9,6 +9,7 @@ import * as map from "./map.js";
 import { isFree } from "./config.js";
 import { toast } from "./itinerary.js";
 import { escapeHtml, fmtDuration } from "./format.js";
+import { samePlan, matchingPackage } from "./planMatch.js";
 
 const $ = (id) => document.getElementById(id);
 let loaded = null; // { summary, package } of the library route currently in the itinerary
@@ -66,11 +67,15 @@ export async function useRoute(id) {
 /** Free tier: store the loaded route (with the user's re-timed schedule) as a drive package. */
 export async function saveToPhone() {
   const it = state.get();
+  if (!it.start || !it.end || !it.stops.length) throw new Error("Pick a saved route first.");
+  // `loaded` is whatever was last picked from the library; the plan on screen may have moved on
+  // (resume banner, back from drive mode, another route). Only ever save a package for THESE stops.
+  if (loaded && !samePlan(loaded.package.itinerary, it)) loaded = null;
   if (!loaded) {
     // maybe the itinerary came from an earlier package on this device
-    const existing = await storage.getTrip(state.tripId(it)).catch(() => null);
+    const existing = (await storage.getTrip(state.tripId(it)).catch(() => null)) || matchingPackage(it, await storage.listTrips().catch(() => []));
     if (!existing) throw new Error("Pick a saved route first.");
-    loaded = { package: existing, summary: { title: "your trip" } };
+    loaded = { package: existing, summary: { title: "your trip", id: existing.libraryId || null } };
   }
   const pkg = {
     ...loaded.package,
@@ -87,14 +92,29 @@ export async function saveToPhone() {
 
 // ---------- publish (subscriber) ----------
 
+/**
+ * The prepared package for the plan on screen, or null. Looked up by trip id first, then by
+ * content (same start/end/stops, any date) across everything on this device. Never falls back
+ * to "the last active trip": that published old stops under a new title.
+ */
 async function currentPackage() {
   const it = state.get();
-  return (await storage.getTrip(state.tripId(it)).catch(() => null)) || (await storage.getTrip(storage.getActiveTripId()).catch(() => null));
+  const byId = await storage.getTrip(state.tripId(it)).catch(() => null);
+  if (byId && samePlan(byId.itinerary, it)) return byId;
+  return matchingPackage(it, await storage.listTrips().catch(() => []));
 }
 
 async function publish(title, description) {
-  const pkg = await currentPackage();
-  if (!pkg) throw new Error("Prepare the drive first; publishing shares the narration too.");
+  const current = state.get();
+  const stored = await currentPackage();
+  if (!stored) {
+    const any = await storage.listTrips().catch(() => []);
+    throw new Error(any.length
+      ? "This plan has changed since it was prepared (or was never prepared). Tap Prepare drive first so the narration matches these stops, then publish."
+      : "Prepare the drive first; publishing shares the narration too.");
+  }
+  // publish a copy carrying the times shown on screen; stops/narration come from the prepared package
+  const pkg = { ...stored, itinerary: { ...stored.itinerary, date: current.date, arrivalTime: current.arrivalTime, deadline: current.deadline, schedule: current.schedule || stored.itinerary.schedule } };
   const it = pkg.itinerary;
   // street addresses can't be published: ask for a place name instead
   for (const key of ["start", "end"]) {
@@ -150,7 +170,7 @@ export function bind() {
     msg("publish-msg", "");
     try {
       const s = await publish($("publish-title").value, $("publish-desc").value);
-      msg("publish-msg", `Published as "${s.title}" (${s.region || "region unknown"}). Free-tier drivers can find it now.`);
+      msg("publish-msg", `Published as "${s.title}" (${s.region || "region unknown"}): ${s.stopsCount} stops, ${s.startLabel} → ${s.endLabel}. Free-tier drivers can find it now.`);
       setTimeout(() => ($("publish-form").hidden = true), 2500);
     } catch (err) {
       msg("publish-msg", err.message, true);
