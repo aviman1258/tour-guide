@@ -143,7 +143,9 @@ export function bindForm() {
       $("cancel-plan-btn").hidden = true;
     }
   });
-  $("owner-signin")?.addEventListener("click", async (e) => {
+  // delegated: the row's contents are re-rendered by pay.renderPrice (sign in / view as visitor)
+  $("owner-signin-row")?.addEventListener("click", async (e) => {
+    if (e.target.id !== "owner-signin") return;
     e.preventDefault();
     const k = await askSecret({ title: "Site owner", label: "Owner passphrase", submit: "Sign in" });
     if (k) { setAppKey(k); location.reload(); }
