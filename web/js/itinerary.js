@@ -249,7 +249,7 @@ export function render(it) {
   $("gmaps-btn").disabled = !hasRoute;
   $("share-btn").disabled = !hasRoute;
   $("suggest-btn").disabled = !(it.start && it.end) || runtime.hasServer === false;
-  $("plan-btn").disabled = runtime.hasServer === false;
+  $("plan-btn").disabled = runtime.hasServer === false || Boolean(it.planning); // stays off while a plan is running
 }
 
 function renderStatus(it) {
