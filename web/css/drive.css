@@ -82,7 +82,8 @@ body.drive {
 .np-controls { display: flex; flex-direction: column; gap: 6px; }
 
 /* all stops, scrollable, with play + visited/undo per row */
-.stops-list { flex-direction: column; align-items: stretch; gap: 4px; padding: 6px 10px; max-height: 38vh; overflow-y: auto; }
+/* flex-shrink 0: the sheet is a flex column capped at 70vh, and a scrollable child would otherwise be squeezed to nothing when the sheet is full */
+.stops-list { flex-direction: column; align-items: stretch; gap: 4px; padding: 6px 10px; max-height: 38vh; overflow-y: auto; flex-shrink: 0; }
 .stops-list.collapsed { max-height: none; overflow: visible; padding: 4px 10px; }
 .stops-list .list-toggle {
   display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
