@@ -54,7 +54,8 @@ app.use(["/api/place", "/api/reverse", "/api/schedule", "/api/routes", "/api/pin
 app.use(["/api/plan", "/api/suggest", "/api/prepare-drive"], requireSubscriber);
 
 app.get("/api/whoami", h(async (req, res) => {
-  res.json({ tier: req.tier, protected: Boolean(config.appSecret) });
+  // ip/forwarded echo the caller's own address chain, so the proxy setup can be checked in production.
+  res.json({ tier: req.tier, protected: Boolean(config.appSecret), ip: req.ip, forwarded: req.get("x-forwarded-for") || null });
 }));
 
 // Page-open beacon from the client: { page, tier?, standalone?, referrer? }. No response body needed.
