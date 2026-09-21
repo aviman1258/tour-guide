@@ -290,8 +290,6 @@ body.free #library-card { border-color: var(--ok); }
 
 /* pay-per-route */
 .price-line { margin: 6px 0 0; }
-.owner-row { margin: 2px 0 0; font-size: 12px; }
-.owner-row a { color: var(--muted); }
 dialog.pay { border: 1px solid var(--line); border-radius: var(--radius); padding: 0; width: min(94vw, 440px); background: var(--card); color: var(--text); box-shadow: 0 18px 50px rgba(0,0,0,.3); }
 dialog.pay::backdrop { background: rgba(10, 20, 30, .5); }
 dialog.pay form { display: grid; gap: 10px; padding: 18px; margin: 0; }

@@ -9,6 +9,7 @@ import * as library from "./library.js";
 import { ping } from "./ping.js";
 import { runtime, tier, isFree } from "./config.js";
 import * as pay from "./pay.js";
+import { bindOwnerGesture } from "./ownerGesture.js";
 
 async function boot() {
   // tier decides which controls exist on this screen (CSS hides the other tier's)
@@ -62,6 +63,7 @@ async function boot() {
     }
     pay.renderPrice(state.get());
   }
+  bindOwnerGesture(document.querySelector(".brand-logo"), { isOwner: () => pay.isOwner() });
   if (!ok) {
     itinerary.toast("No planning server here. Drive mode and import still work.", 5000);
     document.getElementById("plan-msg").hidden = false;

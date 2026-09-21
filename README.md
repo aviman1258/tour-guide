@@ -77,6 +77,11 @@ a day before Stripe's 7-day limit, releases it. Stripe's webhook
 (`POST /api/pay/webhook`, events `payment_intent.amount_capturable_updated`, `.succeeded`,
 `.canceled`) mirrors any state change we didn't see ourselves.
 
+Owner mode has no visible control: **press and hold the Deodap logo** in the plan page header
+for about a second (`web/js/ownerGesture.js`), or open `plan.html?owner`. Not the owner → the
+passphrase prompt; already the owner → an offer to leave owner mode on that device, which is how
+to see the paid flow as a visitor would.
+
 Gates (`requireAccess` in `server/index.js`): the owner passphrase (`APP_SECRET`) always passes;
 otherwise `/api/plan` needs a credit with plans left, and `/api/suggest`, `/api/prepare-drive`
 and `POST /api/routes` need a credit for that route. A refusal is a 402 with `needsPayment: true`

@@ -5,7 +5,7 @@
 // in localStorage and unlocks re-plans, narration and publishing for that start/end.
 
 import * as api from "./api.js";
-import { setCreditToken, setAppKey } from "./config.js";
+import { setCreditToken } from "./config.js";
 import { quote, routeSig, tierRank } from "./pricing.js";
 
 const $ = (id) => document.getElementById(id);
@@ -56,22 +56,12 @@ function usableFor(c, it) {
 
 /** Plan button label + the line under it. Called on every render. */
 export function renderPrice(it) {
-  const btn = $("plan-btn"), line = $("price-line"), owner = $("owner-signin-row");
+  const btn = $("plan-btn"), line = $("price-line");
   if (!btn) return;
-  if (info.owner || !info.enabled) {
+  if (info.owner || !info.enabled) { // the owner plans for free (owner mode: hold the logo, see ownerGesture.js)
     btn.textContent = "Plan my tour";
     if (line) line.hidden = true;
-    if (owner) {
-      // the owner plans for free; offer a way to see what a paying visitor sees
-      owner.hidden = !(info.owner && info.enabled);
-      owner.innerHTML = `You're signed in as the site owner: planning is free. <a href="#" id="owner-signout">View as a visitor</a>`;
-      owner.querySelector("#owner-signout")?.addEventListener("click", (e) => { e.preventDefault(); setAppKey(""); location.reload(); });
-    }
     return;
-  }
-  if (owner) {
-    owner.hidden = false;
-    if (!owner.querySelector("#owner-signin")) owner.innerHTML = `<a href="#" id="owner-signin">Site owner? Sign in with the passphrase</a>`;
   }
   const q = quote(it.arrivalTime, it.deadline);
   const c = credit();

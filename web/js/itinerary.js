@@ -10,8 +10,6 @@ import { runtime } from "./config.js";
 import { escapeHtml, to12h, fmtDuration, fmtMiles } from "./format.js";
 import { haversineM } from "./routeMath.js";
 import * as pay from "./pay.js";
-import { askSecret } from "./secretPrompt.js";
-import { setAppKey } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const boxes = {}; // typeahead handles for start / end
@@ -142,13 +140,6 @@ export function bindForm() {
       $("plan-btn").disabled = false;
       $("cancel-plan-btn").hidden = true;
     }
-  });
-  // delegated: the row's contents are re-rendered by pay.renderPrice (sign in / view as visitor)
-  $("owner-signin-row")?.addEventListener("click", async (e) => {
-    if (e.target.id !== "owner-signin") return;
-    e.preventDefault();
-    const k = await askSecret({ title: "Site owner", label: "Owner passphrase", submit: "Sign in" });
-    if (k) { setAppKey(k); location.reload(); }
   });
   $("cancel-plan-btn").addEventListener("click", () => {
     $("cancel-plan-btn").disabled = true;
