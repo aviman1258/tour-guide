@@ -84,6 +84,17 @@ app.get("/api/admin/summary", requireAdmin, h(async (req, res) => {
 app.get("/api/admin/events", requireAdmin, h(async (req, res) => {
   res.json({ events: analytics.recent(Number(req.query.limit) || 200) });
 }));
+// Shared-route moderation: list everything, delete anything.
+app.get("/api/admin/routes", requireAdmin, h(async (_req, res) => {
+  res.json({ routes: library.list() });
+}));
+app.delete("/api/admin/routes/:id", requireAdmin, h(async (req, res) => {
+  const { summary } = library.get(req.params.id, { countUse: false });
+  library.remove(req.params.id);
+  console.log(`[admin] deleted route ${summary.id} "${summary.title}"`);
+  analytics.track(req, "admin_delete", `${summary.id} ${summary.title}`);
+  res.status(204).end();
+}));
 
 app.get("/api/health", h(async (_req, res) => {
   // storage diagnostics: is the data dir writable, and are events actually being recorded?

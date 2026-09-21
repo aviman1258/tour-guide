@@ -1,6 +1,7 @@
 // Admin usage dashboard. Password is kept in sessionStorage only (asked again next browser session).
 
 import { escapeHtml } from "./format.js";
+import { askSecret } from "./secretPrompt.js";
 
 const $ = (id) => document.getElementById(id);
 const KEY = "tourguide.adminKey";
@@ -9,14 +10,15 @@ let days = 30;
 function key() { try { return sessionStorage.getItem(KEY) || ""; } catch { return ""; } }
 function setKey(v) { try { v ? sessionStorage.setItem(KEY, v) : sessionStorage.removeItem(KEY); } catch { /* ignore */ } }
 
-async function api(path, retried = false) {
-  const res = await fetch(path, { headers: key() ? { "x-admin-key": key() } : {} });
+async function api(path, method = "GET", retried = false) {
+  const res = await fetch(path, { method, headers: key() ? { "x-admin-key": key() } : {} });
   if (res.status === 401 && !retried) {
-    const entered = window.prompt("Admin password:", "");
+    const entered = await askSecret({ title: "Admin", label: "Admin password", submit: "Sign in" });
     if (!entered) throw new Error("Admin password required.");
-    setKey(entered.trim());
-    return api(path, true);
+    setKey(entered);
+    return api(path, method, true);
   }
+  if (res.status === 204) return {};
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
   return data;
@@ -61,12 +63,30 @@ function render(s, events) {
   ], events);
 }
 
+function renderRoutes(routes) {
+  $("routes-count").textContent = `${routes.length} published`;
+  table("routes", [
+    { label: "Route", render: (r) => `<b>${escapeHtml(r.title)}</b><div class="desc">${escapeHtml(r.description || "")}</div>` },
+    { label: "From → to", render: (r) => `${escapeHtml(r.startLabel)} → ${escapeHtml(r.endLabel)}<div class="desc">${escapeHtml(r.region || "")}</div>` },
+    { label: "Stops", num: true, render: (r) => `${fmt(r.stopsCount)}<div class="desc">${escapeHtml(r.stopNames.join(" · "))}</div>` },
+    { label: "Miles", num: true, render: (r) => fmt(r.miles) }, { label: "Uses", num: true, render: (r) => fmt(r.uses) },
+    { label: "Published", render: (r) => when(r.createdAt) },
+    { label: "", render: (r) => `<button type="button" class="btn btn-sm btn-danger" data-delete="${escapeHtml(r.id)}" data-title="${escapeHtml(r.title)}">Delete</button>` },
+  ], routes);
+}
+
+async function loadRoutes() {
+  const r = await api(`/api/admin/routes`);
+  renderRoutes(r.routes);
+}
+
 async function load() {
   $("msg").hidden = true;
   try {
     const s = await api(`/api/admin/summary?days=${days}`); // first call may prompt for the password
     const e = await api(`/api/admin/events?limit=200`);
     render(s, e.events);
+    await loadRoutes();
   } catch (err) {
     $("msg").textContent = err.message;
     $("msg").hidden = false;
@@ -80,6 +100,19 @@ $("days").addEventListener("click", (e) => {
   days = Number(b.dataset.days);
   for (const x of $("days").querySelectorAll("button")) x.setAttribute("aria-pressed", String(x === b));
   load();
+});
+$("routes").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-delete]");
+  if (!b) return;
+  if (!window.confirm(`Delete "${b.dataset.title}" from the shared library? Free-tier drivers won't be able to find it any more.`)) return;
+  b.disabled = true;
+  try {
+    await api(`/api/admin/routes/${encodeURIComponent(b.dataset.delete)}`, "DELETE");
+    await loadRoutes();
+  } catch (err) {
+    b.disabled = false;
+    $("msg").textContent = err.message; $("msg").hidden = false; $("msg").classList.add("error");
+  }
 });
 $("refresh").addEventListener("click", load);
 $("logout").addEventListener("click", () => { setKey(""); location.reload(); });

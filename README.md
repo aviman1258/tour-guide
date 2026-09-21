@@ -28,7 +28,8 @@ Wikipedia and Nominatim lookups for every candidate.
 
 `/` is a landing page with two doors. **Subscriber** (`plan.html?tier=subscriber`) is the full
 planner; on a hosted server it asks once per device for the passphrase (`APP_SECRET`), which the
-server treats as the subscriber tier. **Free** (`plan.html?tier=free`) hides every AI control and
+server treats as the subscriber tier. Passphrase and admin-password prompts are a masked
+`<dialog>` with a Show/Hide toggle (`web/js/secretPrompt.js`), never a plain `window.prompt`. **Free** (`plan.html?tier=free`) hides every AI control and
 shows "Find a saved route" instead: routes that subscribers published, searchable by text or
 "near me". A free driver picks one, sets their own date and start time (re-timing only; stops are
 fixed because the narration is tied to them), saves it to the phone and drives it exactly like a
@@ -44,6 +45,25 @@ publishes `{package, title, description}` (start/end labels that look like stree
 refused so nobody publishes their home), `DELETE /api/routes/:id` removes one.
 
 Later: real accounts + Stripe replace the passphrase; the tier check is the one place to change.
+
+### Content filter on published routes
+
+`server/lib/moderation.js` checks every piece of text other drivers will read (title,
+description, start/end labels, interests, stop names) before a route is stored, and rejects
+with a 400 that names the field:
+
+- **markup / script** — anything tag-shaped, `javascript:` URLs, `on…=` handlers, pre-encoded
+  entities, template syntax.
+- **SQL-shaped input** — `union select`, `drop table`, `' or '1`, `admin'--` and friends. Plain
+  English with the word "select" or "update" in it passes; queries are parameterised anyway, so
+  this is about keeping junk out of the library, not about protecting the database.
+- **abusive language** — profanity plus racial, ethnic, religious, sexist, homophobic, transphobic
+  and ableist slurs, matched as whole words on a normalised copy (lower-case, leet-speak undone,
+  stretched letters collapsed), and a letters-only pass for dotted-out slurs. Whole-word matching
+  keeps "Scunthorpe", "Dickens" and "spicy" legal. The word list lives at the top of the module.
+
+Output is HTML-escaped everywhere too; the filter is the second layer. `test/moderation.test.js`
+holds the pass/fail examples.
 
 ## Usage analytics and the admin page
 
@@ -63,7 +83,9 @@ the data directory exists and is writable, how many events and routes are stored
 running process. `lastError` carries the last insert or ipwho.is failure verbatim.
 
 `/admin.html` shows it: cards, visitors per day, where from, devices, pages, actions, most active
-addresses, recent events. It has its own password, `ADMIN_SECRET` (asked once per browser
+addresses, recent events. It also lists every **shared route** with a Delete button, for taking
+down anything that slipped past the content filter (`GET/DELETE /api/admin/routes`; deletions are
+recorded as `admin_delete` events). It has its own password, `ADMIN_SECRET` (asked once per browser
 session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answers 404.
 
 ## How planning works
@@ -117,6 +139,8 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | Route | Body / query | Returns |
 |---|---|---|
 | `GET /api/health` | | `{ok, claude:"sdk"\|"cli", models, osrm, data:{dir, exists, writable, events, routes, admin, analytics}}` |
+| `GET /api/admin/routes` | `x-admin-key` | `{routes: [summary + author]}` every shared route, newest first |
+| `DELETE /api/admin/routes/:id` | `x-admin-key` | 204; removes a shared route for everyone |
 | `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |

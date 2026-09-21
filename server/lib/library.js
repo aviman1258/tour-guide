@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { httpError } from "./http.js";
 import { haversineM } from "./geo.js";
+import { assertClean } from "./moderation.js";
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "data");
 const FILE = path.join(DIR, "deodapper.db");
@@ -76,6 +77,9 @@ export function publish({ pkg, title, description = "", region = "", author = ""
   for (const [what, label] of [["start", it.start.label], ["end", it.end.label]]) {
     if (looksLikeAddress(label)) throw httpError(400, `The ${what} label "${label}" looks like a street address. Rename it to a place (e.g. an airport, hotel or neighborhood) before publishing.`);
   }
+  // Everything other visitors will read must be free of markup, SQL and abuse (throws 400).
+  assertClean({ title: t, description, "start label": it.start.label, "end label": it.end.label, interests: it.interests });
+  for (const s of it.stops) assertClean({ [`stop name "${s.name}"`]: s.name });
 
   const clean = {
     version: 1,
@@ -134,6 +138,11 @@ export function get(id, { countUse = false } = {}) {
   if (!row) throw httpError(404, "route not found");
   if (countUse) d.prepare(`UPDATE routes SET uses = uses + 1 WHERE id = ?`).run(id);
   return { summary: summarize(row), package: JSON.parse(row.package_json) };
+}
+
+/** Every route, newest first, for the admin page (no package body). */
+export function list() {
+  return open().prepare(`SELECT * FROM routes ORDER BY created_at DESC`).all().map((r) => ({ ...summarize(r), author: r.author }));
 }
 
 export function remove(id) {

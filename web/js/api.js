@@ -1,4 +1,5 @@
 import { apiBase, runtime, getAppKey, setAppKey } from "./config.js";
+import { askSecret } from "./secretPrompt.js";
 
 const authHeaders = () => (getAppKey() ? { "x-app-key": getAppKey() } : {});
 
@@ -8,9 +9,9 @@ async function askForKey(res) {
   let needs = false;
   try { needs = Boolean((await res.clone().json()).needsKey); } catch { /* not ours */ }
   if (!needs) return false;
-  const entered = window.prompt("This server needs the app passphrase:", "");
+  const entered = await askSecret({ title: "App passphrase", label: "This server needs the app passphrase", submit: "Unlock" });
   if (!entered) return false;
-  setAppKey(entered.trim());
+  setAppKey(entered);
   return true;
 }
 
@@ -124,9 +125,9 @@ export async function ensureSubscriber() {
   let me = await whoami().catch(() => null);
   if (!me) return false;
   if (me.tier === "subscriber") return true;
-  const entered = window.prompt("Subscriber features need the app passphrase:", "");
+  const entered = await askSecret({ title: "Subscriber passphrase", label: "Subscriber features need the app passphrase", submit: "Unlock" });
   if (!entered) return false;
-  setAppKey(entered.trim());
+  setAppKey(entered);
   me = await whoami().catch(() => null);
   return me?.tier === "subscriber";
 }

@@ -30,7 +30,9 @@
     .days .btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
     .kind-page { color: var(--muted); }
     .kind-plan, .kind-prepare, .kind-publish { color: var(--ok); font-weight: 600; }
-    .kind-plan_error, .kind-prepare_error { color: var(--late); font-weight: 600; }
+    .kind-plan_error, .kind-prepare_error, .kind-admin_delete { color: var(--late); font-weight: 600; }
+    td .desc { color: var(--muted); font-size: 12px; max-width: 360px; }
+    .btn-danger { color: var(--late); border-color: var(--late); }
   </style>
 </head>
 <body>
@@ -63,6 +65,12 @@
       <section class="card"><h2>Pages</h2><div class="scroll"><table id="pages"></table></div></section>
       <section class="card"><h2>What they did</h2><div class="scroll"><table id="kinds"></table></div></section>
     </div>
+
+    <section class="card">
+      <h2>Shared routes <small id="routes-count"></small></h2>
+      <p class="hint">Everything free-tier drivers can find. Delete removes the route and its narration for everyone; drivers who already saved it to their phone keep their copy.</p>
+      <div class="scroll"><table id="routes"></table></div>
+    </section>
 
     <section class="card"><h2>Most active addresses</h2><div class="scroll"><table id="visitors"></table></div></section>
     <section class="card"><h2>Recent events <small>newest first · last 200</small></h2><div class="scroll"><table id="events"></table></div></section>
