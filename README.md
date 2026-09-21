@@ -44,6 +44,13 @@ The library (`server/lib/library.js`) is SQLite via Node's built-in `node:sqlite
 publishes `{package, title, description}` (start/end labels that look like street addresses are
 refused so nobody publishes their home), `DELETE /api/routes/:id` removes one.
 
+Publishing sends the **prepared package** for the plan on screen, found by trip id or, failing
+that, by content (same start, end and stops in order, any date; `web/js/planMatch.js`). If the
+plan was edited after Prepare drive, or never prepared, publishing stops with a message instead
+of falling back to the last active trip (which used to publish old stops under a new title).
+"Save to this phone" applies the same check before merging the re-timed schedule into a library
+route.
+
 Later: real accounts + Stripe replace the passphrase; the tier check is the one place to change.
 
 ### Content filter on published routes
@@ -100,14 +107,16 @@ session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answer
    OSRM demo server is the fallback for plain routes. The schedule is walked from your start
    time plus a 30 min buffer: drive + 3 min parking + dwell per stop.
 4. **Lunch** lands on the highest-priority food-friendly stop you reach between 11:30 and
-   2:00 (ties go to the one nearest 12:30) and gets an hour.
+   2:00 (ties go to the one nearest 12:30) and gets an hour. Any stop can be made the meal
+   break by hand with **Stop here to eat** (breakfast, dinner, whatever fits the day); that
+   replaces the automatic lunch pick and is tagged "meal" instead of "lunch".
 5. **Trimming**: while there are 6+ stops, the lowest-priority stop is cut. Below that,
    stays are shortened toward sensible minimums first (low-priority stops give up their
    time first, lunch keeps 45 min) because several quick stops beat two long ones; only
    then are more stops cut. Once OSRM's real timings come back, the best cut stop is added
    back if there's 20+ min to spare. Cut stops show under "Didn't fit" with *Add back*.
 
-Edits (reorder, remove, add by search, tap the map, "Suggest more", lunch toggle, dwell) all
+Edits (reorder, remove, add by search, tap the map, "Suggest more", "Stop here to eat", dwell) all
 re-route and re-schedule but never trim on their own.
 
 **Progress while planning.** `POST /api/plan` with `Accept: text/event-stream` streams events

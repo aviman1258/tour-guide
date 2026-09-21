@@ -45,7 +45,7 @@ export function walk(it, legMinutes) {
   const slack = deadline - (it.safetyBufferMinutes ?? 15) - hotelArrive;
   const status = slack >= 0 ? (slack <= TIGHT_MINUTES ? "tight" : "ok") : slack >= -TIGHT_MINUTES ? "tight" : "late";
   const lunchStop = it.stops.find((s) => s.lunch !== "none");
-  if (!lunchStop && hotelArrive - depart > 150) warnings.push("No lunch stop fits the 11:30-2:00 window.");
+  if (!lunchStop && hotelArrive - depart > 150) warnings.push("No lunch stop fits 11:30-2:00. Use \"Stop here to eat\" on any stop for a meal break.");
   if (deadline <= toMinutes(it.arrivalTime)) warnings.push("Deadline is before arrival.");
   return {
     items: items.map(({ arriveMin, ...rest }) => rest),

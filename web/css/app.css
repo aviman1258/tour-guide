@@ -188,7 +188,7 @@ input[type="date"], input[type="time"] { font-size: 13px; padding: 9px 6px; lett
 .check input { width: 20px; height: 20px; min-height: 0; margin: 0; }
 select.quiet { min-height: 36px; padding: 4px 8px; font-size: 13px; color: var(--muted); }
 
-/* global "working…" pill: a car driving along a road, label, elapsed timer */
+/* global "working…" pill: Deodap running on a moving road, label, elapsed timer */
 /* "working…" card: fixed grid so it looks the same at 390 px and 1400 px */
 .busy-pill {
   position: fixed; top: calc(60px + env(safe-area-inset-top, 0)); left: 50%; transform: translateX(-50%);
@@ -199,18 +199,29 @@ select.quiet { min-height: 36px; padding: 4px 8px; font-size: 13px; color: var(-
   box-shadow: 0 6px 24px rgba(0,0,0,.25); width: min(94vw, 520px); box-sizing: border-box;
 }
 .busy-pill[hidden] { display: none; }
+/* the road slides left under Deodap's feet so he looks like he's running right */
 .busy-road {
-  grid-area: road; position: relative; width: 72px; height: 30px; overflow: hidden; border-radius: 8px;
+  grid-area: road; position: relative; width: 84px; height: 42px; overflow: hidden; border-radius: 8px;
   background:
-    repeating-linear-gradient(90deg, var(--muted) 0 10px, transparent 10px 18px) center / 100% 2px no-repeat,
+    repeating-linear-gradient(90deg, var(--muted) 0 10px, transparent 10px 18px) 0 calc(100% - 3px) / 18px 2px repeat-x,
     color-mix(in srgb, var(--accent) 14%, transparent);
+  animation: busy-road 0.55s linear infinite;
 }
-/* the 🚗 glyph faces left in Segoe/Apple/Twemoji fonts; mirror it so it drives the way it moves */
-.busy-car {
-  position: absolute; top: 2px; left: 0; font-size: 22px; line-height: 26px; display: inline-block;
-  transform: translateX(-30px) scaleX(-1); animation: busy-drive 1.6s linear infinite;
-}
-@keyframes busy-drive { from { transform: translateX(-30px) scaleX(-1); } to { transform: translateX(78px) scaleX(-1); } }
+@keyframes busy-road { to { background-position: -18px calc(100% - 3px), 0 0; } }
+.busy-deodap { display: block; }
+.busy-deodap .body-bob { animation: busy-bob 0.55s ease-in-out infinite; }
+@keyframes busy-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.6px); } }
+.busy-deodap .leg { transform-box: fill-box; transform-origin: 50% 0; }
+.busy-deodap .leg.a { animation: busy-leg 0.55s ease-in-out infinite alternate; }
+.busy-deodap .leg.b { animation: busy-leg 0.55s ease-in-out infinite alternate-reverse; }
+@keyframes busy-leg { from { transform: rotate(-22deg); } to { transform: rotate(22deg); } }
+.busy-deodap .ear { transform-box: fill-box; transform-origin: 60% 10%; animation: busy-ear 0.55s ease-in-out infinite alternate; }
+@keyframes busy-ear { from { transform: rotate(-10deg); } to { transform: rotate(12deg); } }
+.busy-deodap .trunk { transform-box: fill-box; transform-origin: 0 0; animation: busy-trunk 0.55s ease-in-out infinite alternate; }
+@keyframes busy-trunk { from { transform: rotate(-9deg); } to { transform: rotate(7deg); } }
+.busy-deodap .tail { transform-box: fill-box; transform-origin: 100% 0; animation: busy-trunk 0.55s ease-in-out infinite alternate-reverse; }
+.busy-deodap .dust { fill: var(--muted); opacity: .5; animation: busy-dust 0.55s linear infinite; }
+@keyframes busy-dust { from { transform: translateX(6px); opacity: .55; } to { transform: translateX(-10px); opacity: 0; } }
 .busy-text { grid-area: text; }
 .busy-cancel { grid-area: cancel; }
 .busy-bar { grid-area: bar; }
@@ -224,7 +235,7 @@ select.quiet { min-height: 36px; padding: 4px 8px; font-size: 13px; color: var(-
 .btn-danger { border-color: var(--late); color: var(--late); }
 .btn-danger:hover { background: color-mix(in srgb, var(--late) 12%, transparent); }
 .busy-time { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; flex: 0 0 auto; }
-@media (prefers-reduced-motion: reduce) { .busy-car { animation-duration: 4s; } }
+@media (prefers-reduced-motion: reduce) { .busy-road, .busy-deodap * { animation-duration: 2.2s; } }
 
 /* busy card: text stack + progress bar */
 .busy-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }

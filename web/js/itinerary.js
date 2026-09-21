@@ -328,7 +328,7 @@ function stopCard(it, s, i, sched, { readOnly = false } = {}) {
       <div class="body">
         <div class="title">
           <span>${escapeHtml(s.name)}</span>
-          ${s.lunch !== "none" ? `<span class="lunch-tag">🍽️ lunch</span>` : ""}
+          ${s.lunch !== "none" ? `<span class="lunch-tag">🍽️ ${s.lunch === "auto" ? "lunch" : "meal"}</span>` : ""}
           ${s.wikipediaUrl ? `<a href="${escapeHtml(s.wikipediaUrl)}" target="_blank" rel="noopener">Wikipedia</a>` : ""}
         </div>
         ${s.whyItMatches ? `<div class="why">${escapeHtml(s.whyItMatches)}</div>` : ""}
@@ -340,7 +340,7 @@ function stopCard(it, s, i, sched, { readOnly = false } = {}) {
           <button type="button" class="btn btn-sm btn-icon" data-act="up" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
           <button type="button" class="btn btn-sm btn-icon" data-act="down" title="Move down" ${i === it.stops.length - 1 ? "disabled" : ""}>↓</button>
           <label>stay <input type="number" min="5" max="240" step="5" value="${s.dwellMinutes}" data-act="dwell"> min</label>
-          <button type="button" class="btn btn-sm" data-act="lunch">${s.lunch === "user" ? "Not lunch" : "Lunch here"}</button>
+          <button type="button" class="btn btn-sm" data-act="lunch" title="Make this the meal break: breakfast, lunch or dinner, at least an hour">${s.lunch === "user" ? "Not eating here" : "Stop here to eat"}</button>
           <button type="button" class="btn btn-sm btn-icon" data-act="remove" title="Remove">✕</button>
         </div>`}
       </div>`;

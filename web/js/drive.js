@@ -309,7 +309,7 @@ function renderStopList() {
       <div class="num">${visited ? "✓" : i + 1}</div>
       <div class="grow">
         <div class="name">${escapeHtml(s.name)}</div>
-        <div class="sub">${visited ? "Visited" : isNext ? "Next up" : "Upcoming"}${sched ? ` · ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : ""}${s.lunch !== "none" ? " · lunch" : ""}</div>
+        <div class="sub">${visited ? "Visited" : isNext ? "Next up" : "Upcoming"}${sched ? ` · ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : ""}${s.lunch !== "none" ? (s.lunch === "auto" ? " · lunch" : " · meal") : ""}</div>
       </div>
       <div class="acts">
         <button type="button" class="btn btn-sm ${playingId === s.id ? "playing" : ""}" data-act="play" title="Hear this stop's narration" ${narration ? "" : "disabled"}>${playingId === s.id ? "■" : "▶"}</button>

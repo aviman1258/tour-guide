@@ -1,4 +1,4 @@
-// Global "working…" indicator: a little car driving in a pill, the current task label,
+// Global "working…" indicator: Deodap running in a pill, the current task label,
 // an elapsed timer, an estimate + progress bar when we have one, and a Cancel button
 // when the running task can be cancelled. Several tasks can overlap.
 
@@ -14,7 +14,26 @@ function ensure() {
   el.setAttribute("role", "status");
   el.setAttribute("aria-live", "polite");
   el.innerHTML = `
-    <span class="busy-road"><span class="busy-car">🚗</span></span>
+    <span class="busy-road" aria-hidden="true"><svg class="busy-deodap" viewBox="0 0 96 48" width="84" height="42">
+      <g class="dust"><circle cx="14" cy="43" r="2.2"/><circle cx="8" cy="41" r="1.6"/></g>
+      <g class="body-bob">
+        <path class="tail" d="M23 24 q-7 3 -6 11" fill="none" stroke="#7c879a" stroke-width="2.4" stroke-linecap="round"/>
+        <g class="leg back a"><rect x="27" y="32" width="7.5" height="14" rx="3.4" fill="#6f7a8d"/></g>
+        <g class="leg front a"><rect x="49" y="32" width="7.5" height="14" rx="3.4" fill="#6f7a8d"/></g>
+        <ellipse cx="44" cy="26" rx="22" ry="13.5" fill="#8a95a8"/>
+        <g class="leg back b"><rect x="35" y="32" width="7.5" height="14" rx="3.4" fill="#7c879a"/></g>
+        <g class="leg front b"><rect x="57" y="32" width="7.5" height="14" rx="3.4" fill="#7c879a"/></g>
+        <g class="head">
+          <circle cx="70" cy="20" r="12.5" fill="#98a3b4"/>
+          <g class="ear"><ellipse cx="62" cy="19" rx="7.5" ry="9.5" fill="#7c879a"/><ellipse cx="62.5" cy="19.5" rx="4.8" ry="6.6" fill="#eaa3b5"/><circle cx="61" cy="17" r=".8" fill="#6b5560" opacity=".6"/><circle cx="63.5" cy="21.5" r=".7" fill="#6b5560" opacity=".6"/></g>
+          <path d="M64 11 Q70 7 76 11" stroke="#e0b64c" stroke-width="1.2" fill="none"/>
+          <g fill="#f7b731"><circle cx="65" cy="10.8" r="1.5"/><circle cx="70" cy="8.6" r="1.6"/><circle cx="75" cy="10.8" r="1.5"/></g>
+          <circle cx="75" cy="18" r="1.9" fill="#2b2f36"/><circle cx="75.7" cy="17.3" r=".7" fill="#fff"/>
+          <circle cx="72" cy="24" r="2" fill="#f2a9bb" opacity=".45"/>
+          <path class="trunk" d="M80 23 C 86 26, 88 32, 84 39" fill="none" stroke="#7c879a" stroke-width="5.5" stroke-linecap="round"/>
+        </g>
+      </g>
+    </svg></span>
     <span class="busy-text"><span class="busy-label"></span><span class="busy-time">0:00</span></span>
     <button type="button" class="busy-cancel" hidden>Cancel</button>
     <span class="busy-bar" hidden><span class="busy-fill"></span></span>`;
