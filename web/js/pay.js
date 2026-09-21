@@ -148,7 +148,7 @@ function payDialog(it, reason = "") {
         <div class="pay-element"><div class="pay-loading">Loading secure payment form…</div></div>
         <p class="pay-error" role="alert" hidden></p>
         <div class="actions"><button type="button" class="cancel">Cancel</button><button type="submit" class="primary" disabled>Hold ${q.price} and plan</button></div>
-        <p class="pay-fine">Payments are handled by Stripe. Deodapper keeps a payment reference only, never your card or contact details.</p>
+        <p class="pay-fine">Payments are handled by Stripe. Deodapper keeps a payment reference only, never your card or contact details. <a href="terms.html" target="_blank" rel="noopener">Terms &amp; refunds</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a></p>
       </form>`;
     dlg.querySelector(".pay-tier").textContent = `${q.label} · ${q.blurb}`;
     dlg.querySelector(".pay-price").textContent = q.price;

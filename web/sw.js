@@ -1,7 +1,7 @@
 // Service worker: offline app shell, polite tile cache (only tiles the map asked for),
 // network-only API. Bump SHELL_VERSION when shipping changes so clients refresh.
 
-const SHELL_VERSION = "v35"; // bump on every deploy that changes web/ — the shell is cache-first
+const SHELL_VERSION = "v36"; // bump on every deploy that changes web/ — the shell is cache-first
 const SHELL = `tg-shell-${SHELL_VERSION}`;
 const TILES = "tg-tiles";
 const IMAGES = "tg-images";
@@ -13,6 +13,8 @@ const SHELL_FILES = [
   "./index.html",
   "./plan.html",
   "./drive.html",
+  "./terms.html",
+  "./privacy.html",
   "./manifest.webmanifest",
   "./css/app.css",
   "./css/drive.css",

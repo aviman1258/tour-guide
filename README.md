@@ -103,6 +103,12 @@ PaymentIntent id, status, timestamps, the route signature, plans used, and the I
 No card data, names or emails: Stripe holds those, and the webhook payload is never logged.
 `GET /api/admin/sales` and the admin page's **Sales** panel show revenue and recent credits.
 
+`web/terms.html` (what it is, prices, hold-then-capture, refund rules, use-it-sensibly, publishing,
+availability) and `web/privacy.html` (what is kept, what isn't, the outside services involved) are
+linked from the landing page footer and the payment card. Stripe's activation review looks for
+exactly these, plus a contact address: both pages use `support@deodapper.com`, which needs to exist
+(Cloudflare Email Routing forwards it for free).
+
 Env: `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` (all three from the
 Stripe dashboard; sandbox keys for testing, test card `4242 4242 4242 4242`). Register the webhook
 destination at `https://<host>/api/pay/webhook`.

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f5f8b" />
+  <title>Deodapper · Privacy</title>
+  <meta name="description" content="What Deodapper keeps about you (very little), what it doesn't, and which outside services are involved." />
+  <link rel="icon" type="image/svg+xml" href="img/deodap.svg" />
+  <link rel="stylesheet" href="css/landing.css" />
+</head>
+<body class="landing doc">
+  <main class="doc-body">
+    <a class="doc-home" href="index.html"><img src="img/deodap.svg" alt="" width="36" height="36" /> Deodapper</a>
+    <h1>Privacy</h1>
+    <p class="doc-date">Effective 21 September 2026</p>
+
+    <p>The short version: Deodapper has no accounts, never sees your card, and never stores your name or email. It keeps rough usage statistics for 90 days and a reference number for each payment. Your location while driving stays on your phone.</p>
+
+    <h2>What we keep</h2>
+    <ul>
+      <li><b>Usage statistics.</b> For each page view and action: the time, your IP address, the approximate city derived from it, your device type and browser family, and what you did (planned, prepared, published, searched). Nothing you type into forms. Kept for 90 days, then deleted.</li>
+      <li><b>Payment references.</b> When you pay for a route: a Stripe payment id, the price tier, the amount, its status (held, charged, released), timestamps, the start and end area of the route (rounded to about a kilometre), the IP address that paid, and a random id your browser generated. This lets us honour your purchase. It is kept for 30 days after the credit expires, and longer only in Stripe's own records.</li>
+      <li><b>Your route while it's being made.</b> The start, end, times and interests you enter are processed on our server to plan and narrate the route, then returned to your phone. We don't store your route on the server unless you publish it.</li>
+      <li><b>Published routes.</b> If you choose to publish, the route (title, description, stops, narration, start and end places) is stored and shown to other users. Don't include personal details; we screen for street addresses.</li>
+      <li><b>Your Claude and payment usage in aggregate</b>, for our own costs and accounting, without anything that identifies you.</li>
+    </ul>
+
+    <h2>What we don't keep</h2>
+    <ul>
+      <li>Card numbers, expiry dates or security codes. They go from your browser straight to Stripe.</li>
+      <li>Names, email addresses or phone numbers. If you enter them on the payment form, Stripe holds them; we don't receive them.</li>
+      <li>Your GPS position while driving. Drive mode runs on your phone and works offline; your location is never sent to us.</li>
+      <li>Cookies. We use your browser's local storage for settings, your saved routes, your route credit and the random device id, and nothing follows you across sites.</li>
+    </ul>
+
+    <h2>Services we rely on</h2>
+    <p>Building a route involves other companies, each seeing only what it needs:</p>
+    <ul>
+      <li><b>Stripe</b> processes payments and holds whatever you enter on the payment form. See <a href="https://stripe.com/privacy" rel="noopener">Stripe's privacy policy</a>.</li>
+      <li><b>Anthropic (Claude)</b> receives your start, end, times and interests, and the names and Wikipedia summaries of candidate stops, to propose stops and write narration. It receives no payment or contact details.</li>
+      <li><b>Wikipedia / Wikimedia</b> and <b>OpenStreetMap's Nominatim</b> are queried by our server for place information. <b>Photon (komoot)</b> and OpenStreetMap map tiles are fetched by your browser directly for the search box and the map, so those services see your IP address.</li>
+      <li><b>Valhalla (FOSSGIS) and OSRM</b> compute the driving route from the coordinates involved.</li>
+      <li><b>ipwho.is</b> turns IP addresses into an approximate city for our statistics.</li>
+      <li><b>Render</b> hosts the server and <b>Cloudflare</b> serves the domain. Data is stored in the United States.</li>
+    </ul>
+
+    <h2>Your choices</h2>
+    <p>Email <a href="mailto:support@deodapper.com">support@deodapper.com</a> to ask what we hold about an IP address or a payment, or to have it deleted; give us the approximate date and, for payments, the last four digits of the card so we can find it in Stripe. Unpublishing a route you published is also a matter of asking. Deodapper is not directed at children under 13.</p>
+
+    <h2>Changes</h2>
+    <p>If this page changes, the date at the top changes with it. Our <a href="terms.html">terms and refunds</a> page covers the paid features.</p>
+
+    <p class="foot"><a href="index.html">Back to Deodapper</a></p>
+  </main>
+</body>
+</html>

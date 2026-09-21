@@ -40,3 +40,18 @@ h1 { margin: 0; font-size: 40px; letter-spacing: -.01em; }
 .foot a { color: var(--accent); }
 
 .foot.fine { font-size: 12px; opacity: .8; }
+
+/* terms / privacy pages */
+.doc-body { max-width: 680px; margin: 0 auto; text-align: left; }
+.doc-home { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); text-decoration: none; font-weight: 700; margin-bottom: 18px; }
+.doc h1 { font-size: 30px; margin: 0 0 4px; }
+.doc-date { margin: 0 0 22px; color: var(--muted); font-size: 14px; }
+.doc h2 { font-size: 19px; margin: 26px 0 8px; }
+.doc p, .doc li { color: var(--text); }
+.doc ul { padding-left: 22px; }
+.doc li { margin-bottom: 8px; }
+.doc a { color: var(--accent); }
+.doc table { border-collapse: collapse; margin: 8px 0 12px; width: 100%; max-width: 420px; }
+.doc th, .doc td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.doc th { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+.doc .foot { margin-top: 30px; }

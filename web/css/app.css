@@ -307,3 +307,4 @@ dialog.pay .actions button { font: inherit; font-size: 15px; font-weight: 600; p
 dialog.pay .actions button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 dialog.pay .actions button:disabled { opacity: .55; cursor: default; }
 dialog.pay .pay-fine { margin: 0; font-size: 12px; color: var(--muted); }
+dialog.pay .pay-fine a { color: var(--accent); }
