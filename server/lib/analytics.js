@@ -97,22 +97,39 @@ async function geoLookup(ip) {
 
 // ---------- recording ----------
 
-const insert = () => open().prepare(`INSERT INTO events (ts, ip, city, region, country, tier, device, browser, kind, detail, ms)
-  VALUES (@ts, @ip, @city, @region, @country, @tier, @device, @browser, @kind, @detail, @ms)`);
+const state = { inserted: 0, geoFilled: 0, lastInsertAt: null, lastError: null };
+export const stats = () => ({ ...state });
 
-/** Record an event for a request. Never throws; geo is filled asynchronously. */
+/**
+ * Record an event for a request. The row is written immediately (no location yet); the
+ * location is filled in afterwards from Cloudflare headers or the cached IP lookup.
+ * Never throws; problems are kept in stats().lastError and logged.
+ */
 export function track(req, kind, detail = "", ms = null) {
   try {
     const ua = req.get("user-agent") || "";
-    const base = {
-      ts: new Date().toISOString(), ip: req.ip || "", city: "", region: "", country: "",
-      tier: req.tier || (req.query?.tier === "free" ? "free" : req.query?.tier === "subscriber" ? "subscriber" : ""),
-      device: deviceOf(ua), browser: browserOf(ua), kind, detail: String(detail).slice(0, 200), ms,
-    };
     const fromHeaders = geoFromHeaders(req);
-    if (fromHeaders) { insert().run({ ...base, ...fromHeaders }); return; }
-    geoLookup(base.ip).then((g) => insert().run({ ...base, city: g?.city || "", region: g?.region || "", country: g?.country || "" })).catch(() => insert().run(base));
+    const row = {
+      ts: new Date().toISOString(), ip: req.ip || "",
+      city: fromHeaders?.city || "", region: fromHeaders?.region || "", country: fromHeaders?.country || "",
+      tier: req.tier || (req.query?.tier === "free" ? "free" : req.query?.tier === "subscriber" ? "subscriber" : ""),
+      device: deviceOf(ua), browser: browserOf(ua), kind, detail: String(detail).slice(0, 200), ms: ms == null ? null : Math.round(ms),
+    };
+    const r = open().prepare(`INSERT INTO events (ts, ip, city, region, country, tier, device, browser, kind, detail, ms)
+      VALUES (@ts, @ip, @city, @region, @country, @tier, @device, @browser, @kind, @detail, @ms)`).run(row);
+    state.inserted++;
+    state.lastInsertAt = row.ts;
+    if (fromHeaders) return;
+    const id = r.lastInsertRowid;
+    geoLookup(row.ip)
+      .then((g) => {
+        if (!g || (!g.city && !g.country)) return;
+        open().prepare(`UPDATE events SET city = ?, region = ?, country = ? WHERE id = ?`).run(g.city || "", g.region || "", g.country || "", id);
+        state.geoFilled++;
+      })
+      .catch((err) => { state.lastError = `geo: ${err.message}`; });
   } catch (err) {
+    state.lastError = `insert: ${err.message}`;
     console.warn("[analytics]", err.message);
   }
 }

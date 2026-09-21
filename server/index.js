@@ -90,7 +90,7 @@ app.get("/api/health", h(async (_req, res) => {
     const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "data");
     let writable = false;
     try { fs.accessSync(dir, fs.constants.W_OK); writable = true; } catch { /* not writable / missing */ }
-    data = { dir, exists: fs.existsSync(dir), writable, events: analytics.recent(1).length ? analytics.summary(3650).totals.events : 0, routes: library.count(), admin: Boolean(config.adminSecret) };
+    data = { dir, exists: fs.existsSync(dir), writable, events: analytics.recent(1).length ? analytics.summary(3650).totals.events : 0, routes: library.count(), admin: Boolean(config.adminSecret), analytics: analytics.stats() };
   } catch (err) {
     data = { error: err.message };
   }
