@@ -395,7 +395,7 @@ function updateNav(fix, proj, progressM) {
 
 function speakDirection(say) {
   log(`direction:${say.id}`);
-  state.speech.enqueue({ id: say.id, kind: "turn", urgent: say.urgent, text: say.text, title: "Directions" });
+  state.speech.enqueue({ id: say.id, kind: "turn", interrupt: say.interrupt, text: say.text, title: "Directions" });
 }
 
 // ---------- cards ----------
@@ -448,7 +448,13 @@ function bindSpeech() {
     if (item.kind === "driveby") state.poiMarkers.get(item.id)?.openPopup();
   });
   sp.on("chunk", ({ item, index }) => renderNowPlaying(item, index));
+  sp.on("resume", ({ item, index }) => {
+    $("np-title").textContent = item.title || (item.kind === "stop" ? "Stop" : "Along the way");
+    renderNowPlaying(item, index);
+    updatePeek();
+  });
   sp.on("end", ({ item, interrupted }) => {
+    if (item.kind === "turn") log(`direction-done:${item.id}`);
     state.geofence.onNarrationEnd(item, state.lastFix?.nowMs ?? Date.now());
     log(`${interrupted ? "interrupted" : "ended"}:${item.id}`);
     if (!sp.current) setTimeout(() => { if (!sp.current) card.hidden = true; }, 4000);

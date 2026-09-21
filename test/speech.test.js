@@ -56,3 +56,59 @@ test("stale drive-bys are skipped when dequeued", () => {
   assert.ok(ended.some((e) => e.item.id === "old" && e.stale));
   sp.stop();
 });
+
+test("a turn prompt pauses the playing narration and it resumes from the same sentence", () => {
+  const sp = createSpeech();
+  const events = [];
+  for (const ev of ["pause", "resume", "end"]) sp.on(ev, (e) => events.push(`${ev}:${e.item.id}`));
+  sp.enqueue({ id: "stop1", kind: "stop", text: "Sentence one. Sentence two. Sentence three." });
+  assert.equal(sp.current.id, "stop1");
+  sp.enqueue({ id: "turn_3_near", kind: "turn", interrupt: true, text: "In 200 feet, turn left onto Main Street." });
+  assert.equal(sp.current.id, "turn_3_near", "the prompt takes over");
+  sp.skip(); // prompt done
+  assert.equal(sp.current.id, "stop1", "the story comes back");
+  assert.deepEqual(events, ["pause:stop1", "end:turn_3_near", "resume:stop1"]);
+  assert.ok(!events.some((e) => e === "end:stop1"), "the story was never ended");
+  sp.stop();
+});
+
+test("a newer turn prompt replaces the playing one; the paused story still resumes afterwards", () => {
+  const sp = createSpeech();
+  sp.enqueue({ id: "db1", kind: "driveby", text: "A drive-by fact. Another one." });
+  sp.enqueue({ id: "t_near", kind: "turn", interrupt: true, text: "In 200 feet, turn left." });
+  sp.enqueue({ id: "t_close", kind: "turn", interrupt: true, text: "In 100 feet, turn left." });
+  assert.equal(sp.current.id, "t_close");
+  sp.enqueue({ id: "t_now", kind: "turn", interrupt: true, text: "Turn left now." });
+  assert.equal(sp.current.id, "t_now");
+  assert.equal(sp.queueLength, 0, "prompts never pile up");
+  sp.skip();
+  assert.equal(sp.current.id, "db1");
+  sp.stop();
+});
+
+test("informational lines never interrupt narration: dropped while a story plays, spoken when idle", () => {
+  const sp = createSpeech();
+  sp.enqueue({ id: "stop1", kind: "stop", text: "Welcome to the stop." });
+  sp.enqueue({ id: "reassure_1", kind: "turn", interrupt: false, text: "You're on the route." });
+  assert.equal(sp.current.id, "stop1");
+  assert.equal(sp.queueLength, 0, "reassurance dropped, not queued");
+  sp.skip();
+  assert.equal(sp.current, null);
+  sp.enqueue({ id: "stretch_2", kind: "turn", interrupt: false, text: "Keep going straight for two miles." });
+  assert.equal(sp.current.id, "stretch_2", "spoken when nothing else is playing");
+  sp.stop();
+});
+
+test("a stop that arrives during a turn prompt outranks the paused drive-by", () => {
+  const sp = createSpeech();
+  const ended = [];
+  sp.on("end", (e) => ended.push(e));
+  sp.enqueue({ id: "db1", kind: "driveby", text: "A drive-by fact." });
+  sp.enqueue({ id: "t_now", kind: "turn", interrupt: true, text: "Turn left now." });
+  sp.enqueue({ id: "stop1", kind: "stop", text: "Welcome to the stop." });
+  assert.equal(sp.current.id, "t_now", "the prompt finishes first");
+  sp.skip();
+  assert.equal(sp.current.id, "stop1");
+  assert.ok(ended.some((e) => e.item.id === "db1" && e.interrupted), "the drive-by is given up");
+  sp.stop();
+});

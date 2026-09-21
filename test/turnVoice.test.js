@@ -34,7 +34,7 @@ test("reserved: half a mile, 200 ft, 100 ft, now", () => {
     "In 100 feet, turn left onto Jetero Boulevard.",
     "Turn left now.",
   ]);
-  assert.deepEqual(said.map((s) => s.urgent), [false, true, true, true]);
+  assert.deepEqual(said.map((s) => s.interrupt), [true, true, true, true], "turn prompts interrupt narration");
 });
 
 test("reserved: a turn that starts close skips the far prompt; arrive is phrased as arriving", () => {
@@ -55,6 +55,7 @@ test("talkative: describes the stretch, reassures every two minutes, then the sa
   const tv = createTurnVoice({ mode: "talkative" });
   const said = approach(tv, TURN, 5000, { stepM: 50, roadName: "Beltway 8", msPerStep: 6000 }); // 100 steps ≈ 10 min
   assert.equal(said[0].text, "Keep going straight on Beltway 8 for 3.1 miles.");
+  assert.ok(said.filter((s) => !s.id.startsWith("turn_")).every((s) => s.interrupt === false), "informational lines never interrupt");
   const reassure = said.filter((s) => s.text.startsWith("You're on the route."));
   assert.ok(reassure.length >= 2 && reassure.length <= 5, `reassurances: ${reassure.length}`);
   assert.match(reassure[0].text, /Next, turn left onto Jetero Boulevard in .* miles?\./);

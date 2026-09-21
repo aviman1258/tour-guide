@@ -5,6 +5,9 @@
 //   reserved  — only the approach to a turn: "in half a mile", "in 200 feet", "in 100 feet", "now"
 //   mute      — nothing spoken; the banner still shows the next turn
 // Coming back after being off route says "Back on the route" in both speaking modes.
+// Every line carries `interrupt`: true for the turn prompts themselves (they cut into narration,
+// which resumes afterwards), false for the informational lines (stretch, reassurance, back on
+// route, "continue" heads-up), which wait or are dropped.
 
 export const MODES = ["talkative", "reserved", "mute"];
 export const MODE_LABEL = {
@@ -51,7 +54,7 @@ export function isMinor(m) {
 
 /**
  * createTurnVoice({ mode }) → { update, setMode, getMode, reset }
- * update({ maneuver, idx, distM, roadName, offRoute, nowMs }) → { id, text, urgent } | null
+ * update({ maneuver, idx, distM, roadName, offRoute, nowMs }) → { id, text, interrupt } | null
  *   maneuver: { type, modifier, text, short, name } (null when there is nothing ahead)
  *   idx: index of that maneuver (changes when one is passed)
  *   roadName: the road we're on now (the previous maneuver's street)
@@ -63,7 +66,7 @@ export function createTurnVoice({ mode = "reserved" } = {}) {
   function update(p) {
     if (p.offRoute) { st.wasOffRoute = true; return null; }
     if (mode === "mute") { st.idx = p.idx ?? -1; st.wasOffRoute = false; return null; }
-    if (st.wasOffRoute) { st.wasOffRoute = false; st.idx = -1; return { id: "backOnRoute", text: "Back on the route.", urgent: false }; }
+    if (st.wasOffRoute) { st.wasOffRoute = false; st.idx = -1; return { id: "backOnRoute", text: "Back on the route.", interrupt: false }; }
     const m = p.maneuver;
     if (!m) return null;
     const now = p.nowMs ?? Date.now();
@@ -72,13 +75,13 @@ export function createTurnVoice({ mode = "reserved" } = {}) {
       st = { ...fresh(), idx: p.idx, lastTalkAt: now, wasOffRoute: false };
       if (p.distM < FAR_MIN_M) st.stage = 0; // too close to say "in a quarter mile"
       if (mode === "talkative" && p.distM > STRETCH_M) {
-        return { id: `stretch_${p.idx}`, text: `Keep going straight${p.roadName ? ` on ${p.roadName}` : ""} for ${speakDist(p.distM)}.`, urgent: false };
+        return { id: `stretch_${p.idx}`, text: `Keep going straight${p.roadName ? ` on ${p.roadName}` : ""} for ${speakDist(p.distM)}.`, interrupt: false };
       }
     }
 
     if (isMinor(m)) {
       // "Continue on Main Street": reserved says nothing, talkative mentions it once at the far mark
-      if (mode === "talkative" && st.stage < 0 && p.distM <= STAGES[0].atM) { st.stage = STAGES.length; st.lastTalkAt = now; return { id: `turn_${p.idx}_far`, text: `In ${speakDist(p.distM)}, ${lowerFirst(clean(m.text))}.`, urgent: false }; }
+      if (mode === "talkative" && st.stage < 0 && p.distM <= STAGES[0].atM) { st.stage = STAGES.length; st.lastTalkAt = now; return { id: `turn_${p.idx}_far`, text: `In ${speakDist(p.distM)}, ${lowerFirst(clean(m.text))}.`, interrupt: false }; }
       return talkativeReassure(p, now);
     }
 
@@ -88,8 +91,8 @@ export function createTurnVoice({ mode = "reserved" } = {}) {
       st.stage = due;
       st.lastTalkAt = now;
       const stage = STAGES[due];
-      if (stage.id === "now") return { id: `turn_${p.idx}_now`, text: `${clean(m.short || m.text)} now.`, urgent: true };
-      return { id: `turn_${p.idx}_${stage.id}`, text: `In ${speakDist(stage.id === "far" ? p.distM : stage.atM)}, ${lowerFirst(clean(m.text))}.`, urgent: stage.id !== "far" };
+      if (stage.id === "now") return { id: `turn_${p.idx}_now`, text: `${clean(m.short || m.text)} now.`, interrupt: true };
+      return { id: `turn_${p.idx}_${stage.id}`, text: `In ${speakDist(stage.id === "far" ? p.distM : stage.atM)}, ${lowerFirst(clean(m.text))}.`, interrupt: true };
     }
     return talkativeReassure(p, now);
   }
@@ -98,7 +101,7 @@ export function createTurnVoice({ mode = "reserved" } = {}) {
     if (mode !== "talkative" || p.distM <= STRETCH_M || now - st.lastTalkAt < REASSURE_MS) return null;
     st.lastTalkAt = now;
     const what = p.maneuver.type === "arrive" ? clean(p.maneuver.text) : lowerFirst(clean(p.maneuver.text));
-    return { id: `reassure_${p.idx}_${now}`, text: `You're on the route. ${p.maneuver.type === "arrive" ? what : `Next, ${what}`} in ${speakDist(p.distM)}.`, urgent: false };
+    return { id: `reassure_${p.idx}_${now}`, text: `You're on the route. ${p.maneuver.type === "arrive" ? what : `Next, ${what}`} in ${speakDist(p.distM)}.`, interrupt: false };
   }
 
   return {

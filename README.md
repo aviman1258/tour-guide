@@ -242,8 +242,10 @@ the drive itself needs no server and no Claude, only cell data for map tiles.
     turn is already under 0.2 mi away; "continue" steps are silent).
   - *Mute* — banner only.
   Both speaking modes say "Back on the route." after an off-route spell. In the speech queue a
-  newer turn prompt replaces a pending one, urgent prompts (200 ft and closer) cut into drive-by
-  stories, and a stop narration is never interrupted by directions.
+  newer turn prompt replaces a pending or playing one. The turn prompts themselves interrupt any
+  narration (stop or drive-by); the story pauses, the prompt plays, and the story resumes from the
+  sentence it was on. The informational lines (keep going, reassurance, back on the route) never
+  interrupt: they are dropped while narration plays.
 
 ### Simulation
 

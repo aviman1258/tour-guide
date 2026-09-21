@@ -38,10 +38,11 @@ export function matchVoice(presetId, voices) {
 
 export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false } = {}) {
   const synth = globalThis.speechSynthesis;
-  const listeners = { start: new Set(), chunk: new Set(), end: new Set(), voices: new Set() };
+  const listeners = { start: new Set(), chunk: new Set(), end: new Set(), voices: new Set(), pause: new Set(), resume: new Set() };
   const keep = []; // strong references to utterances
   let queue = [];
   let current = null;   // { item, chunks, index }
+  let paused = null;    // narration a turn prompt cut into; resumes (from that sentence) when the prompt ends
   let muted = false;
   let unlocked = false;
   let voice = null;
@@ -151,6 +152,21 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
       lastItem = done.item;
       emit("end", { item: done.item, interrupted });
     }
+    if (paused && done?.item.kind === "turn") {
+      // the prompt is over: pick the story back up, unless a stop narration arrived meanwhile
+      // (stops outrank drive-bys and previews) or the car has left the drive-by behind
+      const p = paused;
+      paused = null;
+      const stopWaiting = queue.some((q) => q.kind === "stop");
+      const outranked = stopWaiting && (p.item.kind === "driveby" || p.item.kind === "preview");
+      if (!outranked && !isStale(p.item)) {
+        current = p;
+        emit("resume", { item: p.item, index: p.index });
+        speakChunk();
+        return;
+      }
+      emit("end", { item: p.item, interrupted: true, stale: !outranked });
+    }
     next();
   }
 
@@ -172,28 +188,34 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
 
   /**
    * Queue narration. Stops interrupt drive-bys and previews; everything else waits its turn.
-   * Turn prompts are special: a newer one replaces any pending one (a stale "in 200 feet" is
-   * worse than silence), an urgent one ("now", "in 100 feet") cuts into a drive-by story or a
-   * playing turn prompt, and a non-urgent one is dropped rather than queued behind narration.
+   * Turn prompts are special. A newer one replaces any pending or playing one (a stale
+   * "in 200 feet" is worse than silence). One flagged `interrupt` (the turn prompts themselves)
+   * pauses whatever narration is playing, speaks, and the narration resumes from the sentence it
+   * was on. One without the flag (reassurance, "back on the route") is dropped while narration
+   * plays: the banner still shows the turn.
    */
   function enqueue(item) {
     if (!item?.text) return;
     if (item.kind === "turn") {
       queue = queue.filter((q) => q.kind !== "turn");
       if (current) {
-        const cur = current.item.kind;
-        if (cur === "turn" || (item.urgent && (cur === "driveby" || cur === "preview"))) {
+        if (current.item.kind === "turn") { // replace the playing prompt, keep whatever it paused
           synth?.cancel();
           const dropped = current;
           current = null;
           clearTimeout(watchdog);
           emit("end", { item: dropped.item, interrupted: true });
-          queue.unshift(item);
-          next();
+          start(item);
           return;
         }
-        if (!item.urgent) return; // narration is playing; the banner still shows the turn
-        queue.unshift(item); // right after the current story
+        if (!item.interrupt) return;
+        // pause the story mid-sentence boundary: remember it, speak the prompt, resume in finish()
+        synth?.cancel();
+        clearTimeout(watchdog);
+        paused = current;
+        current = null;
+        emit("pause", { item: paused.item });
+        start(item);
         return;
       }
       queue.push(item);
@@ -253,6 +275,7 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
     clearTimeout(watchdog);
     queue = [];
     current = null;
+    paused = null;
   }
 
   return {
