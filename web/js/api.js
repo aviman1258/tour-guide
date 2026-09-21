@@ -1,7 +1,15 @@
-import { apiBase, runtime, getAppKey, setAppKey } from "./config.js";
+import { apiBase, runtime, getAppKey, setAppKey, getCreditToken } from "./config.js";
 import { askSecret } from "./secretPrompt.js";
 
-const authHeaders = () => (getAppKey() ? { "x-app-key": getAppKey() } : {});
+const authHeaders = () => ({ ...(getAppKey() ? { "x-app-key": getAppKey() } : {}), ...(getCreditToken() ? { "x-credit": getCreditToken() } : {}) });
+
+/** Error carrying the server's payment hint (402 needsPayment) so the UI can open the pay card. */
+function apiError(res, data, fallback) {
+  const e = new Error(data?.error || fallback);
+  e.status = res.status;
+  if (data?.needsPayment) { e.needsPayment = true; e.quote = data.quote; }
+  return e;
+}
 
 /** On a 401 from a protected server, ask for the passphrase once and let the caller retry. */
 async function askForKey(res) {
@@ -26,7 +34,7 @@ async function call(method, path, body, signal, retried = false) {
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = { error: text.slice(0, 200) }; }
-  if (!res.ok) throw new Error(data?.error || `${res.status} ${res.statusText}`);
+  if (!res.ok) throw apiError(res, data, `${res.status} ${res.statusText}`);
   return data;
 }
 
@@ -66,9 +74,9 @@ async function stream(path, body, opts = {}) {
   });
   if (!retried && (await askForKey(res))) return stream(path, body, { ...opts, retried: true });
   if (!res.ok || !res.headers.get("content-type")?.includes("text/event-stream")) {
-    let msg = `${res.status} ${res.statusText}`;
-    try { msg = (await res.json()).error || msg; } catch { /* keep msg */ }
-    throw new Error(msg);
+    let data = null;
+    try { data = await res.json(); } catch { /* keep msg */ }
+    throw apiError(res, data, `${res.status} ${res.statusText}`);
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -105,6 +113,13 @@ export const schedule = (itinerary, trim = false) => call("POST", "/api/schedule
 export const prepareDrive = (itinerary) => call("POST", "/api/prepare-drive", { itinerary });
 export const whoami = () => call("GET", "/api/whoami");
 
+// pay-per-route
+export const payQuote = (arrivalTime, deadline) => call("GET", `/api/pay/quote?arrivalTime=${encodeURIComponent(arrivalTime || "")}&deadline=${encodeURIComponent(deadline || "")}`);
+export const payIntent = (body) => call("POST", "/api/pay/intent", body);
+export const payConfirm = (token) => call("POST", "/api/pay/confirm", { token });
+export const payCredit = ({ start, end, arrivalTime, deadline }) => call("GET", `/api/pay/credit?start=${start?.lat},${start?.lon}&end=${end?.lat},${end?.lon}&arrivalTime=${encodeURIComponent(arrivalTime || "")}&deadline=${encodeURIComponent(deadline || "")}`);
+export const payRelease = (token) => call("POST", "/api/pay/release", { token });
+
 // shared route library
 export const searchRoutes = ({ near, q, radiusKm } = {}) => {
   const p = new URLSearchParams();
@@ -125,7 +140,7 @@ export async function ensureSubscriber() {
   let me = await whoami().catch(() => null);
   if (!me) return false;
   if (me.tier === "subscriber") return true;
-  const entered = await askSecret({ title: "Subscriber passphrase", label: "Subscriber features need the app passphrase", submit: "Unlock" });
+  const entered = await askSecret({ title: "Owner passphrase", label: "This server needs the owner passphrase", submit: "Unlock" });
   if (!entered) return false;
   setAppKey(entered);
   me = await whoami().catch(() => null);

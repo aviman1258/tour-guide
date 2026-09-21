@@ -19,6 +19,12 @@ services:
         sync: false
       - key: CONTACT
         sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
       - key: MODEL_STRONG
         value: claude-opus-5
       - key: MODEL_FAST

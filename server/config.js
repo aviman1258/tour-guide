@@ -28,6 +28,12 @@ export const config = {
   // usage log for the admin cost panel. Defaults are placeholders: verify in the Anthropic console.
   claudeRates: parseRates(process.env.CLAUDE_RATES) || { "claude-opus-5": { in: 5, out: 25 }, "claude-haiku-4-5": { in: 1, out: 5 } },
   claudeRatesFromEnv: Boolean(parseRates(process.env.CLAUDE_RATES)),
+  // Stripe (pay-per-route). All three empty = payments off; the passphrase is then the only door.
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY || "",
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || "",
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
+  },
   modelStrong: process.env.MODEL_STRONG || "claude-opus-5",
   modelFast: process.env.MODEL_FAST || "claude-haiku-4-5",
 

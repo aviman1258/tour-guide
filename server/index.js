@@ -15,6 +15,8 @@ import * as timings from "./lib/timings.js";
 import * as library from "./lib/library.js";
 import * as analytics from "./lib/analytics.js";
 import * as usage from "./lib/usage.js";
+import pay from "./lib/pay.js";
+import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
 import { toMinutes } from "../web/js/format.js";
@@ -23,6 +25,16 @@ const WEB_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "w
 
 const app = express();
 app.set("trust proxy", config.trustProxy); // see config.trustProxy; GET /api/whoami echoes ip + forwarded chain
+// Stripe → us. Raw body (signature check) so it sits before the JSON parser. Never log the payload: it carries the payer's details.
+app.post("/api/pay/webhook", express.raw({ type: "*/*", limit: "1mb" }), (req, res) => {
+  try {
+    const r = pay.handleWebhook(req.body, req.get("stripe-signature") || "");
+    res.json({ received: true, ...r });
+  } catch (err) {
+    console.warn("[pay] webhook rejected:", err.message);
+    res.status(err.status || 400).json({ error: "webhook rejected" });
+  }
+});
 app.use(express.json({ limit: "4mb" }));
 
 // ---------- usage analytics ----------
@@ -51,8 +63,65 @@ const requireSubscriber = (req, res, next) => {
   res.status(401).json({ error: "This feature is for subscribers. Enter the app passphrase.", needsKey: true });
 };
 const freeLimiter = createLimiter({ max: 90, windowMs: 10 * 60_000 });
-app.use(["/api/place", "/api/reverse", "/api/schedule", "/api/routes", "/api/ping"], limitFree(freeLimiter));
-app.use(["/api/plan", "/api/suggest", "/api/prepare-drive"], requireSubscriber);
+app.use(["/api/place", "/api/reverse", "/api/schedule", "/api/routes", "/api/ping", "/api/pay/quote", "/api/pay/intent", "/api/pay/confirm", "/api/pay/credit", "/api/pay/release"], limitFree(freeLimiter));
+
+// Paid features: the owner (passphrase) always passes. Otherwise a valid route credit is needed
+// (x-credit header). Without Stripe configured the passphrase is the only door, as before.
+const itineraryOf = (req) => req.body?.package?.itinerary || req.body?.itinerary || req.body || {};
+const requireAccess = (forPlan) => (req, res, next) => {
+  if (req.tier === "subscriber") return next();
+  if (!pay.enabled()) return res.status(401).json({ error: "This feature is for subscribers. Enter the app passphrase.", needsKey: true });
+  const it = itineraryOf(req);
+  try {
+    req.credit = pay.verify(req.get("x-credit") || "", { start: it.start, end: it.end, arrivalTime: it.arrivalTime, deadline: it.deadline, forPlan });
+    next();
+  } catch (err) {
+    if (!err.needsPayment) return next(err);
+    analytics.track(req, "pay_required", err.message.slice(0, 120));
+    res.status(402).json({ error: err.message, needsPayment: true, quote: priceQuote(it.arrivalTime, it.deadline) });
+  }
+};
+app.use("/api/plan", requireAccess(true));
+app.use(["/api/suggest", "/api/prepare-drive"], requireAccess(false));
+// A plan succeeded on a credit: count it and capture the hold the first time.
+async function settleCredit(req) {
+  const v = await pay.consume(req.credit);
+  analytics.track(req, v.status === "captured" ? "pay_captured" : "pay_plan", `${v.id} ${v.label} ${v.price} · plan ${v.plansUsed}/${PLANS_PER_CREDIT}`);
+  return v;
+}
+setInterval(() => { pay.sweep().then((n) => { if (n) console.log(`[pay] released ${n} expiring hold(s)`); }).catch(() => {}); }, 3600_000).unref();
+
+// ---------- pay-per-route ----------
+app.get("/api/pay/quote", h(async (req, res) => {
+  res.json({ enabled: pay.enabled(), publishableKey: pay.enabled() ? config.stripe.publishableKey : null, quote: priceQuote(String(req.query.arrivalTime || ""), String(req.query.deadline || "")), plansPerCredit: PLANS_PER_CREDIT });
+}));
+app.post("/api/pay/intent", h(async (req, res) => {
+  const { start, end, arrivalTime, deadline } = req.body || {};
+  const r = await pay.createIntent({ start, end, arrivalTime, deadline, ip: req.ip });
+  analytics.track(req, "pay_intent", `${r.credit.id} ${r.quote.label} ${r.quote.price}`);
+  res.json(r);
+}));
+app.post("/api/pay/confirm", h(async (req, res) => {
+  const v = await pay.confirm(req.body?.token || req.get("x-credit") || "");
+  analytics.track(req, `pay_${v.status}`, `${v.id} ${v.label} ${v.price}`);
+  res.json(v);
+}));
+// Is the stored credit good for this start/end and time window? ?start=lat,lon&end=lat,lon&arrivalTime=&deadline=
+app.get("/api/pay/credit", h(async (req, res) => {
+  const token = req.get("x-credit") || "";
+  const credit = pay.status(token);
+  if (!credit) return res.status(404).json({ error: "unknown credit" });
+  const pt = (s) => { const [lat, lon] = String(s || "").split(",").map(Number); return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null; };
+  let usable = true, reason = null;
+  try { pay.verify(token, { start: pt(req.query.start), end: pt(req.query.end), arrivalTime: String(req.query.arrivalTime || ""), deadline: String(req.query.deadline || ""), forPlan: true }); }
+  catch (err) { usable = false; reason = err.message; }
+  res.json({ credit, usable, reason });
+}));
+app.post("/api/pay/release", h(async (req, res) => {
+  const v = await pay.release(req.body?.token || req.get("x-credit") || "");
+  analytics.track(req, "pay_released", `${v.id} ${v.label} ${v.price}`);
+  res.json(v);
+}));
 
 app.get("/api/whoami", h(async (req, res) => {
   // ip/forwarded echo the caller's own address chain, so the proxy setup can be checked in production.
@@ -86,6 +155,10 @@ app.get("/api/admin/events", requireAdmin, h(async (req, res) => {
   res.json({ events: analytics.recent(Number(req.query.limit) || 200) });
 }));
 // Claude usage and cost, for pricing routes.
+app.get("/api/admin/sales", requireAdmin, h(async (req, res) => {
+  const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+  res.json(pay.sales(days));
+}));
 app.get("/api/admin/costs", requireAdmin, h(async (req, res) => {
   const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
   res.json(usage.summary(days));
@@ -116,6 +189,7 @@ app.get("/api/health", h(async (_req, res) => {
   res.json({
     ok: true,
     protected: Boolean(config.appSecret),
+    pay: pay.enabled(),
     claude: config.anthropicKey ? "sdk" : "cli",
     data,
     models: { strong: config.modelStrong, fast: config.modelFast },
@@ -159,6 +233,7 @@ app.post("/api/plan", h(async (req, res) => {
   if (!streaming) {
     const result = await plan.runPlan(input, { signal: ac.signal });
     done(result);
+    if (result && req.credit) result.credit = await settleCredit(req);
     if (result) res.json(result);
     return;
   }
@@ -168,7 +243,9 @@ app.post("/api/plan", h(async (req, res) => {
   const send = (event, data) => { if (!res.writableEnded && !ac.signal.aborted) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
   const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(": ping\n\n"); }, 15000);
   try {
-    done(await plan.runPlan(input, { emit: send, signal: ac.signal }));
+    const result = await plan.runPlan(input, { emit: send, signal: ac.signal });
+    done(result);
+    if (result && req.credit) send("credit", await settleCredit(req));
   } catch (err) {
     analytics.track(req, "plan_error", err.message, Date.now() - t0);
     if (!ac.signal.aborted) {
@@ -208,7 +285,7 @@ app.get("/api/routes/:id", h(async (req, res) => {
 }));
 
 // Publish (subscriber). Body: { package, title, description }. Region is derived from the start point.
-app.post("/api/routes", requireSubscriber, h(async (req, res) => {
+app.post("/api/routes", requireAccess(false), h(async (req, res) => {
   const { package: pkg, title, description } = req.body || {};
   if (!pkg) throw httpError(400, "package is required");
   let region = "";

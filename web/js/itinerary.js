@@ -9,6 +9,9 @@ import * as typeahead from "./typeahead.js";
 import { runtime } from "./config.js";
 import { escapeHtml, to12h, fmtDuration, fmtMiles } from "./format.js";
 import { haversineM } from "./routeMath.js";
+import * as pay from "./pay.js";
+import { askSecret } from "./secretPrompt.js";
+import { setAppKey } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const boxes = {}; // typeahead handles for start / end
@@ -127,16 +130,23 @@ export function bindForm() {
     $("plan-btn").disabled = true;
     $("cancel-plan-btn").hidden = false;
     try {
-      const result = await actions.plan();
+      // pay-per-route: hold the fee first (owner and Stripe-less servers skip this), then plan
+      const result = await pay.withCredit(state.get(), () => actions.plan());
       showMsg("plan-msg", "");
       if (result) toast(`${result.stops.length} stops planned`);
+      pay.refresh(state.get());
     } catch (err) {
-      if (err.cancelled) { showMsg("plan-msg", ""); toast("Planning cancelled"); }
+      if (err.cancelled) { showMsg("plan-msg", ""); toast(err.message === "Payment cancelled." ? "No charge. Plan when you're ready." : "Planning cancelled"); }
       else showMsg("plan-msg", err.message, true);
     } finally {
       $("plan-btn").disabled = false;
       $("cancel-plan-btn").hidden = true;
     }
+  });
+  $("owner-signin")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const k = await askSecret({ title: "Site owner", label: "Owner passphrase", submit: "Sign in" });
+    if (k) { setAppKey(k); location.reload(); }
   });
   $("cancel-plan-btn").addEventListener("click", () => {
     $("cancel-plan-btn").disabled = true;
@@ -215,6 +225,7 @@ function renderResults(container, stops, onPick, label, near) {
 export function render(it) {
   // form values (only when they differ, to avoid clobbering typing)
   const setVal = (id, v) => { const el = $(id); if (el.value !== (v ?? "")) el.value = v ?? ""; };
+  pay.renderPrice(it);
   setVal("date", it.date);
   setVal("arrival", it.arrivalTime);
   setVal("deadline", it.deadline);

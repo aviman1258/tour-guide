@@ -287,3 +287,25 @@ body.free #library-card { border-color: var(--ok); }
 .marker-num.lunch { background: var(--tight); }
 .leaflet-popup-content { font: 14px/1.4 system-ui, sans-serif; margin: 10px 12px; }
 .leaflet-popup-content img { width: 100%; border-radius: 6px; margin-bottom: 6px; }
+
+/* pay-per-route */
+.price-line { margin: 6px 0 0; }
+.owner-row { margin: 2px 0 0; font-size: 12px; }
+.owner-row a { color: var(--muted); }
+dialog.pay { border: 1px solid var(--line); border-radius: var(--radius); padding: 0; width: min(94vw, 440px); background: var(--card); color: var(--text); box-shadow: 0 18px 50px rgba(0,0,0,.3); }
+dialog.pay::backdrop { background: rgba(10, 20, 30, .5); }
+dialog.pay form { display: grid; gap: 10px; padding: 18px; margin: 0; }
+dialog.pay h2 { margin: 0; font-size: 18px; }
+dialog.pay .pay-quote { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 15px; }
+dialog.pay .pay-price { font-size: 22px; }
+dialog.pay .pay-reason { margin: 0; color: var(--late); font-size: 14px; }
+dialog.pay .pay-includes { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted); display: grid; gap: 3px; }
+dialog.pay .pay-hold { margin: 0; font-size: 14px; }
+dialog.pay .pay-element { min-height: 120px; }
+dialog.pay .pay-loading { color: var(--muted); font-size: 14px; padding: 12px 0; }
+dialog.pay .pay-error { margin: 0; color: var(--late); font-size: 14px; }
+dialog.pay .actions { display: flex; justify-content: flex-end; gap: 8px; }
+dialog.pay .actions button { font: inherit; font-size: 15px; font-weight: 600; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; min-height: 44px; }
+dialog.pay .actions button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+dialog.pay .actions button:disabled { opacity: .55; cursor: default; }
+dialog.pay .pay-fine { margin: 0; font-size: 12px; color: var(--muted); }

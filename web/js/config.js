@@ -27,11 +27,13 @@ export function setAppKey(v) {
   try { if (v) localStorage.setItem(KEY_KEY, v); else localStorage.removeItem(KEY_KEY); } catch { /* ignore */ }
 }
 
-// Tier chosen on the landing page: "free" (saved routes only) or "subscriber" (AI planning).
-// ?tier=… in the URL wins and is remembered per device.
+// Tier chosen on the landing page: "free" (saved routes only) or "subscriber" (create your own:
+// AI planning, paid per route or unlocked by the owner passphrase). ?tier=… in the URL wins and
+// is remembered per device; "create" is the public name for "subscriber".
 const TIER_KEY = "tourguide.tier";
 export function tier() {
-  const fromUrl = new URLSearchParams(location.search).get("tier");
+  let fromUrl = new URLSearchParams(location.search).get("tier");
+  if (fromUrl === "create") fromUrl = "subscriber";
   if (fromUrl === "free" || fromUrl === "subscriber") {
     try { localStorage.setItem(TIER_KEY, fromUrl); } catch { /* ignore */ }
     return fromUrl;
@@ -39,6 +41,15 @@ export function tier() {
   try { return localStorage.getItem(TIER_KEY) === "free" ? "free" : "subscriber"; } catch { return "subscriber"; }
 }
 export const isFree = () => tier() === "free";
+
+// Route credit (pay-per-route): an opaque token the server issued after a payment hold.
+const CREDIT_TOKEN_KEY = "tourguide.creditToken";
+export function getCreditToken() {
+  try { return localStorage.getItem(CREDIT_TOKEN_KEY) || ""; } catch { return ""; }
+}
+export function setCreditToken(v) {
+  try { if (v) localStorage.setItem(CREDIT_TOKEN_KEY, v); else localStorage.removeItem(CREDIT_TOKEN_KEY); } catch { /* ignore */ }
+}
 
 /** Resolved at boot by pinging /api/health. */
 export const runtime = {

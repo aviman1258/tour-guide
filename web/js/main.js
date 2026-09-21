@@ -8,13 +8,14 @@ import * as storage from "./storage.js";
 import * as library from "./library.js";
 import { ping } from "./ping.js";
 import { runtime, tier, isFree } from "./config.js";
+import * as pay from "./pay.js";
 
 async function boot() {
   // tier decides which controls exist on this screen (CSS hides the other tier's)
   document.body.classList.add(tier());
   ping({ tier: tier() });
   const badge = document.getElementById("tier-badge");
-  if (badge) badge.textContent = isFree() ? "Free · saved routes" : "Subscriber";
+  if (badge) badge.textContent = isFree() ? "Free · saved routes" : "Create your own route";
   history.replaceState(null, "", location.pathname + (new URLSearchParams(location.search).get("trip") ? location.search : "") + location.hash);
 
   map.init(document.getElementById("map"));
@@ -54,8 +55,12 @@ async function boot() {
 
   const ok = await api.probe();
   if (ok && !isFree()) {
-    const sub = await api.ensureSubscriber();
-    if (!sub) itinerary.toast("Without the passphrase you can still use saved routes. Planning needs a subscription.", 6000);
+    const p = await pay.init();
+    if (!p.owner && !p.enabled) { // a hosted server without Stripe: the passphrase is the only door
+      const sub = await api.ensureSubscriber();
+      if (!sub) itinerary.toast("Without the passphrase you can still use saved routes.", 6000);
+    }
+    pay.renderPrice(state.get());
   }
   if (!ok) {
     itinerary.toast("No planning server here. Drive mode and import still work.", 5000);

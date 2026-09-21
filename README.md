@@ -51,7 +51,48 @@ of falling back to the last active trip (which used to publish old stops under a
 "Save to this phone" applies the same check before merging the re-timed schedule into a library
 route.
 
-Later: real accounts + Stripe replace the passphrase; the tier check is the one place to change.
+### Paying for a route (Stripe)
+
+"Create your own route" is pay-per-route, no subscription. The price follows the time window,
+because the number of stops (and so the Claude cost) does (`web/js/pricing.js`, shared with the
+server):
+
+| Tier | Window | Price |
+|---|---|---|
+| Short outing | up to 3 h | $1.99 |
+| Half day | 3 to 6 h | $2.99 |
+| Full day | over 6 h | $4.49 |
+
+One payment is a **credit** bound to a start/end pair (coordinates rounded to ~1 km). It covers
+3 plans (the first plus two re-plans, as long as the day doesn't grow into a higher tier), edits,
+Suggest more, narration and publishing for that route, for 30 days.
+
+Flow: the Plan button shows the price for the current times. Pressing it opens a card with
+Stripe's Payment Element; `POST /api/pay/intent` creates a PaymentIntent with **manual capture**,
+so the amount is held, not charged. After the bank confirms, `POST /api/pay/confirm` reads the
+intent back and the credit becomes `authorized`; planning runs with the credit token in an
+`x-credit` header; when the plan succeeds the server captures the hold (`captured`). Failed or
+cancelled plans leave the hold in place for another try; Cancel on the card, or an hourly sweep
+a day before Stripe's 7-day limit, releases it. Stripe's webhook
+(`POST /api/pay/webhook`, events `payment_intent.amount_capturable_updated`, `.succeeded`,
+`.canceled`) mirrors any state change we didn't see ourselves.
+
+Gates (`requireAccess` in `server/index.js`): the owner passphrase (`APP_SECRET`) always passes;
+otherwise `/api/plan` needs a credit with plans left, and `/api/suggest`, `/api/prepare-drive`
+and `POST /api/routes` need a credit for that route. A refusal is a 402 with `needsPayment: true`
+and the current quote; the client opens the pay card and retries once. With no Stripe keys set,
+payments are off and the passphrase is the only door (local development).
+
+What we store (`credits` table): credit id, a SHA-256 of the browser token, tier, amount,
+PaymentIntent id, status, timestamps, the route signature, plans used, and the IP that bought it.
+No card data, names or emails: Stripe holds those, and the webhook payload is never logged.
+`GET /api/admin/sales` and the admin page's **Sales** panel show revenue and recent credits.
+
+Env: `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` (all three from the
+Stripe dashboard; sandbox keys for testing, test card `4242 4242 4242 4242`). Register the webhook
+destination at `https://<host>/api/pay/webhook`.
+
+Later: accounts, if ever needed; the credit check is the one place to change.
 
 ### Content filter on published routes
 
@@ -164,6 +205,13 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `GET /api/admin/costs?days=` | `x-admin-key` | Claude usage: per-tool calls, median tokens and cost, totals, median cost per route |
 | `GET /api/admin/routes` | `x-admin-key` | `{routes: [summary + author]}` every shared route, newest first |
 | `DELETE /api/admin/routes/:id` | `x-admin-key` | 204; removes a shared route for everyone |
+| `GET /api/pay/quote?arrivalTime=&deadline=` | | `{enabled, publishableKey, quote:{tierId,label,price,…}, plansPerCredit}` |
+| `POST /api/pay/intent` | `{start, end, arrivalTime, deadline}` | `{token, clientSecret, quote, credit}` — a held (uncaptured) PaymentIntent |
+| `POST /api/pay/confirm` | `{token}` | credit view after reading the intent back from Stripe |
+| `GET /api/pay/credit?start=lat,lon&end=lat,lon&arrivalTime=&deadline=` | `x-credit` | `{credit, usable, reason}` |
+| `POST /api/pay/release` | `{token}` | cancels an unused hold |
+| `POST /api/pay/webhook` | Stripe signature | mirrors PaymentIntent state onto the credit |
+| `GET /api/admin/sales?days=` | `x-admin-key` | revenue, credits by status and tier, recent credits |
 | `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |
@@ -277,6 +325,8 @@ pick this repo, then set the secrets it asks for:
 - `APP_SECRET` — a passphrase; every `/api/*` call except the health check must carry it. The app
   asks for it once per device (`x-app-key` header, kept in localStorage).
 - `CONTACT` — an email or URL for the Wikipedia/OSM User-Agent.
+- `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` — pay-per-route (see
+  "Paying for a route"). Leave all three empty to run passphrase-only.
 - `CLAUDE_RATES` — optional; USD per million tokens per model for the cost panel (see the
   analytics section). Without it the built-in placeholder rates are used and the panel says so.
 - `TRUST_PROXY` — how many proxy hops sit in front of the app (default `2`: Render's edge goes
