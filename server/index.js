@@ -16,6 +16,7 @@ import * as library from "./lib/library.js";
 import * as analytics from "./lib/analytics.js";
 import * as usage from "./lib/usage.js";
 import pay from "./lib/pay.js";
+import owner from "./lib/owner.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -53,9 +54,10 @@ const num = (v, name) => {
 
 // Tiers. Every /api request is stamped "subscriber" (knows APP_SECRET, or no secret set = local dev)
 // or "free". AI routes require subscriber; the rest are open but rate-limited per IP for free traffic.
+// Owner mode: a token from POST /api/owner/unlock (or the raw passphrase on older devices) in
+// x-app-key. Wrong keys count as guesses; 3 from one IP or device = 24 h lockout (lib/owner.js).
 app.use("/api", (req, _res, next) => {
-  const key = req.get("x-app-key") || req.query.key;
-  req.tier = !config.appSecret || key === config.appSecret ? "subscriber" : "free";
+  req.tier = owner.tierFor({ key: req.get("x-app-key") || req.query.key || "", ip: req.ip, device: req.get("x-device") || "" });
   next();
 });
 const requireSubscriber = (req, res, next) => {
@@ -63,7 +65,7 @@ const requireSubscriber = (req, res, next) => {
   res.status(401).json({ error: "This feature is for subscribers. Enter the app passphrase.", needsKey: true });
 };
 const freeLimiter = createLimiter({ max: 90, windowMs: 10 * 60_000 });
-app.use(["/api/place", "/api/reverse", "/api/schedule", "/api/routes", "/api/ping", "/api/pay/quote", "/api/pay/intent", "/api/pay/confirm", "/api/pay/credit", "/api/pay/release"], limitFree(freeLimiter));
+app.use(["/api/place", "/api/reverse", "/api/schedule", "/api/routes", "/api/ping", "/api/owner/unlock", "/api/pay/quote", "/api/pay/intent", "/api/pay/confirm", "/api/pay/credit", "/api/pay/release"], limitFree(freeLimiter));
 
 // Paid features: the owner (passphrase) always passes. Otherwise a valid route credit is needed
 // (x-credit header). Without Stripe configured the passphrase is the only door, as before.
@@ -121,6 +123,21 @@ app.post("/api/pay/release", h(async (req, res) => {
   const v = await pay.release(req.body?.token || req.get("x-credit") || "");
   analytics.track(req, "pay_released", `${v.id} ${v.label} ${v.price}`);
   res.json(v);
+}));
+
+// Exchange the passphrase for an owner token. 401 wrong (tries left in the message), 429 locked.
+app.post("/api/owner/unlock", h(async (req, res) => {
+  try {
+    const r = owner.unlock({ passphrase: String(req.body?.passphrase || ""), ip: req.ip, device: req.get("x-device") || "" });
+    analytics.track(req, "owner_unlock", "ok");
+    res.json(r);
+  } catch (err) {
+    analytics.track(req, err.status === 429 ? "owner_locked" : "owner_wrong", err.message.slice(0, 80));
+    res.status(err.status || 500).json({ error: err.message, triesLeft: err.triesLeft ?? null, lockedUntil: err.lockedUntil ?? null });
+  }
+}));
+app.post("/api/owner/logout", h(async (req, res) => {
+  res.json({ revoked: owner.revoke(req.get("x-app-key") || "") });
 }));
 
 app.get("/api/whoami", h(async (req, res) => {
@@ -189,6 +206,7 @@ app.get("/api/health", h(async (_req, res) => {
   res.json({
     ok: true,
     protected: Boolean(config.appSecret),
+    owner: owner.stats(),
     pay: pay.enabled(),
     claude: config.anthropicKey ? "sdk" : "cli",
     data,

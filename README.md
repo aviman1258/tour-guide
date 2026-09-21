@@ -82,6 +82,16 @@ for about a second (`web/js/ownerGesture.js`), or open `plan.html?owner`. Not th
 passphrase prompt; already the owner → an offer to leave owner mode on that device, which is how
 to see the paid flow as a visitor would.
 
+The passphrase is never kept in the browser. `POST /api/owner/unlock` exchanges it for a random
+token (`server/lib/owner.js`, stored hashed, 180 days) that travels in `x-app-key`; devices
+unlocked before tokens existed still work with the raw passphrase in that header. **Brute-force
+guard:** every wrong guess, whether at the unlock endpoint or as a bad `x-app-key`, counts against
+the caller's IP and the browser's random `x-device` id. Three wrong guesses lock both for 24
+hours: unlock answers 429, and during the lock even the right passphrase is ignored. A stale
+token counts once, not once per request. `GET /api/health` reports live tokens and current locks
+under `owner`; the admin activity log shows `owner_unlock`, `owner_wrong` and `owner_locked`
+events.
+
 Gates (`requireAccess` in `server/index.js`): the owner passphrase (`APP_SECRET`) always passes;
 otherwise `/api/plan` needs a credit with plans left, and `/api/suggest`, `/api/prepare-drive`
 and `POST /api/routes` need a credit for that route. A refusal is a 402 with `needsPayment: true`
@@ -210,6 +220,8 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `GET /api/admin/costs?days=` | `x-admin-key` | Claude usage: per-tool calls, median tokens and cost, totals, median cost per route |
 | `GET /api/admin/routes` | `x-admin-key` | `{routes: [summary + author]}` every shared route, newest first |
 | `DELETE /api/admin/routes/:id` | `x-admin-key` | 204; removes a shared route for everyone |
+| `POST /api/owner/unlock` | `{passphrase}` + `x-device` | `{token, expiresAt}`; 401 wrong (`triesLeft`), 429 locked (`lockedUntil`) |
+| `POST /api/owner/logout` | `x-app-key` | revokes that owner token |
 | `GET /api/pay/quote?arrivalTime=&deadline=` | | `{enabled, publishableKey, quote:{tierId,label,price,…}, plansPerCredit}` |
 | `POST /api/pay/intent` | `{start, end, arrivalTime, deadline}` | `{token, clientSecret, quote, credit}` — a held (uncaptured) PaymentIntent |
 | `POST /api/pay/confirm` | `{token}` | credit view after reading the intent back from Stripe |

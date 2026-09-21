@@ -1,7 +1,21 @@
-import { apiBase, runtime, getAppKey, setAppKey, getCreditToken } from "./config.js";
+import { apiBase, runtime, getAppKey, setAppKey, getCreditToken, deviceId } from "./config.js";
 import { askSecret } from "./secretPrompt.js";
 
-const authHeaders = () => ({ ...(getAppKey() ? { "x-app-key": getAppKey() } : {}), ...(getCreditToken() ? { "x-credit": getCreditToken() } : {}) });
+const authHeaders = () => ({ ...(deviceId() ? { "x-device": deviceId() } : {}), ...(getAppKey() ? { "x-app-key": getAppKey() } : {}), ...(getCreditToken() ? { "x-credit": getCreditToken() } : {}) });
+
+/**
+ * Owner sign-in: exchange the passphrase for a token (POST /api/owner/unlock) and keep the token,
+ * never the passphrase. Throws with .status 401 (wrong; message says tries left) or 429 (locked).
+ */
+export async function unlockOwner(passphrase) {
+  const r = await call("POST", "/api/owner/unlock", { passphrase });
+  setAppKey(r.token);
+  return r;
+}
+export async function logoutOwner() {
+  try { await call("POST", "/api/owner/logout"); } catch { /* token may already be gone */ }
+  setAppKey("");
+}
 
 /** Error carrying the server's payment hint (402 needsPayment) so the UI can open the pay card. */
 function apiError(res, data, fallback) {
@@ -19,8 +33,7 @@ async function askForKey(res) {
   if (!needs) return false;
   const entered = await askSecret({ title: "App passphrase", label: "This server needs the app passphrase", submit: "Unlock" });
   if (!entered) return false;
-  setAppKey(entered);
-  return true;
+  try { await unlockOwner(entered); return true; } catch { return false; }
 }
 
 async function call(method, path, body, signal, retried = false) {
@@ -142,7 +155,7 @@ export async function ensureSubscriber() {
   if (me.tier === "subscriber") return true;
   const entered = await askSecret({ title: "Owner passphrase", label: "This server needs the owner passphrase", submit: "Unlock" });
   if (!entered) return false;
-  setAppKey(entered);
+  try { await unlockOwner(entered); } catch { return false; }
   me = await whoami().catch(() => null);
   return me?.tier === "subscriber";
 }

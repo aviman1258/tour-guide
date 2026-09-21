@@ -42,6 +42,16 @@ export function tier() {
 }
 export const isFree = () => tier() === "free";
 
+// Random id for this browser, sent as x-device so the owner-passphrase lockout follows the device.
+const DEVICE_KEY = "tourguide.deviceId";
+export function deviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) { id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join(""); localStorage.setItem(DEVICE_KEY, id); }
+    return id;
+  } catch { return ""; }
+}
+
 // Route credit (pay-per-route): an opaque token the server issued after a payment hold.
 const CREDIT_TOKEN_KEY = "tourguide.creditToken";
 export function getCreditToken() {
