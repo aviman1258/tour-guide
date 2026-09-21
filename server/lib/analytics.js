@@ -85,12 +85,16 @@ async function geoLookup(ip) {
   const cached = d.prepare(`SELECT * FROM geo WHERE ip = ?`).get(ip);
   if (cached && Date.now() - Date.parse(cached.looked_up) < GEO_TTL_MS) return cached;
   try {
-    const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,city,region,country_code,latitude,longitude`, { signal: AbortSignal.timeout(4000), headers: { "User-Agent": config.userAgent } });
-    const j = await r.json();
-    const row = { ip, city: j.success ? j.city || "" : "", region: j.success ? j.region || "" : "", country: j.success ? j.country_code || "" : "", lat: j.latitude ?? null, lon: j.longitude ?? null, looked_up: new Date().toISOString() };
+    const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,message,city,region,country_code,latitude,longitude`, { signal: AbortSignal.timeout(6000), headers: { "User-Agent": config.userAgent, Accept: "application/json" } });
+    const text = await r.text();
+    let j;
+    try { j = JSON.parse(text); } catch { throw new Error(`ipwho.is ${r.status}: ${text.slice(0, 80)}`); }
+    if (!j.success) throw new Error(`ipwho.is: ${j.message || "lookup failed"}`);
+    const row = { ip, city: j.city || "", region: j.region || "", country: j.country_code || "", lat: j.latitude ?? null, lon: j.longitude ?? null, looked_up: new Date().toISOString() };
     d.prepare(`INSERT OR REPLACE INTO geo (ip, city, region, country, lat, lon, looked_up) VALUES (@ip, @city, @region, @country, @lat, @lon, @looked_up)`).run(row);
     return row;
-  } catch {
+  } catch (err) {
+    state.lastError = `geo: ${err.message}`;
     return cached || null;
   }
 }
