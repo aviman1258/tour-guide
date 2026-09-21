@@ -52,7 +52,14 @@ publish, route search/use, errors): time, IP, coarse location, tier, device and 
 family, event kind, a short detail, duration. Nothing typed into forms, no names, no phone GPS.
 Location comes from Cloudflare's visitor-location headers when the domain is proxied through
 Cloudflare (Rules → Settings → *Add visitor location headers*), otherwise from a cached
-ipwho.is lookup per IP (`GEO_LOOKUP=0` to disable). Rows older than 90 days are purged.
+ipwho.is lookup per IP (`GEO_LOOKUP=0` to disable). The row is written the moment the request
+arrives; the location is filled in afterwards, so a slow or failed lookup never loses the visit.
+Rows older than 90 days are purged.
+
+If the admin page looks empty, check `GET /api/health` first. Its `data` block reports whether
+the data directory exists and is writable, how many events and routes are stored, whether
+`ADMIN_SECRET` is set, and `analytics: {inserted, geoFilled, lastInsertAt, lastError}` for the
+running process. `lastError` carries the last insert or ipwho.is failure verbatim.
 
 `/admin.html` shows it: cards, visitors per day, where from, devices, pages, actions, most active
 addresses, recent events. It has its own password, `ADMIN_SECRET` (asked once per browser
@@ -108,7 +115,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 
 | Route | Body / query | Returns |
 |---|---|---|
-| `GET /api/health` | | `{ok, claude:"sdk"\|"cli", models, osrm}` |
+| `GET /api/health` | | `{ok, claude:"sdk"\|"cli", models, osrm, data:{dir, exists, writable, events, routes, admin, analytics}}` |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |
 | `POST /api/suggest` | `{itinerary, count}` | `{candidates: Stop[]}` not already in the plan |

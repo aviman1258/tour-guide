@@ -83,7 +83,8 @@ async function geoLookup(ip) {
   if (!ip || PRIVATE_IP.test(ip) || !config.geoLookup) return null;
   const d = open();
   const cached = d.prepare(`SELECT * FROM geo WHERE ip = ?`).get(ip);
-  if (cached && Date.now() - Date.parse(cached.looked_up) < GEO_TTL_MS) return cached;
+  const usable = cached && (cached.city || cached.country); // empty rows came from failed lookups; retry those
+  if (usable && Date.now() - Date.parse(cached.looked_up) < GEO_TTL_MS) return cached;
   try {
     const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,message,city,region,country_code,latitude,longitude`, { signal: AbortSignal.timeout(6000), headers: { "User-Agent": config.userAgent, Accept: "application/json" } });
     const text = await r.text();
@@ -95,7 +96,7 @@ async function geoLookup(ip) {
     return row;
   } catch (err) {
     state.lastError = `geo: ${err.message}`;
-    return cached || null;
+    return usable ? cached : null;
   }
 }
 
