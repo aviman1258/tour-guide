@@ -2,6 +2,14 @@
 
 const contact = process.env.CONTACT || "tour-guide dev";
 
+function parseRates(raw) {
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw);
+    return Object.keys(o).length && Object.values(o).every((r) => Number.isFinite(r.in) && Number.isFinite(r.out)) ? o : null;
+  } catch { return null; }
+}
+
 export const config = {
   port: Number(process.env.PORT) || 3001,
 
@@ -16,6 +24,10 @@ export const config = {
   // X-Forwarded-For arrives as "visitor, cloudflare-edge" = 2 hops. Add one more if you also proxy
   // your own domain through Cloudflare. Wrong value = every visitor logged (and rate-limited) as the proxy.
   trustProxy: Number(process.env.TRUST_PROXY ?? "2"),
+  // USD per million tokens {in, out}, keyed by model id or a fragment of it. Used only to price the
+  // usage log for the admin cost panel. Defaults are placeholders: verify in the Anthropic console.
+  claudeRates: parseRates(process.env.CLAUDE_RATES) || { "claude-opus-5": { in: 5, out: 25 }, "claude-haiku-4-5": { in: 1, out: 5 } },
+  claudeRatesFromEnv: Boolean(parseRates(process.env.CLAUDE_RATES)),
   modelStrong: process.env.MODEL_STRONG || "claude-opus-5",
   modelFast: process.env.MODEL_FAST || "claude-haiku-4-5",
 

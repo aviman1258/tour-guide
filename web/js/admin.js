@@ -63,6 +63,26 @@ function render(s, events) {
   ], events);
 }
 
+const usd = (n) => (n == null ? "–" : `$${n.toFixed(n < 1 ? 3 : 2)}`);
+function renderCosts(c) {
+  $("costs-note").textContent = `${c.days} days · rates ${c.ratesNote}`;
+  const pr = c.perRoute;
+  $("cost-cards").innerHTML = [
+    ["Claude calls", fmt(c.totals.calls)], ["Failed calls", fmt(c.totals.failed)], ["Total cost", usd(c.totals.costUsd)],
+    ["Per route (median)", pr ? usd(pr.total) : "–"], ["…of which plan", pr ? usd(pr.plan) : "–"], ["…of which narration", pr ? usd(pr.narration) : "–"],
+  ].map(([l, n]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("")
+    + (c.totals.unpriced ? `<div class="hint">${fmt(c.totals.unpriced)} calls have no rate for their model; set CLAUDE_RATES.</div>` : "");
+  table("costs", [
+    { label: "Call", render: (r) => `<b>${escapeHtml(r.tool)}</b><div class="desc">${escapeHtml(r.models)}</div>` },
+    { label: "Calls", num: true, render: (r) => `${fmt(r.calls)}${r.failed ? `<div class="desc">${r.failed} failed</div>` : ""}` },
+    { label: "Tokens in (median)", num: true, render: (r) => `${fmt(r.medianIn)}${r.avgCacheRead ? `<div class="desc">${fmt(Math.round(r.avgCacheRead))} cached</div>` : ""}` },
+    { label: "Tokens out (median)", num: true, render: (r) => fmt(r.medianOut) },
+    { label: "Cost (median)", num: true, render: (r) => usd(r.medianCost) },
+    { label: "Cost (total)", num: true, render: (r) => usd(r.totalCost) },
+    { label: "Time (median)", num: true, render: (r) => (r.medianMs ? `${Math.round(r.medianMs / 1000)} s` : "") },
+  ], c.tools);
+}
+
 function renderRoutes(routes) {
   $("routes-count").textContent = `${routes.length} published`;
   table("routes", [
@@ -86,6 +106,7 @@ async function load() {
     const s = await api(`/api/admin/summary?days=${days}`); // first call may prompt for the password
     const e = await api(`/api/admin/events?limit=200`);
     render(s, e.events);
+    renderCosts(await api(`/api/admin/costs?days=${days}`));
     await loadRoutes();
   } catch (err) {
     $("msg").textContent = err.message;

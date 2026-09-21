@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { config } from "./config.js";
+import * as usage from "./lib/usage.js";
 import { httpError } from "./lib/http.js";
 import { CATEGORIES } from "./stops.js";
 
@@ -123,15 +124,17 @@ async function viaSdk({ model, system, user, tool, maxTokens, signal }) {
     tool_choice: { type: "auto", disable_parallel_tool_use: true },
     output_config: { effort: "medium" },
   }, { signal });
-  if (res.stop_reason === "refusal") throw httpError(502, "Deodap couldn't help with that request");
-  if (res.stop_reason === "max_tokens") throw httpError(502, "Deodap ran out of room; try fewer stops");
+  const meta = { usage: res.usage, model: res.model || model, transport: "sdk" };
+  const fail = (msg) => Object.assign(httpError(502, msg), { claudeMeta: meta });
+  if (res.stop_reason === "refusal") throw fail("Deodap couldn't help with that request");
+  if (res.stop_reason === "max_tokens") throw fail("Deodap ran out of room; try fewer stops");
   const block = res.content.find((b) => b.type === "tool_use" && b.name === tool.name);
-  if (block) return block.input;
+  if (block) return { data: block.input, ...meta };
   // fall back: JSON in text
   const text = res.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
   const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw httpError(502, "Deodap didn't return a usable answer; try again");
-  return JSON.parse(m[0]);
+  if (!m) throw fail("Deodap didn't return a usable answer; try again");
+  return { data: JSON.parse(m[0]), ...meta };
 }
 
 // Empty scratch cwd so the CLI doesn't pick up any repo's CLAUDE.md or files.
@@ -170,10 +173,12 @@ function viaCli({ model, system, user, tool, signal }) {
         if (err && !stdout) return reject(httpError(502, `Deodap is unavailable right now: ${(stderr || err.message).slice(0, 300)}`));
         let out;
         try { out = JSON.parse(stdout); } catch { return reject(httpError(502, `Deodap gave an unreadable answer; try again (${stdout.slice(0, 120)})`)); }
-        if (out.is_error) return reject(httpError(502, `Deodap hit a problem: ${String(out.result || "").slice(0, 300)}`));
+        // the CLI reports what the call cost it (subscription or API), plus token usage
+        const meta = { usage: out.usage || null, costUsd: Number.isFinite(out.total_cost_usd) ? out.total_cost_usd : null, model, transport: "cli" };
+        if (out.is_error) return reject(Object.assign(httpError(502, `Deodap hit a problem: ${String(out.result || "").slice(0, 300)}`), { claudeMeta: meta }));
         const data = out.structured_output ?? (() => { try { return JSON.parse(out.result); } catch { return null; } })();
-        if (!data) return reject(httpError(502, "Deodap didn't return a usable answer; try again"));
-        resolve(data);
+        if (!data) return reject(Object.assign(httpError(502, "Deodap didn't return a usable answer; try again"), { claudeMeta: meta }));
+        resolve({ data, ...meta });
       });
     child.stdin.on("error", () => {});
     child.stdin.end(user);
@@ -182,9 +187,20 @@ function viaCli({ model, system, user, tool, signal }) {
 
 async function structuredWithTool(opts) {
   const started = Date.now();
-  const data = config.anthropicKey ? await viaSdk(opts) : await viaCli(opts);
-  console.log(`[claude] ${opts.tool.name} via ${config.anthropicKey ? "sdk" : "cli"} (${opts.model}) in ${Math.round((Date.now() - started) / 1000)}s`);
-  return data;
+  const transport = config.anthropicKey ? "sdk" : "cli";
+  const label = opts.purpose || opts.tool.name; // suggest_more shares the propose tool; log it under its own name
+  try {
+    const { data, ...meta } = transport === "sdk" ? await viaSdk(opts) : await viaCli(opts);
+    const ms = Date.now() - started;
+    usage.record({ tool: label, model: meta.model || opts.model, transport, usage: meta.usage, costUsd: meta.costUsd, ms, ok: true });
+    const u = meta.usage;
+    console.log(`[claude] ${label} via ${transport} (${opts.model}) in ${Math.round(ms / 1000)}s${u ? ` · ${u.input_tokens + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0)} in / ${u.output_tokens} out` : ""}`);
+    return data;
+  } catch (err) {
+    // a failed or refused call still cost tokens: log it so the average includes it (cancelled calls have no meta)
+    if (err.claudeMeta) usage.record({ tool: label, model: err.claudeMeta.model || opts.model, transport, usage: err.claudeMeta.usage, costUsd: err.claudeMeta.costUsd, ms: Date.now() - started, ok: false });
+    throw err;
+  }
 }
 
 /**
@@ -208,7 +224,7 @@ export async function proposeStops({ start, end, arrivalTime, deadline, budgetMi
     timeAvailableMinutes: budgetMinutes, interests, corridorBoundingBox: corridor,
     note: "Return 10-14 candidates in driving order. Call the propose_itinerary tool.",
   }, null, 1);
-  const data = await structuredCall({ model: config.modelStrong, system: PROPOSE_SYSTEM, user, tool: PROPOSE_TOOL, maxTokens: 6000, signal });
+  const data = await structuredCall({ model: config.modelStrong, system: PROPOSE_SYSTEM, user, tool: PROPOSE_TOOL, maxTokens: 6000, signal, purpose: "propose_itinerary" });
   return { summary: String(data.summary || ""), stops: Array.isArray(data.stops) ? data.stops : [] };
 }
 
@@ -221,7 +237,7 @@ export async function suggestMore({ itinerary, count = 3, corridor }) {
     wanted: count,
     note: `Return exactly ${count} new candidates. Call the propose_itinerary tool.`,
   }, null, 1);
-  const data = await structuredCall({ model: config.modelFast, system: SUGGEST_SYSTEM, user, tool: PROPOSE_TOOL, maxTokens: 3000 });
+  const data = await structuredCall({ model: config.modelFast, system: SUGGEST_SYSTEM, user, tool: PROPOSE_TOOL, maxTokens: 3000, purpose: "suggest_more" });
   return Array.isArray(data.stops) ? data.stops.slice(0, count + 2) : [];
 }
 
@@ -235,6 +251,6 @@ export async function writeNarration({ interests, stops, legs, signal }) {
     })),
     note: "Call the write_narration tool. targetId = stop id for stops, pageid string for drive-bys.",
   }, null, 1);
-  const data = await structuredCall({ model: config.modelStrong, system: NARRATION_SYSTEM, user, tool: NARRATION_TOOL, maxTokens: 16000, signal });
+  const data = await structuredCall({ model: config.modelStrong, system: NARRATION_SYSTEM, user, tool: NARRATION_TOOL, maxTokens: 16000, signal, purpose: "write_narration" });
   return Array.isArray(data.scripts) ? data.scripts : [];
 }

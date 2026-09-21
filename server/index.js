@@ -14,6 +14,7 @@ import * as plan from "./plan.js";
 import * as timings from "./lib/timings.js";
 import * as library from "./lib/library.js";
 import * as analytics from "./lib/analytics.js";
+import * as usage from "./lib/usage.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
 import { toMinutes } from "../web/js/format.js";
@@ -83,6 +84,11 @@ app.get("/api/admin/summary", requireAdmin, h(async (req, res) => {
 }));
 app.get("/api/admin/events", requireAdmin, h(async (req, res) => {
   res.json({ events: analytics.recent(Number(req.query.limit) || 200) });
+}));
+// Claude usage and cost, for pricing routes.
+app.get("/api/admin/costs", requireAdmin, h(async (req, res) => {
+  const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+  res.json(usage.summary(days));
 }));
 // Shared-route moderation: list everything, delete anything.
 app.get("/api/admin/routes", requireAdmin, h(async (_req, res) => {

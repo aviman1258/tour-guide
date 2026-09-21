@@ -89,6 +89,17 @@ the data directory exists and is writable, how many events and routes are stored
 `ADMIN_SECRET` is set, and `analytics: {inserted, geoFilled, lastInsertAt, lastError}` for the
 running process. `lastError` carries the last insert or ipwho.is failure verbatim.
 
+Every Claude call is also logged (`server/lib/usage.js`, table `claude_calls`): tool, model,
+transport, input/output/cache tokens, duration, and cost. Cost comes from the SDK's usage
+object priced with `CLAUDE_RATES` (JSON, USD per million tokens, e.g.
+`{"claude-opus-5":{"in":5,"out":25},"claude-haiku-4-5":{"in":1,"out":5}}`; the built-in
+defaults are placeholders, check the Anthropic console) or, on the CLI path, from the CLI's own
+`total_cost_usd`. `GET /api/admin/costs?days=` summarises it, and the admin page shows a
+**Claude cost** panel with the median cost of a finished route (plan + narration). That number
+is what per-route pricing is calibrated against. Calls are labelled `propose_itinerary`,
+`suggest_more` and `write_narration`. Only trust SDK (hosted) numbers for pricing: on the CLI
+path the Claude Code CLI adds its own prompt, so a tiny call shows ~9k input tokens.
+
 `/admin.html` shows it: cards, visitors per day, where from, devices, pages, actions, most active
 addresses, recent events. It also lists every **shared route** with a Delete button, for taking
 down anything that slipped past the content filter (`GET/DELETE /api/admin/routes`; deletions are
@@ -150,6 +161,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | Route | Body / query | Returns |
 |---|---|---|
 | `GET /api/health` | | `{ok, claude:"sdk"\|"cli", models, osrm, data:{dir, exists, writable, events, routes, admin, analytics}}` |
+| `GET /api/admin/costs?days=` | `x-admin-key` | Claude usage: per-tool calls, median tokens and cost, totals, median cost per route |
 | `GET /api/admin/routes` | `x-admin-key` | `{routes: [summary + author]}` every shared route, newest first |
 | `DELETE /api/admin/routes/:id` | `x-admin-key` | 204; removes a shared route for everyone |
 | `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
@@ -265,6 +277,8 @@ pick this repo, then set the secrets it asks for:
 - `APP_SECRET` — a passphrase; every `/api/*` call except the health check must carry it. The app
   asks for it once per device (`x-app-key` header, kept in localStorage).
 - `CONTACT` — an email or URL for the Wikipedia/OSM User-Agent.
+- `CLAUDE_RATES` — optional; USD per million tokens per model for the cost panel (see the
+  analytics section). Without it the built-in placeholder rates are used and the panel says so.
 - `TRUST_PROXY` — how many proxy hops sit in front of the app (default `2`: Render's edge goes
   through Cloudflare, so `X-Forwarded-For` is `visitor, cloudflare`). If you later proxy your own
   domain through Cloudflare too, set `3`. `GET /api/whoami` echoes the `ip` the app resolved and the
