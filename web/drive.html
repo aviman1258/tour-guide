@@ -62,7 +62,12 @@
       <button type="button" id="start-btn" class="btn btn-primary">Start drive</button>
       <button type="button" id="stop-btn" class="btn" hidden>End drive</button>
       <button type="button" id="mute-btn" class="btn" aria-pressed="false">🔊</button>
-      <label class="toggle"><input type="checkbox" id="speak-turns" /> Speak turns</label>
+    </div>
+
+    <div class="card turn-voice" id="turn-voice-box">
+      <div class="turn-voice-head"><span class="label">Spoken directions</span><span id="turn-voice-label" class="hint"></span></div>
+      <input type="range" id="turn-voice" min="0" max="2" step="1" value="1" aria-label="Spoken directions: Talkative, Reserved or Mute" />
+      <div class="turn-voice-ticks" id="turn-voice-ticks"><span data-mode="talkative">Talkative</span><span data-mode="reserved">Reserved</span><span data-mode="mute">Mute</span></div>
     </div>
 
     <details class="card voice" id="voice-section">

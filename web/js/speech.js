@@ -170,9 +170,36 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
     speakChunk();
   }
 
-  /** Queue narration. Stops interrupt drive-bys and previews; everything else waits its turn. */
+  /**
+   * Queue narration. Stops interrupt drive-bys and previews; everything else waits its turn.
+   * Turn prompts are special: a newer one replaces any pending one (a stale "in 200 feet" is
+   * worse than silence), an urgent one ("now", "in 100 feet") cuts into a drive-by story or a
+   * playing turn prompt, and a non-urgent one is dropped rather than queued behind narration.
+   */
   function enqueue(item) {
     if (!item?.text) return;
+    if (item.kind === "turn") {
+      queue = queue.filter((q) => q.kind !== "turn");
+      if (current) {
+        const cur = current.item.kind;
+        if (cur === "turn" || (item.urgent && (cur === "driveby" || cur === "preview"))) {
+          synth?.cancel();
+          const dropped = current;
+          current = null;
+          clearTimeout(watchdog);
+          emit("end", { item: dropped.item, interrupted: true });
+          queue.unshift(item);
+          next();
+          return;
+        }
+        if (!item.urgent) return; // narration is playing; the banner still shows the turn
+        queue.unshift(item); // right after the current story
+        return;
+      }
+      queue.push(item);
+      next();
+      return;
+    }
     if (current && item.kind === "stop" && (current.item.kind === "driveby" || current.item.kind === "preview")) {
       synth?.cancel();
       const dropped = current;

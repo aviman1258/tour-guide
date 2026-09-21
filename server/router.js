@@ -3,7 +3,7 @@
 // the fallback for plain routes (it rejects every `exclude` option). Both normalise to:
 //   { geometry (GeoJSON LineString), legs:[{durationSec, distanceM, steps[]}], totalSec, totalM,
 //     router, flags:{hasToll, hasHighway, hasFerry} }
-// step = { distanceM, durationSec, name, instruction?, verbalAlert?, maneuver:{type, modifier, exit, location:[lon,lat], bearingAfter} }
+// step = { distanceM, durationSec, name, instruction?, verbalAlert?, verbalSuccinct?, maneuver:{type, modifier, exit, location:[lon,lat], bearingAfter} }
 
 import { config } from "./config.js";
 import { fetchJson, httpError } from "./lib/http.js";
@@ -82,6 +82,7 @@ async function valhalla(points, o) {
               name: (m.street_names || []).join(" / "),
               instruction: m.instruction || "",
               verbalAlert: m.verbal_transition_alert_instruction || m.verbal_pre_transition_instruction || "",
+              verbalSuccinct: m.verbal_succinct_transition_instruction || "",
               maneuver: {
                 type, modifier,
                 exit: m.roundabout_exit_count ?? null,

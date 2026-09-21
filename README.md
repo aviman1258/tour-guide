@@ -230,8 +230,20 @@ the drive itself needs no server and no Claude, only cell data for map tiles.
 - A stop counts as **visited** after 20 s stopped inside its radius, when you leave it again,
   when route progress passes it by 1.2 km, or when you tap *Visited*. Fired/visited state is
   persisted so a page reload mid-drive does not replay anything.
-- **Next-turn banner** from OSRM steps (fallback for cars without CarPlay). "Speak turns" is
-  off by default because the car's Google Maps does that better.
+- **Next-turn banner** from the route steps, with a green "✓ On route" line while the car is
+  on the line and an off-route card (bearing arrow + distance to the next stop) when it isn't.
+- **Spoken directions** (`web/js/turnVoice.js`, a 3-position slider under the controls,
+  remembered per device, default Reserved):
+  - *Talkative* — after each turn, "Keep going straight on X for 1.3 miles"; every two minutes
+    on a long stretch, "You're on the route. Next, turn left onto Y in 2.1 miles"; then the
+    approach below. Also a one-line heads-up for "continue onto" steps.
+  - *Reserved* — only the approach: "In half a mile / a quarter mile, turn left onto Y",
+    "In 200 feet, …", "In 100 feet, …", "Turn left now." (the far prompt is skipped when the
+    turn is already under 0.2 mi away; "continue" steps are silent).
+  - *Mute* — banner only.
+  Both speaking modes say "Back on the route." after an off-route spell. In the speech queue a
+  newer turn prompt replaces a pending one, urgent prompts (200 ft and closer) cut into drive-by
+  stories, and a stop narration is never interrupted by directions.
 
 ### Simulation
 

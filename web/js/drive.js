@@ -5,6 +5,7 @@ import * as storage from "./storage.js";
 import { createGeofence } from "./geofence.js";
 import { createSpeech, VOICE_PRESETS, matchVoice } from "./speech.js";
 import { createSim } from "./sim.js";
+import { createTurnVoice, MODES as TURN_MODES, MODE_LABEL as TURN_LABEL, loadTurnMode, saveTurnMode } from "./turnVoice.js";
 import { lineToPoints, cumulative, project, haversineM, bearingDeg } from "./routeMath.js";
 import { fmtMiles, fmtDuration, to12h, escapeHtml, toMinutes as toMin, toHHMM } from "./format.js";
 import { ping } from "./ping.js";
@@ -18,7 +19,7 @@ const state = {
   geofence: null, speech: null, sim: null,
   watchId: null, wakeLock: null, running: false,
   lastFix: null, lastProj: null, offRoute: false, offCount: 0, onCount: 0, nextManeuverIdx: 0,
-  nextStopIdx: 0, driveState: { fired: {}, visited: [] }, saveTimer: null, speakTurns: false, spokenTurn: null,
+  nextStopIdx: 0, driveState: { fired: {}, visited: [] }, saveTimer: null, turnVoice: createTurnVoice({ mode: loadTurnMode() }),
   map: null, car: null, carLayer: null, stopMarkers: [], poiMarkers: new Map(), follow: true, followTimer: null,
 };
 
@@ -154,7 +155,9 @@ function flattenManeuvers(route, points, cum, it) {
       // Valhalla gives ready-made instructions; OSRM steps fall back to our own wording
       const arriveName = legIndex === route.legs.length - 1 ? it.end.label : it.stops[legIndex]?.name;
       const text = m.type === "arrive" ? `Arrive at ${arriveName || "your stop"}` : (st.instruction || "").replace(/\.$/, "") || maneuverText(m, st, arriveName);
-      out.push({ legIndex, type: m.type, modifier: m.modifier, exit: m.exit, name: st.name || st.ref || "", atM: p.progressM, text, verbal: st.verbalAlert || "" });
+      // short form, for "turn left now": Valhalla's succinct line, else our wording without the road
+      const short = m.type === "arrive" ? `Arriving at ${arriveName || "your stop"}` : (st.verbalSuccinct || "").replace(/\.$/, "") || maneuverText(m, { ...st, name: "", ref: "" }, arriveName);
+      out.push({ legIndex, type: m.type, modifier: m.modifier, exit: m.exit, name: st.name || st.ref || "", atM: p.progressM, text, short, verbal: st.verbalAlert || "" });
     }
   });
   return out.sort((a, b) => a.atM - b.atM);
@@ -365,6 +368,7 @@ function updateNav(fix, proj, progressM) {
     $("banner-secondary").textContent = "Follow the car's navigation; narration keeps working.";
     arrow.hidden = false;
     arrow.style.transform = `rotate(${((b - (fix.heading ?? 0)) + 360) % 360 - 90}deg)`;
+    state.turnVoice.update({ maneuver: null, idx: state.nextManeuverIdx, distM: 0, offRoute: true, nowMs: fix.nowMs });
     return;
   }
   banner.classList.remove("offroute");
@@ -375,17 +379,23 @@ function updateNav(fix, proj, progressM) {
   const m = state.maneuvers[state.nextManeuverIdx];
   if (!m) {
     $("banner-primary").textContent = "Arrive";
-    $("banner-secondary").textContent = state.it.end.label;
+    $("banner-secondary").textContent = `✓ On route · ${state.it.end.label}`;
+    const say = state.turnVoice.update({ maneuver: null, idx: state.nextManeuverIdx, distM: 0, offRoute: false, nowMs: fix.nowMs });
+    if (say) speakDirection(say);
     return;
   }
   const dist = Math.max(0, m.atM - progressM);
   $("banner-primary").textContent = m.text;
-  $("banner-secondary").textContent = `in ${fmtMiles(dist)}`;
+  $("banner-secondary").textContent = `✓ On route · in ${fmtMiles(dist)}`;
 
-  if (state.speakTurns && !state.speech.current && dist < Math.max(250, fix.speed * 15) && state.spokenTurn !== state.nextManeuverIdx) {
-    state.spokenTurn = state.nextManeuverIdx;
-    state.speech.enqueue({ id: `turn_${state.nextManeuverIdx}_${Date.now()}`, kind: "turn", text: `${m.text} in ${fmtMiles(dist).replace("mi", "miles").replace("ft", "feet")}.`, title: "Turn" });
-  }
+  const prev = state.maneuvers[state.nextManeuverIdx - 1];
+  const say = state.turnVoice.update({ maneuver: m, idx: state.nextManeuverIdx, distM: dist, roadName: prev?.name || "", offRoute: false, nowMs: fix.nowMs });
+  if (say) speakDirection(say);
+}
+
+function speakDirection(say) {
+  log(`direction:${say.id}`);
+  state.speech.enqueue({ id: say.id, kind: "turn", urgent: say.urgent, text: say.text, title: "Directions" });
 }
 
 // ---------- cards ----------
@@ -642,7 +652,17 @@ function bindUi() {
     $("mute-btn").textContent = on ? "🔇" : "🔊";
     $("mute-btn").setAttribute("aria-pressed", String(on));
   });
-  $("speak-turns").addEventListener("change", (e) => (state.speakTurns = e.target.checked));
+  const slider = $("turn-voice");
+  const applyTurnMode = (mode, persist) => {
+    state.turnVoice.setMode(mode);
+    slider.value = String(TURN_MODES.indexOf(mode));
+    $("turn-voice-label").textContent = TURN_LABEL[mode];
+    for (const t of $("turn-voice-ticks").children) t.classList.toggle("on", t.dataset.mode === mode);
+    if (persist) saveTurnMode(mode);
+  };
+  slider.addEventListener("input", () => applyTurnMode(TURN_MODES[Number(slider.value)], true));
+  for (const t of $("turn-voice-ticks").children) t.addEventListener("click", () => applyTurnMode(t.dataset.mode, true));
+  applyTurnMode(state.turnVoice.getMode(), false);
   $("np-skip").addEventListener("click", () => state.speech.skip());
   $("np-replay").addEventListener("click", () => state.speech.replay());
   $("skip-stop").addEventListener("click", () => {
