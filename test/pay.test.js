@@ -136,3 +136,29 @@ test("payments off: intent refuses cleanly", async () => {
   assert.equal(pay.enabled(), false);
   await assert.rejects(() => pay.createIntent(ROUTE), /aren't set up/);
 });
+
+test("a refund or a dispute from Stripe closes the credit", async () => {
+  const { stripe, pay } = setup();
+  const { config } = await import("../server/config.js");
+  config.stripe.webhookSecret = "whsec_test";
+  const { token } = await pay.createIntent(ROUTE);
+  const piId = stripe.calls[0][1];
+  stripe.authorize(piId);
+  await pay.confirm(token);
+  await pay.consume(pay.verify(token, { ...ROUTE, forPlan: true }));
+  assert.equal(pay.status(token).status, "captured");
+  const r = pay.handleWebhook(JSON.stringify({ type: "charge.refunded", data: { object: { object: "charge", id: "ch_1", payment_intent: piId, refunded: true, amount_refunded: 299 } } }), "sig");
+  assert.equal(r.credit, pay.status(token).id);
+  assert.equal(pay.status(token).status, "refunded");
+  assert.throws(() => pay.verify(token, ROUTE), /refunded/);
+  assert.equal(pay.sales(30).totals.refunded, 1);
+  assert.equal(pay.sales(30).totals.refundedCents, 299);
+
+  const second = await pay.createIntent(ROUTE);
+  const pi2 = stripe.calls.filter((c) => c[0] === "create")[1][1];
+  stripe.authorize(pi2);
+  await pay.confirm(second.token);
+  pay.handleWebhook(JSON.stringify({ type: "charge.dispute.created", data: { object: { object: "dispute", id: "dp_1", payment_intent: pi2, reason: "fraudulent" } } }), "sig");
+  assert.equal(pay.status(second.token).status, "disputed");
+  assert.throws(() => pay.verify(second.token, ROUTE), /dispute/);
+});

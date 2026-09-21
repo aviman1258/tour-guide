@@ -75,7 +75,11 @@ intent back and the credit becomes `authorized`; planning runs with the credit t
 cancelled plans leave the hold in place for another try; Cancel on the card, or an hourly sweep
 a day before Stripe's 7-day limit, releases it. Stripe's webhook
 (`POST /api/pay/webhook`, events `payment_intent.amount_capturable_updated`, `.succeeded`,
-`.canceled`) mirrors any state change we didn't see ourselves.
+`.canceled`) mirrors any state change we didn't see ourselves. Two more events close the loop
+with the Stripe dashboard: `charge.refunded` marks the credit `refunded` and
+`charge.dispute.created` marks it `disputed`; either way the credit stops unlocking planning,
+narration and publishing, and the Sales panel counts it. Register all five events on the
+webhook destination.
 
 Owner mode has no visible control: **press and hold the Deodap logo** in the plan page header
 for about a second (`web/js/ownerGesture.js`), or open `plan.html?owner`. Not the owner → the

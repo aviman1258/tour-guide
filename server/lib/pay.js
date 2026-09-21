@@ -5,6 +5,8 @@
 //   captured → captured the moment the first plan succeeds; the credit keeps unlocking re-plans,
 //              narration and publishing for that start/end for USE_TTL
 //   canceled → released by the user, by the sweep (hold about to expire), or by Stripe
+//   refunded / disputed → set from Stripe's charge.refunded / charge.dispute.created webhooks; the
+//              credit stops unlocking anything
 //
 // We store a credit id, a hash of the browser token, the PaymentIntent id, tier, status and
 // timestamps. No card data, names or emails: Stripe holds those.
@@ -140,6 +142,8 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
     if (!row) throw payError(402, "This route needs a payment first.");
     if (row.status === "pending") throw payError(402, "Your payment hasn't gone through yet.");
     if (row.status === "canceled" || row.status === "failed") throw payError(402, "That payment was released. Pay again to plan this route.");
+    if (row.status === "refunded") throw payError(402, "That payment was refunded, so this route credit is closed. Pay again to plan it.");
+    if (row.status === "disputed") throw payError(402, "That payment is under dispute with your bank, so this route credit is on hold.");
     if (Date.parse(row.expires_at) < now()) throw payError(402, row.status === "authorized" ? "That payment hold has expired. Pay again to plan." : "That route credit has expired.");
     if (start && end && routeSig(start, end) !== row.route_sig) throw payError(402, "That payment was for a different start and end. A new route needs its own payment.");
     if (forPlan) {
@@ -187,9 +191,20 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
     if (!stripe) throw httpError(503, "payments off");
     if (!config.stripe.webhookSecret) throw httpError(503, "STRIPE_WEBHOOK_SECRET is not set");
     const event = stripe.webhooks.constructEvent(rawBody, signature, config.stripe.webhookSecret);
-    const pi = event.data?.object;
-    const row = pi?.object === "payment_intent" ? byPi(pi.id) : null;
-    if (row) applyPi(row, pi);
+    const obj = event.data?.object;
+    let row = null;
+    if (obj?.object === "payment_intent") {
+      row = byPi(obj.id);
+      if (row) applyPi(row, obj);
+    } else if (obj?.object === "charge" && event.type === "charge.refunded") {
+      // a refund from the Stripe dashboard (full or partial): the route credit is over
+      row = obj.payment_intent ? byPi(obj.payment_intent) : null;
+      if (row && row.status !== "refunded") { row.status = "refunded"; row.canceled_at = iso(); row.last_error = `refunded ${((obj.amount_refunded || 0) / 100).toFixed(2)}`; save(row); }
+    } else if (obj?.object === "dispute") {
+      // a chargeback: same effect, and the note says so for the admin page
+      row = obj.payment_intent ? byPi(obj.payment_intent) : null;
+      if (row && row.status !== "disputed") { row.status = "disputed"; row.canceled_at = iso(); row.last_error = `dispute ${obj.reason || ""}`.trim(); save(row); }
+    }
     return { type: event.type, credit: row ? row.id : null };
   }
 
@@ -216,6 +231,8 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
       totals: {
         intents: rows.length, captured: captured.length, revenueCents: captured.reduce((a, r) => a + r.cents, 0),
         holdsOpen: rows.filter((r) => r.status === "authorized").length, released: rows.filter((r) => r.status === "canceled").length,
+        refunded: rows.filter((r) => r.status === "refunded" || r.status === "disputed").length,
+        refundedCents: rows.filter((r) => r.status === "refunded" || r.status === "disputed").reduce((a, r) => a + r.cents, 0),
         pending: rows.filter((r) => r.status === "pending").length, plansDelivered: rows.reduce((a, r) => a + r.plans_used, 0),
       },
       byTier: Object.entries(by((r) => r.tier)).map(([tier, n]) => ({ tier, label: tierById(tier)?.label || tier, intents: n, captured: captured.filter((r) => r.tier === tier).length, revenueCents: captured.filter((r) => r.tier === tier).reduce((a, r) => a + r.cents, 0) })),

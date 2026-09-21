@@ -70,12 +70,13 @@ function renderSales(s) {
   $("sales-cards").innerHTML = [
     ["Revenue", usd(t.revenueCents / 100)], ["Routes sold", fmt(t.captured)], ["Plans delivered", fmt(t.plansDelivered)],
     ["Holds open", fmt(t.holdsOpen)], ["Released", fmt(t.released)], ["Started, unpaid", fmt(t.pending)],
+    ["Refunded / disputed", `${fmt(t.refunded)}${t.refundedCents ? ` · ${usd(t.refundedCents / 100)}` : ""}`],
   ].map(([l, n]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("")
     + (s.byTier.length ? `<div class="hint">${s.byTier.map((b) => `${escapeHtml(b.label)}: ${b.captured} sold, ${usd(b.revenueCents / 100)}`).join(" · ")}</div>` : "");
   table("sales", [
     { label: "When", render: (r) => when(r.createdAt) }, { label: "Credit", render: (r) => `<code>${escapeHtml(r.id)}</code>` },
     { label: "Tier", render: (r) => `${escapeHtml(r.label)} · ${escapeHtml(r.price)}` },
-    { label: "Status", render: (r) => `<span class="kind-${r.status === "captured" ? "publish" : r.status === "canceled" ? "plan_error" : "page"}">${escapeHtml(r.status)}</span>` },
+    { label: "Status", render: (r) => `<span class="kind-${r.status === "captured" ? "publish" : /canceled|refunded|disputed/.test(r.status) ? "plan_error" : "page"}">${escapeHtml(r.status)}</span>` },
     { label: "Plans", num: true, render: (r) => `${r.plansUsed}` }, { label: "Captured", render: (r) => (r.capturedAt ? when(r.capturedAt) : "") },
     { label: "Note", render: (r) => escapeHtml(r.lastError || "") },
   ], s.recent);
