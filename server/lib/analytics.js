@@ -124,7 +124,9 @@ export function track(req, kind, detail = "", ms = null) {
       VALUES (@ts, @ip, @city, @region, @country, @tier, @device, @browser, @kind, @detail, @ms)`).run(row);
     state.inserted++;
     state.lastInsertAt = row.ts;
-    if (fromHeaders) return;
+    // Cloudflare always sends cf-ipcountry (Render's edge included); city/region only with the
+    // "visitor location headers" transform on. Country alone is not enough: look the city up.
+    if (fromHeaders?.city) return;
     const id = r.lastInsertRowid;
     geoLookup(row.ip)
       .then((g) => {

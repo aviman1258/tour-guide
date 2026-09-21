@@ -52,7 +52,8 @@ publish, route search/use, errors): time, IP, coarse location, tier, device and 
 family, event kind, a short detail, duration. Nothing typed into forms, no names, no phone GPS.
 Location comes from Cloudflare's visitor-location headers when the domain is proxied through
 Cloudflare (Rules → Settings → *Add visitor location headers*), otherwise from a cached
-ipwho.is lookup per IP (`GEO_LOOKUP=0` to disable). The row is written the moment the request
+ipwho.is lookup per IP (`GEO_LOOKUP=0` to disable). Render's own edge is Cloudflare too, so
+`cf-ipcountry` always arrives; country alone still triggers the city lookup. The row is written the moment the request
 arrives; the location is filled in afterwards, so a slow or failed lookup never loses the visit.
 Rows older than 90 days are purged.
 
@@ -116,7 +117,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | Route | Body / query | Returns |
 |---|---|---|
 | `GET /api/health` | | `{ok, claude:"sdk"\|"cli", models, osrm, data:{dir, exists, writable, events, routes, admin, analytics}}` |
-| `GET /api/whoami` | | `{tier, protected, ip, forwarded}` — the tier the server sees for you, your resolved IP and the raw `X-Forwarded-For` chain |
+| `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |
 | `POST /api/suggest` | `{itinerary, count}` | `{candidates: Stop[]}` not already in the plan |
