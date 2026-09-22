@@ -70,12 +70,12 @@ app.use(["/api/place", "/api/reverse", "/api/schedule", "/api/routes", "/api/pin
 // Paid features: the owner (passphrase) always passes. Otherwise a valid route credit is needed
 // (x-credit header). Without Stripe configured the passphrase is the only door, as before.
 const itineraryOf = (req) => req.body?.package?.itinerary || req.body?.itinerary || req.body || {};
-const requireAccess = (forPlan) => (req, res, next) => {
+const requireAccess = (kind) => (req, res, next) => {
   if (req.tier === "subscriber") return next();
   if (!pay.enabled()) return res.status(401).json({ error: "This feature is for subscribers. Enter the app passphrase.", needsKey: true });
   const it = itineraryOf(req);
   try {
-    req.credit = pay.verify(req.get("x-credit") || "", { start: it.start, end: it.end, arrivalTime: it.arrivalTime, deadline: it.deadline, forPlan });
+    req.credit = pay.verify(req.get("x-credit") || "", { start: it.start, end: it.end, arrivalTime: it.arrivalTime, deadline: it.deadline, kind });
     next();
   } catch (err) {
     if (!err.needsPayment) return next(err);
@@ -83,8 +83,20 @@ const requireAccess = (forPlan) => (req, res, next) => {
     res.status(402).json({ error: err.message, needsPayment: true, quote: priceQuote(it.arrivalTime, it.deadline) });
   }
 };
-app.use("/api/plan", requireAccess(true));
-app.use(["/api/suggest", "/api/prepare-drive"], requireAccess(false));
+// Three guards on the routes that cost Claude money, in order: the daily budget breaker (everyone,
+// owner included), an hourly per-IP cap for non-owners, then the credit check with its quotas.
+const budgetBreaker = (req, res, next) => {
+  const b = usage.budget();
+  if (!b.tripped) return next();
+  analytics.track(req, "budget_tripped", `$${b.today.toFixed(2)} of $${b.limit}`);
+  res.set("retry-after", String(Math.max(60, Math.round((Date.parse(b.resetsAt) - Date.now()) / 1000))));
+  res.status(503).json({ error: "Deodap has done all the planning it can afford today. Try again tomorrow; nothing has been charged.", budget: b });
+};
+const aiLimiter = createLimiter({ max: config.aiCallsPerHour, windowMs: 3600_000 });
+app.use(["/api/plan", "/api/suggest", "/api/prepare-drive"], budgetBreaker, limitFree(aiLimiter));
+app.use("/api/plan", requireAccess("plan"));
+app.use("/api/suggest", requireAccess("suggest"));
+app.use("/api/prepare-drive", requireAccess("prepare"));
 // A plan succeeded on a credit: count it and capture the hold the first time.
 async function settleCredit(req) {
   const v = await pay.consume(req.credit);
@@ -178,7 +190,7 @@ app.get("/api/admin/sales", requireAdmin, h(async (req, res) => {
 }));
 app.get("/api/admin/costs", requireAdmin, h(async (req, res) => {
   const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
-  res.json(usage.summary(days));
+  res.json({ ...usage.summary(days), budget: usage.budget() });
 }));
 // Shared-route moderation: list everything, delete anything.
 app.get("/api/admin/routes", requireAdmin, h(async (_req, res) => {
@@ -208,6 +220,7 @@ app.get("/api/health", h(async (_req, res) => {
     protected: Boolean(config.appSecret),
     owner: owner.stats(),
     pay: pay.enabled(),
+    budget: usage.budget(),
     claude: config.anthropicKey ? "sdk" : "cli",
     data,
     models: { strong: config.modelStrong, fast: config.modelFast },
@@ -303,7 +316,7 @@ app.get("/api/routes/:id", h(async (req, res) => {
 }));
 
 // Publish (subscriber). Body: { package, title, description }. Region is derived from the start point.
-app.post("/api/routes", requireAccess(false), h(async (req, res) => {
+app.post("/api/routes", requireAccess("publish"), h(async (req, res) => {
   const { package: pkg, title, description } = req.body || {};
   if (!pkg) throw httpError(400, "package is required");
   let region = "";
@@ -338,7 +351,8 @@ app.post("/api/suggest", h(async (req, res) => {
   const candidates = await claude.suggestMore({ itinerary, count: n, corridor });
   const existing = new Set((itinerary.stops || []).flatMap((s) => [s.name, s.wikipediaTitle].filter(Boolean).map((x) => x.toLowerCase())));
   const { stops: grounded } = await resolve.resolveCandidates(candidates, corridor);
-  res.json({ candidates: grounded.filter((s) => !existing.has(s.name.toLowerCase()) && !existing.has((s.wikipediaTitle || "").toLowerCase())).slice(0, n) });
+  const credit = req.credit ? pay.consumeQuota(req.credit, "suggest") : undefined;
+  res.json({ candidates: grounded.filter((s) => !existing.has(s.name.toLowerCase()) && !existing.has((s.wikipediaTitle || "").toLowerCase())).slice(0, n), credit });
 }));
 
 // Narration package for drive mode. Streams progress events with Accept: text/event-stream.
@@ -350,7 +364,10 @@ app.post("/api/prepare-drive", h(async (req, res) => {
   res.on("close", () => { if (!res.writableFinished) { ac.abort(); console.log("[prepare-drive] cancelled by client"); } });
 
   const t0 = Date.now();
-  const done = (pkg) => analytics.track(req, "prepare", pkg ? `${pkg.narration.length} narrations` : "cancelled", Date.now() - t0);
+  const done = (pkg) => {
+    analytics.track(req, "prepare", pkg ? `${pkg.narration.length} narrations` : "cancelled", Date.now() - t0);
+    if (pkg && req.credit) pkg.credit = pay.consumeQuota(req.credit, "prepare");
+  };
   if (!String(req.headers.accept || "").includes("text/event-stream")) {
     const pkg = await narrate.prepareDrive(itinerary, { signal: ac.signal });
     done(pkg);

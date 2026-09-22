@@ -84,7 +84,9 @@ function renderSales(s) {
 function renderCosts(c) {
   $("costs-note").textContent = `${c.days} days · rates ${c.ratesNote}`;
   const pr = c.perRoute;
+  const b = c.budget || {};
   $("cost-cards").innerHTML = [
+    [b.tripped ? "Today · BUDGET HIT" : "Today", b.limit ? `${usd(b.today)} / $${b.limit}` : usd(b.today)],
     ["Claude calls", fmt(c.totals.calls)], ["Failed calls", fmt(c.totals.failed)], ["Total cost", usd(c.totals.costUsd)],
     ["Per route (median)", pr ? usd(pr.total) : "–"], ["…of which plan", pr ? usd(pr.plan) : "–"], ["…of which narration", pr ? usd(pr.narration) : "–"],
   ].map(([l, n]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("")

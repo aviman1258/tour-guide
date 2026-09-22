@@ -67,7 +67,24 @@ server):
 
 One payment is a **credit** bound to a start/end pair (coordinates rounded to ~1 km). It covers
 3 plans (the first plus two re-plans, as long as the day doesn't grow into a higher tier), edits,
-Suggest more, narration and publishing for that route, for 30 days.
+up to 10 Suggest-more calls, up to 3 narration preparations, and publishing for that route, for
+30 days (`PLANS_PER_CREDIT`, `SUGGESTS_PER_CREDIT`, `PREPS_PER_CREDIT` in `web/js/pricing.js`).
+
+### Keeping the Claude bill bounded
+
+Three guards sit in front of `/api/plan`, `/api/suggest` and `/api/prepare-drive`, in this order:
+
+1. **Daily budget breaker** (everyone, owner included): when the day's Claude spend, summed from
+   the usage log at `CLAUDE_RATES` prices, reaches `DAILY_CLAUDE_BUDGET_USD` (default 25), the
+   AI routes answer 503 "Deodap has done all the planning it can afford today" until midnight UTC.
+   Health and the admin cost panel show today's spend against the limit. `0` disables it.
+2. **Hourly per-IP cap** for non-owners: `AI_CALLS_PER_HOUR` (default 20) across the three
+   routes, so a script can't hammer a paid credit.
+3. **Per-credit quotas**: 3 plans, 3 narration preps, 10 suggestions; the fourth of each is a 402
+   with a plain-English reason. Quotas are counted only when a call succeeds.
+
+The account-level backstop is Anthropic's prepaid credit balance (auto-reload off): when it runs
+out the API stops, holds are released, nobody is charged.
 
 Flow: the Plan button shows the price for the current times. Pressing it opens a card with
 Stripe's Payment Element; `POST /api/pay/intent` creates a PaymentIntent with **manual capture**,
@@ -356,6 +373,9 @@ pick this repo, then set the secrets it asks for:
 - `CONTACT` — an email or URL for the Wikipedia/OSM User-Agent.
 - `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` — pay-per-route (see
   "Paying for a route"). Leave all three empty to run passphrase-only.
+- `DAILY_CLAUDE_BUDGET_USD` — daily Claude spend breaker (default `25`, `0` = off); see "Keeping
+  the Claude bill bounded".
+- `AI_CALLS_PER_HOUR` — per-IP cap on plan/suggest/prepare for non-owners (default `20`).
 - `CLAUDE_RATES` — optional; USD per million tokens per model for the cost panel (see the
   analytics section). Without it the built-in placeholder rates are used and the panel says so.
 - `TRUST_PROXY` — how many proxy hops sit in front of the app (default `2`: Render's edge goes

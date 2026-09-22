@@ -11,6 +11,8 @@ export const TIERS = [
   { id: "full", label: "Full day", blurb: "over 6 hours", maxMinutes: Infinity, cents: 449 },
 ];
 export const PLANS_PER_CREDIT = 3;
+export const PREPS_PER_CREDIT = 3;    // narration preparations per credit
+export const SUGGESTS_PER_CREDIT = 10; // "Suggest more" calls per credit
 export const CURRENCY = "usd";
 
 export const fmtPrice = (cents) => `$${(cents / 100).toFixed(2)}`;

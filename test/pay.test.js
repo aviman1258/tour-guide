@@ -162,3 +162,21 @@ test("a refund or a dispute from Stripe closes the credit", async () => {
   assert.equal(pay.status(second.token).status, "disputed");
   assert.throws(() => pay.verify(second.token, ROUTE), /dispute/);
 });
+
+test("per-credit quotas: 3 narration preps and 10 suggestions, counted only on success", async () => {
+  const { stripe, pay } = setup();
+  const { token } = await pay.createIntent(ROUTE);
+  stripe.authorize(stripe.calls[0][1]);
+  await pay.confirm(token);
+  for (let i = 0; i < 3; i++) pay.consumeQuota(pay.verify(token, { ...ROUTE, kind: "prepare" }), "prepare");
+  assert.equal(pay.status(token).prepsLeft, 0);
+  assert.throws(() => pay.verify(token, { ...ROUTE, kind: "prepare" }), (e) => e.status === 402 && /3 times already/.test(e.message));
+  for (let i = 0; i < 10; i++) pay.consumeQuota(pay.verify(token, { ...ROUTE, kind: "suggest" }), "suggest");
+  assert.throws(() => pay.verify(token, { ...ROUTE, kind: "suggest" }), /10 times/);
+  // plans and publishing are separate allowances, untouched
+  assert.equal(pay.status(token).plansLeft, 3);
+  assert.ok(pay.verify(token, { ...ROUTE, kind: "plan" }));
+  assert.ok(pay.verify(token, { ...ROUTE, kind: "publish" }));
+  // the old forPlan spelling still means kind "plan"
+  assert.ok(pay.verify(token, { ...ROUTE, forPlan: true }));
+});

@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { config } from "../config.js";
 import { httpError } from "./http.js";
-import { PLANS_PER_CREDIT, CURRENCY, quote, routeSig, tierById, tierRank, fmtPrice } from "../../web/js/pricing.js";
+import { PLANS_PER_CREDIT, PREPS_PER_CREDIT, SUGGESTS_PER_CREDIT, CURRENCY, quote, routeSig, tierById, tierRank, fmtPrice } from "../../web/js/pricing.js";
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "data");
 const FILE = path.join(DIR, "deodapper.db");
@@ -64,6 +64,10 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
       );
       CREATE INDEX IF NOT EXISTS credits_status ON credits(status, expires_at);
     `);
+    // quotas added after the first deploy: add the columns to an existing table
+    const cols = new Set(db.prepare(`PRAGMA table_info(credits)`).all().map((c) => c.name));
+    if (!cols.has("preps_used")) db.exec(`ALTER TABLE credits ADD COLUMN preps_used INTEGER NOT NULL DEFAULT 0`);
+    if (!cols.has("suggests_used")) db.exec(`ALTER TABLE credits ADD COLUMN suggests_used INTEGER NOT NULL DEFAULT 0`);
     return db;
   }
   const iso = (ms = now()) => new Date(ms).toISOString();
@@ -74,10 +78,10 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
   const byPi = (piId) => open().prepare(`SELECT * FROM credits WHERE pi_id = ?`).get(piId) || null;
   function save(row) {
     // node:sqlite rejects named parameters the statement doesn't use, so pass exactly these
-    const { id, status, plans_used, authorized_at, captured_at, canceled_at, expires_at, last_error } = row;
-    open().prepare(`UPDATE credits SET status = @status, plans_used = @plans_used, authorized_at = @authorized_at, captured_at = @captured_at,
+    const { id, status, plans_used, preps_used = 0, suggests_used = 0, authorized_at, captured_at, canceled_at, expires_at, last_error } = row;
+    open().prepare(`UPDATE credits SET status = @status, plans_used = @plans_used, preps_used = @preps_used, suggests_used = @suggests_used, authorized_at = @authorized_at, captured_at = @captured_at,
       canceled_at = @canceled_at, expires_at = @expires_at, last_error = @last_error WHERE id = @id`)
-      .run({ id, status, plans_used, authorized_at: authorized_at ?? null, captured_at: captured_at ?? null, canceled_at: canceled_at ?? null, expires_at, last_error: last_error ?? null });
+      .run({ id, status, plans_used, preps_used, suggests_used, authorized_at: authorized_at ?? null, captured_at: captured_at ?? null, canceled_at: canceled_at ?? null, expires_at, last_error: last_error ?? null });
     return row;
   }
   /** What the browser may know about a credit. */
@@ -85,7 +89,9 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
     const t = tierById(row.tier);
     return {
       id: row.id, status: row.status, tierId: row.tier, label: t?.label || row.tier, price: fmtPrice(row.cents),
-      plansUsed: row.plans_used, plansLeft: Math.max(0, PLANS_PER_CREDIT - row.plans_used), expiresAt: row.expires_at, routeSig: row.route_sig,
+      plansUsed: row.plans_used, plansLeft: Math.max(0, PLANS_PER_CREDIT - row.plans_used),
+      prepsLeft: Math.max(0, PREPS_PER_CREDIT - (row.preps_used || 0)), suggestsLeft: Math.max(0, SUGGESTS_PER_CREDIT - (row.suggests_used || 0)),
+      expiresAt: row.expires_at, routeSig: row.route_sig,
     };
   }
 
@@ -117,7 +123,7 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
     });
     const row = {
       id, token_hash: hash(token), tier: q.tierId, cents: q.cents, currency: CURRENCY, pi_id: pi.id, status: "pending",
-      route_sig: routeSig(start, end), plans_used: 0, created_at: iso(), authorized_at: null, captured_at: null, canceled_at: null,
+      route_sig: routeSig(start, end), plans_used: 0, preps_used: 0, suggests_used: 0, created_at: iso(), authorized_at: null, captured_at: null, canceled_at: null,
       expires_at: iso(now() + AUTH_TTL_MS), ip: String(ip || "").slice(0, 64), last_error: null,
     };
     open().prepare(`INSERT INTO credits (${Object.keys(row).join(",")}) VALUES (${Object.keys(row).map((k) => "@" + k).join(",")})`).run(row);
@@ -135,9 +141,11 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
 
   /**
    * Is this credit good for this request? Throws a 402 with `needsPayment` otherwise.
-   * `forPlan` also checks the plan allowance and that the day hasn't grown past the tier paid for.
+   * `kind` is "plan" | "prepare" | "suggest" | "publish": plan checks the plan allowance and
+   * that the day hasn't grown past the tier paid for; prepare and suggest check their quotas.
+   * (`forPlan: true` is the old spelling of kind "plan".)
    */
-  function verify(token, { start, end, arrivalTime, deadline, forPlan = false } = {}) {
+  function verify(token, { start, end, arrivalTime, deadline, forPlan = false, kind = forPlan ? "plan" : "publish" } = {}) {
     const row = find(token);
     if (!row) throw payError(402, "This route needs a payment first.");
     if (row.status === "pending") throw payError(402, "Your payment hasn't gone through yet.");
@@ -146,7 +154,9 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
     if (row.status === "disputed") throw payError(402, "That payment is under dispute with your bank, so this route credit is on hold.");
     if (Date.parse(row.expires_at) < now()) throw payError(402, row.status === "authorized" ? "That payment hold has expired. Pay again to plan." : "That route credit has expired.");
     if (start && end && routeSig(start, end) !== row.route_sig) throw payError(402, "That payment was for a different start and end. A new route needs its own payment.");
-    if (forPlan) {
+    if (kind === "prepare" && (row.preps_used || 0) >= PREPS_PER_CREDIT) throw payError(402, `You've prepared the narration for this route ${PREPS_PER_CREDIT} times already; that's the limit for one payment. The last package is still on your phone.`);
+    if (kind === "suggest" && (row.suggests_used || 0) >= SUGGESTS_PER_CREDIT) throw payError(402, `You've asked for more suggestions ${SUGGESTS_PER_CREDIT} times on this route; that's the limit for one payment. Add stops by search or on the map instead.`);
+    if (kind === "plan") {
       if (row.plans_used >= PLANS_PER_CREDIT) throw payError(402, `You've used all ${PLANS_PER_CREDIT} plans for this route. Pay again to plan it afresh.`);
       if (arrivalTime && deadline) {
         const q = quote(arrivalTime, deadline);
@@ -169,6 +179,13 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
         console.warn(`[pay] capture failed for ${row.id}: ${err.message}`);
       }
     }
+    return view(save(row));
+  }
+
+  /** A narration prep or a Suggest-more call succeeded on a credit: count it against its quota. */
+  function consumeQuota(row, kind) {
+    if (kind === "prepare") row.preps_used = (row.preps_used || 0) + 1;
+    else if (kind === "suggest") row.suggests_used = (row.suggests_used || 0) + 1;
     return view(save(row));
   }
 
@@ -240,7 +257,7 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
     };
   }
 
-  return { enabled, createIntent, confirm, verify, consume, release, status, handleWebhook, sweep, sales, view };
+  return { enabled, createIntent, confirm, verify, consume, consumeQuota, release, status, handleWebhook, sweep, sales, view };
 }
 
 const stripeClient = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { appInfo: { name: "Deodapper", url: "https://deodapper.com" } }) : null;

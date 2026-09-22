@@ -95,8 +95,11 @@ lockouts, and the Claude transport (`sdk` on Render).
   new key, updating Render, then deleting the old one.
 - **Models:** `claude-opus-5` plans stops and writes narration (`MODEL_STRONG`);
   `claude-haiku-4-5` handles "Suggest more" (`MODEL_FAST`). Both are env-overridable.
-- **Spend cap:** console → Settings → Limits. Set a monthly maximum (e.g. $50) and an alert.
-  This is the only protection against a runaway bill.
+- **Billing model:** the account is **prepaid** (Billing → Credit balance) with auto-reload
+  off. When the balance reaches zero the API refuses calls, so a runaway bill is impossible; the
+  worst case is planning stops until you buy credits. Anthropic emails when the balance is low.
+  If you ever turn auto-reload on, its monthly maximum becomes your cap. Inside the app, the
+  daily budget breaker (`DAILY_CLAUDE_BUDGET_USD`) trips well before the balance is gone.
 - **Pricing for the cost panel:** the admin page's Claude cost panel prices each call from
   `CLAUDE_RATES` (JSON, dollars per million tokens per model). Read the current Opus 5 and
   Haiku 4.5 prices off the console's pricing page and set, for example,
@@ -182,7 +185,9 @@ No accounts, but each has rules the server follows:
 | `ADMIN_SECRET` | yes, invented | Password for `/admin.html`. Unset = admin disabled |
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | yes | Section 2.5. All three empty = payments off, passphrase-only site |
 | `CONTACT` | yes | Email in the User-Agent sent to Wikipedia/OSM. Use `support@deodapper.com` |
-| `CLAUDE_RATES` | optional | Per-million token prices for the cost panel |
+| `CLAUDE_RATES` | optional | Per-million token prices for the cost panel and the budget breaker |
+| `DAILY_CLAUDE_BUDGET_USD` | `25` default | Daily Claude spend after which planning, Suggest more and narration refuse until midnight UTC. `0` = off |
+| `AI_CALLS_PER_HOUR` | `20` default | Per-IP hourly cap on those three routes for non-owners |
 | `TRUST_PROXY` | `2` | Proxy hops in front of the app (Render's edge is Cloudflare). Wrong value = every visitor looks like one IP |
 | `GEO_LOOKUP` | optional | `0` turns off the IP-to-city lookup |
 | `MODEL_STRONG`, `MODEL_FAST` | blueprint | `claude-opus-5`, `claude-haiku-4-5` |
@@ -224,6 +229,11 @@ button is on the to-do list.)
 **Run it locally.** `npm install`, `npm run dev`, open http://localhost:3001. With no
 `ANTHROPIC_API_KEY` it uses the Claude Code CLI; with no `APP_SECRET` every visitor is the owner;
 with no Stripe keys payments are off. `npm test` runs 71 unit tests.
+
+**"Deodap has done all the planning it can afford today."** The daily budget breaker tripped:
+the day's Claude spend reached `DAILY_CLAUDE_BUDGET_USD`. `/api/health` → `budget` shows today's
+spend and when it resets (midnight UTC). Raise the variable in Render if it was a good day, or
+wait. Check the admin cost panel for what caused it.
 
 **Something is down.** Check `/api/health` first. If it fails, Render → Logs. If planning fails
 but health is fine, it is usually Wikipedia rate limiting (`429`) or the routing servers; both
@@ -290,8 +300,8 @@ speaks directions in Talkative / Reserved / Mute modes ("in half a mile", "in 20
 Every API request is stamped `subscriber` (the owner, via passphrase or owner token) or `free`.
 Free visitors can search, load, re-time, save and drive published routes, rate-limited per IP.
 Planning, Suggest more, narration and publishing need either the owner or a **route credit**:
-a Stripe hold bound to the start/end pair, good for three plans, edits, narration and publishing
-for 30 days. The hold is captured the moment the first plan succeeds; failed or cancelled plans
+a Stripe hold bound to the start/end pair, good for three plans, three narration preparations,
+ten Suggest-more calls, edits and publishing for 30 days. The hold is captured the moment the first plan succeeds; failed or cancelled plans
 leave it uncaptured and a sweep releases it before Stripe's 7-day limit. Pricing follows the
 time window: Short outing ≤3 h $1.99, Half day ≤6 h $2.99, Full day $4.49.
 
@@ -306,6 +316,9 @@ time window: Short outing ≤3 h $1.99, Half day ≤6 h $2.99, Full day $4.49.
   emails, no GPS from the phone. Cloudflare's country header and a cached IP lookup give the city.
 - All Claude output is validated against strict JSON schemas; word counts and facts-in-extract
   rules are checked before narration is accepted.
+- The Claude bill is bounded four ways: per-credit quotas, an hourly per-IP cap on the AI routes,
+  a daily spend breaker in the server (default $25), and Anthropic's prepaid balance with
+  auto-reload off, which is a hard stop.
 
 ---
 
@@ -315,7 +328,7 @@ time window: Short outing ≤3 h $1.99, Half day ≤6 h $2.99, Full day $4.49.
 |---|---|
 | Render Starter | about $7/month |
 | Domain (Cloudflare Registrar) | about $10/year |
-| Anthropic | per route, roughly $0.30 to $0.60 (check the admin cost panel for the real median) |
+| Anthropic | per route, roughly $0.30 to $0.60 (check the admin cost panel for the real median); capped at `DAILY_CLAUDE_BUDGET_USD` a day and by the prepaid balance |
 | Stripe | 2.9% + 30¢ of each captured payment; $15 per dispute |
 | Everything else | free |
 

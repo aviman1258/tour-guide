@@ -107,3 +107,16 @@ export function summary(days = 30) {
 }
 
 export function count() { return open().prepare(`SELECT COUNT(*) c FROM claude_calls`).get().c; }
+
+/** USD spent on Claude since midnight UTC (priced calls only). */
+export function todayCost() {
+  const since = new Date().toISOString().slice(0, 10) + "T00:00:00.000Z";
+  return open().prepare(`SELECT COALESCE(SUM(cost_usd), 0) c FROM claude_calls WHERE ts >= ?`).get(since).c;
+}
+
+/** Daily budget status: { limit, today, tripped, resetsAt }. limit 0 = no breaker. */
+export function budget(limitUsd = config.dailyClaudeBudgetUsd) {
+  const today = todayCost();
+  const d = new Date(); d.setUTCHours(24, 0, 0, 0);
+  return { limit: limitUsd, today, tripped: limitUsd > 0 && today >= limitUsd, resetsAt: d.toISOString() };
+}

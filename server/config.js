@@ -28,6 +28,10 @@ export const config = {
   // usage log for the admin cost panel. Defaults are placeholders: verify in the Anthropic console.
   claudeRates: parseRates(process.env.CLAUDE_RATES) || { "claude-opus-5": { in: 5, out: 25 }, "claude-haiku-4-5": { in: 1, out: 5 } },
   claudeRatesFromEnv: Boolean(parseRates(process.env.CLAUDE_RATES)),
+  // Daily Claude spend (USD, by the rates above) after which AI routes refuse until midnight UTC. 0 = off.
+  dailyClaudeBudgetUsd: Number(process.env.DAILY_CLAUDE_BUDGET_USD ?? "25"),
+  // AI calls (plan / suggest / prepare) per IP per hour for non-owners, on top of per-credit quotas.
+  aiCallsPerHour: Number(process.env.AI_CALLS_PER_HOUR ?? "20"),
   // Stripe (pay-per-route). All three empty = payments off; the passphrase is then the only door.
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY || "",
