@@ -177,8 +177,10 @@ running process. `lastError` carries the last insert or ipwho.is failure verbati
 Every Claude call is also logged (`server/lib/usage.js`, table `claude_calls`): tool, model,
 transport, input/output/cache tokens, duration, and cost. Cost comes from the SDK's usage
 object priced with `CLAUDE_RATES` (JSON, USD per million tokens, e.g.
-`{"claude-opus-5":{"in":5,"out":25},"claude-haiku-4-5":{"in":1,"out":5}}`; the built-in
-defaults are placeholders, check the Anthropic console) or, on the CLI path, from the CLI's own
+`{"claude-opus-5":{"in":5,"out":25},"claude-haiku-4-5":{"in":1,"out":5}}`, which matched
+Anthropic's list prices on 22 September 2026 and is what production has set; the built-in
+defaults are the same numbers but the panel labels them "verify" until the variable is set) or,
+on the CLI path, from the CLI's own
 `total_cost_usd`. `GET /api/admin/costs?days=` summarises it, and the admin page shows a
 **Claude cost** panel with the median cost of a finished route (plan + narration). That number
 is what per-route pricing is calibrated against. Calls are labelled `propose_itinerary`,
@@ -377,7 +379,8 @@ pick this repo, then set the secrets it asks for:
   the Claude bill bounded".
 - `AI_CALLS_PER_HOUR` — per-IP cap on plan/suggest/prepare for non-owners (default `20`).
 - `CLAUDE_RATES` — optional; USD per million tokens per model for the cost panel (see the
-  analytics section). Without it the built-in placeholder rates are used and the panel says so.
+  analytics section). Production has it set to the September 2026 list prices; without it the
+  built-in defaults (same numbers) are used and the panel says "verify".
 - `TRUST_PROXY` — how many proxy hops sit in front of the app (default `2`: Render's edge goes
   through Cloudflare, so `X-Forwarded-For` is `visitor, cloudflare`). If you later proxy your own
   domain through Cloudflare too, set `3`. `GET /api/whoami` echoes the `ip` the app resolved and the

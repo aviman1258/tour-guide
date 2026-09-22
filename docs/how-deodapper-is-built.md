@@ -4,7 +4,7 @@ The owner's manual. Everything third-party the site depends on, where each key c
 breaks without it, and how the app itself is put together. Written so you can explain the whole
 thing to someone in ten minutes or fix it at midnight.
 
-Last updated 22 September 2026.
+Last updated 22 September 2026 (rates confirmed, spend guards added).
 
 ---
 
@@ -100,11 +100,24 @@ lockouts, and the Claude transport (`sdk` on Render).
   worst case is planning stops until you buy credits. Anthropic emails when the balance is low.
   If you ever turn auto-reload on, its monthly maximum becomes your cap. Inside the app, the
   daily budget breaker (`DAILY_CLAUDE_BUDGET_USD`) trips well before the balance is gone.
-- **Pricing for the cost panel:** the admin page's Claude cost panel prices each call from
-  `CLAUDE_RATES` (JSON, dollars per million tokens per model). Read the current Opus 5 and
-  Haiku 4.5 prices off the console's pricing page and set, for example,
-  `{"claude-opus-5":{"in":5,"out":25},"claude-haiku-4-5":{"in":1,"out":5}}`. Until you do, the
-  panel uses placeholder rates and says so.
+- **Pricing for the cost panel and the budget breaker:** every call is priced from
+  `CLAUDE_RATES` (JSON, dollars per million tokens per model). Set in Render on 22 September
+  2026 from the console's "Compare models" screen, which showed these standard list prices:
+
+  | Model | Input / MTok | Output / MTok | Cache write | Cache read |
+  |---|---|---|---|---|
+  | Opus 5 (`claude-opus-5`) | $5 | $25 | $6.25 | $0.50 |
+  | Sonnet 5 (`claude-sonnet-5`) | $2 | $10 | $2.50 | $0.20 |
+  | Haiku 4.5 (`claude-haiku-4-5`) | $1 | $5 | $1.25 | $0.10 |
+
+  Current value: `{"claude-opus-5":{"in":5,"out":25},"claude-haiku-4-5":{"in":1,"out":5}}`.
+  The code applies the cache multipliers itself (write 1.25× input, read 0.1× input). When
+  Anthropic changes prices, update this variable and this table. Where to look: console →
+  Billing, or the model picker's **Compare models → Cost** tab.
+- **A cheaper model is one variable away.** Sonnet 5 costs 60% less than Opus 5. To try it,
+  set `MODEL_STRONG=claude-sonnet-5` in Render (and add a `"claude-sonnet-5":{"in":2,"out":10}`
+  entry to `CLAUDE_RATES`), plan a few routes of your own, judge the stops and narration, and
+  compare the per-route cost in the admin panel. Switch back by removing the variable.
 - **Locally** (no key) the server shells out to the Claude Code CLI on your laptop instead, so
   development uses your Claude subscription. That path adds the CLI's own prompt overhead, so
   only trust the hosted numbers for pricing decisions.
