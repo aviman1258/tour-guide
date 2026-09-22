@@ -11,6 +11,8 @@ things you pass on the way, through the phone's own text-to-speech.
 
 Personal project. First trip: Houston, November 2026.
 
+Owner's manual, every third-party service, key and runbook: [docs/how-deodapper-is-built.md](docs/how-deodapper-is-built.md).
+
 ## Run
 
 ```bash
