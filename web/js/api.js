@@ -143,6 +143,7 @@ export const searchRoutes = ({ near, q, radiusKm } = {}) => {
 };
 export const getRoute = (id) => call("GET", `/api/routes/${encodeURIComponent(id)}`);
 export const publishRoute = (pkg, title, description) => call("POST", "/api/routes", { package: pkg, title, description });
+export const describeRoute = (itinerary, again = false) => call("POST", `/api/routes/describe${again ? "?again=1" : ""}`, { itinerary });
 export const deleteRoute = (id) => call("DELETE", `/api/routes/${encodeURIComponent(id)}`);
 
 /**

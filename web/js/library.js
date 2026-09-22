@@ -159,11 +159,36 @@ export function bind() {
     }
   });
 
+  // Deodap drafts the title and description when the form opens; both stay editable.
+  let drafting = false;
+  const draftListing = async (again = false) => {
+    if (drafting) return;
+    drafting = true;
+    const title = $("publish-title"), desc = $("publish-desc"), note = $("publish-draft-note");
+    const it = state.get();
+    if (again || !title.value) title.placeholder = "Deodap is writing a title…";
+    if (again || !desc.value) desc.placeholder = "…and a short description";
+    note.textContent = "Deodap is drafting the listing…";
+    try {
+      const d = await api.describeRoute({ start: it.start, end: it.end, interests: it.interests, route: it.route ? { totalSec: it.route.totalSec, totalM: it.route.totalM } : null, stops: it.stops.map((s) => ({ name: s.name, category: s.category, whyItMatches: s.whyItMatches, blurb: s.blurb })) }, again);
+      if (again || !title.value) title.value = d.title;
+      if (again || !desc.value) desc.value = d.description;
+      note.textContent = d.source === "fallback" ? "Deodap couldn't write this one; here's a plain version. Edit as you like." : "Drafted by Deodap. Edit anything, then publish.";
+    } catch (err) {
+      if (!title.value) title.value = defaultTitle();
+      note.textContent = err.message || "Couldn't draft a listing; write your own.";
+    } finally {
+      title.placeholder = "e.g. Houston: Heights, Little India and the Mandir";
+      desc.placeholder = "Who is this for? What's the best part?";
+      drafting = false;
+    }
+  };
   $("publish-btn")?.addEventListener("click", () => {
     const f = $("publish-form");
     f.hidden = !f.hidden;
-    if (!f.hidden) { $("publish-title").value ||= defaultTitle(); $("publish-title").focus(); }
+    if (!f.hidden) { draftListing(false); $("publish-title").focus(); }
   });
+  $("publish-redraft")?.addEventListener("click", () => draftListing(true));
   $("publish-cancel")?.addEventListener("click", () => ($("publish-form").hidden = true));
   $("publish-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();

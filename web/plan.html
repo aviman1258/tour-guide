@@ -160,8 +160,9 @@
           <button type="button" id="publish-btn" class="btn">Publish this route for free-tier drivers</button>
           <form id="publish-form" class="publish" hidden>
             <div class="field"><label for="publish-title">Title</label><input id="publish-title" type="text" maxlength="80" placeholder="e.g. Houston: Heights, Little India and the Mandir" required /></div>
-            <div class="field"><label for="publish-desc">Short description</label><textarea id="publish-desc" rows="2" maxlength="500" placeholder="Who is this for? What's the best part?"></textarea></div>
-            <div class="hint">Start and end must be place names, not street addresses. The route, times and all narration are shared as they are now.</div>
+            <div class="field"><label for="publish-desc">Short description</label><textarea id="publish-desc" rows="3" maxlength="500" placeholder="Who is this for? What's the best part?"></textarea></div>
+            <div class="row draft-row"><span id="publish-draft-note" class="hint"></span><button type="button" id="publish-redraft" class="btn btn-sm btn-ghost">Draft again</button></div>
+            <div class="hint">This becomes the route's public page and its search-result snippet. Start and end must be place names, not street addresses. The route, times and all narration are shared as they are now.</div>
             <div class="row">
               <button type="submit" class="btn btn-primary">Publish</button>
               <button type="button" id="publish-cancel" class="btn btn-ghost">Cancel</button>

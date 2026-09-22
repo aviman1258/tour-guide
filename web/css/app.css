@@ -308,3 +308,6 @@ dialog.pay .actions button.primary { background: var(--accent); border-color: va
 dialog.pay .actions button:disabled { opacity: .55; cursor: default; }
 dialog.pay .pay-fine { margin: 0; font-size: 12px; color: var(--muted); }
 dialog.pay .pay-fine a { color: var(--accent); }
+
+.publish .draft-row { justify-content: space-between; align-items: center; }
+.publish .draft-row .hint { flex: 1; }

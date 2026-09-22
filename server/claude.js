@@ -85,6 +85,25 @@ Rules:
 
 const SUGGEST_SYSTEM = `You are a sharp local guide. The traveler already has an itinerary (listed) and wants a few more candidate stops that match their interests and sit near the existing route. Do not repeat anything already listed or dropped. Same grounding rules: real places with English Wikipedia articles, exact article titles, honest priority. Return exactly the number requested. You must call the propose_itinerary tool with your answer.`;
 
+const LISTING_TOOL = {
+  name: "write_listing",
+  description: "Return the public title and description for a shared driving route.",
+  input_schema: {
+    type: "object", additionalProperties: false, required: ["title", "description"],
+    properties: {
+      title: { type: "string", description: "4-80 characters. '<City>: <two or three highlights>'. No quotes, no emojis, no words like route, tour, itinerary, journey." },
+      description: { type: "string", description: "One or two plain sentences, 120-300 characters, for a search result and a listing card." },
+    },
+  },
+};
+const LISTING_SYSTEM = `You write the public listing for a self-guided driving route that other people can pick and drive with spoken narration.
+
+Title: "<City>: <two or three highlights>", the highlights being the most recognisable stop names, shortened (drop "Houston" from "BAPS Shri Swaminarayan Mandir, Houston"). Four to eighty characters. No quotes, no emojis, no exclamation marks, and never the words route, tour, itinerary, journey, experience or adventure.
+
+Description: one or two plain sentences, 120 to 300 characters. Say who it suits and what they'll see, name the start and end places in short form, and give the rough driving time if supplied. Specific beats flattering: no "breathtaking", "hidden gem", "must-see", "unforgettable", no exclamation marks, no mention of AI or of Deodapper. Write like a knowledgeable friend, not a brochure.
+
+You must call the write_listing tool with your answer.`;
+
 const NARRATION_SYSTEM = `You write short spoken scripts for an audio tour guide app. The scripts play through a phone's text-to-speech while the traveler drives.
 
 Voice: warm, knowledgeable local friend riding along. Use "we" and "you". Plain sentences. No headings, lists, parentheses, URLs, or markdown. Spell out numbers under a hundred and abbreviations (Street not St, Boulevard not Blvd). No emojis.
@@ -239,6 +258,18 @@ export async function suggestMore({ itinerary, count = 3, corridor }) {
   }, null, 1);
   const data = await structuredCall({ model: config.modelFast, system: SUGGEST_SYSTEM, user, tool: PROPOSE_TOOL, maxTokens: 3000, purpose: "suggest_more" });
   return Array.isArray(data.stops) ? data.stops.slice(0, count + 2) : [];
+}
+
+/** Draft the public title + description for a route (Haiku; the caller shapes and filters it). */
+export async function describeRoute({ itinerary, region = "", signal }) {
+  const it = itinerary;
+  const user = JSON.stringify({
+    region, start: it.start?.label, end: it.end?.label, interests: it.interests || "",
+    drivingMinutes: it.route?.totalSec ? Math.round(it.route.totalSec / 60) : null, miles: it.route?.totalM ? Math.round(it.route.totalM / 1609) : null,
+    stops: (it.stops || []).map((s) => ({ name: s.name, category: s.category, why: s.whyItMatches || "", blurb: String(s.blurb || "").slice(0, 200) })),
+  }, null, 1);
+  const data = await structuredCall({ model: config.modelFast, system: LISTING_SYSTEM, user, tool: LISTING_TOOL, maxTokens: 400, signal, purpose: "describe_route" });
+  return { title: data?.title || "", description: data?.description || "" };
 }
 
 export async function writeNarration({ interests, stops, legs, signal }) {

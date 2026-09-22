@@ -18,6 +18,7 @@ import * as usage from "./lib/usage.js";
 import pay from "./lib/pay.js";
 import owner from "./lib/owner.js";
 import * as routePages from "./routePages.js";
+import { shapeListing, fallbackListing } from "./lib/describe.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -98,7 +99,8 @@ const budgetBreaker = (req, res, next) => {
   res.status(503).json({ error: "Deodap has done all the planning it can afford today. Try again tomorrow; nothing has been charged.", budget: b });
 };
 const aiLimiter = createLimiter({ max: config.aiCallsPerHour, windowMs: 3600_000 });
-app.use(["/api/plan", "/api/suggest", "/api/prepare-drive"], budgetBreaker, limitFree(aiLimiter));
+app.use(["/api/plan", "/api/suggest", "/api/prepare-drive", "/api/routes/describe"], budgetBreaker, limitFree(aiLimiter));
+app.use("/api/routes/describe", requireAccess("publish"));
 app.use("/api/plan", requireAccess("plan"));
 app.use("/api/suggest", requireAccess("suggest"));
 app.use("/api/prepare-drive", requireAccess("prepare"));
@@ -318,6 +320,31 @@ app.get("/api/routes/:id", h(async (req, res) => {
   const r = library.get(req.params.id, { countUse: req.query.use !== "0" });
   analytics.track(req, "route_use", `${req.params.id} ${r.summary.title}`);
   res.json(r);
+}));
+
+// Draft the public title + description for the publish form. Body: { itinerary }. Cached per set of stops.
+const listingCache = new Map(); // key → { title, description, source }
+app.post("/api/routes/describe", h(async (req, res) => {
+  const it = req.body?.itinerary;
+  if (!it?.start || !it?.end || !Array.isArray(it.stops) || !it.stops.length) throw httpError(400, "itinerary with stops is required");
+  const key = JSON.stringify([it.start.label, it.end.label, it.stops.map((s) => s.name)]);
+  if (!req.query.again && listingCache.has(key)) return res.json({ ...listingCache.get(key), cached: true });
+  let region = "";
+  try {
+    const r = await nominatim.reverse(it.start.lat, it.start.lon, 10);
+    region = [r?.address?.city || r?.address?.town || r?.address?.county, r?.address?.state, r?.address?.country_code?.toUpperCase()].filter(Boolean).join(", ");
+  } catch { /* optional */ }
+  let listing;
+  try {
+    listing = shapeListing(await claude.describeRoute({ itinerary: it, region }), it, region);
+  } catch (err) {
+    console.warn("[describe] Claude failed, using the fallback:", err.message);
+    listing = fallbackListing(it, region);
+  }
+  if (listingCache.size > 200) listingCache.delete(listingCache.keys().next().value);
+  listingCache.set(key, listing);
+  analytics.track(req, "describe", listing.source);
+  res.json(listing);
 }));
 
 // Publish (subscriber). Body: { package, title, description }. Region is derived from the start point.

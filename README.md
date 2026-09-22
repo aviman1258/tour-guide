@@ -266,6 +266,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `POST /api/pay/release` | `{token}` | cancels an unused hold |
 | `POST /api/pay/webhook` | Stripe signature | mirrors PaymentIntent state onto the credit |
 | `GET /api/admin/sales?days=` | `x-admin-key` | revenue, credits by status and tier, recent credits |
+| `POST /api/routes/describe[?again=1]` | `{itinerary}` (owner or credit) | `{title, description, source}` drafted listing for the publish form |
 | `GET /routes`, `GET /routes/:id/:slug`, `GET /sitemap.xml` | | server-rendered public pages for published routes, and the sitemap listing them |
 | `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
@@ -401,6 +402,15 @@ and drive mode all work from the phone. The browser also keeps its own history o
 (`web/js/timings.js`), so estimates survive redeploys and host changes regardless.
 
 ### Search engines
+
+**Deodap drafts the listing.** Opening the publish form calls `POST /api/routes/describe`
+(Haiku, `server/claude.js describeRoute`): a title in the form "City: two or three highlights"
+and a one-to-two-sentence description written for a search result, with no brochure words, no
+exclamation marks and no mention of AI. `server/lib/describe.js` trims both to the library
+limits, runs the content filter, and falls back to a plain generated listing if the draft is
+unusable or Claude is down. Both fields stay editable; "Draft again" asks for a fresh one. Drafts
+are cached per set of stops, the call sits behind the same budget, rate and credit guards as the
+other AI routes, and it costs about half a cent.
 
 **Every published route is a public page.** `GET /routes` lists them and
 `GET /routes/:id/:slug` renders one (`server/routePages.js`): title, description, an inline SVG of

@@ -171,6 +171,11 @@ Domain property `deodapper.com`, verified through the Cloudflare integration (it
 record). Sitemap submitted as `https://deodapper.com/sitemap.xml`. Use **URL inspection →
 Request indexing** after big content changes. Bing Webmaster Tools can import this property.
 
+**Titles and descriptions are drafted by Claude** (Haiku, half a cent) when the publish form
+opens, in a fixed shape: "City: two or three highlights" and a specific one-to-two-sentence
+description with no brochure language. The publisher can edit or ask for another draft. This keeps
+the public pages consistent and search-friendly without anyone having to write copy.
+
 **Route pages are the SEO engine.** Every published route has a public page at
 `deodapper.com/routes/<id>/<slug>` (title, stops, map, first line of each story, "Drive this
 route free"), listed at `deodapper.com/routes` and in the sitemap automatically. Ranking for
