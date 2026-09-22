@@ -367,6 +367,18 @@ domain in Render for the certificate). Install the PWA from that domain; plannin
 and drive mode all work from the phone. The browser also keeps its own history of run times
 (`web/js/timings.js`), so estimates survive redeploys and host changes regardless.
 
+### Search engines
+
+`web/robots.txt` allows everything except `/api/`, the admin page and drive mode (an app screen
+with nothing to index), and points at `web/sitemap.xml` (landing, plan, terms, privacy). The
+landing page carries a canonical link, Open Graph and Twitter cards with `web/img/og.png`
+(1200×630, rendered from the mascot SVG), and JSON-LD describing a `WebApplication` with the four
+offers, so search results can show the prices. `plan.html` has its own title and description;
+`drive.html` and `admin.html` are `noindex`. Getting indexed still needs a one-time step in
+Google Search Console: add `deodapper.com` as a Domain property, prove ownership with the TXT
+record it gives you (Cloudflare → DNS), submit `https://deodapper.com/sitemap.xml`, and request
+indexing of the homepage. Bing Webmaster Tools can import the Search Console property.
+
 ### PWA and hosting
 
 Live at https://aviman1258.github.io/tour-guide/ (drive screen: `/drive.html`). Every push to
