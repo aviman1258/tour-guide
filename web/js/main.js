@@ -17,7 +17,9 @@ async function boot() {
   ping({ tier: tier() });
   const badge = document.getElementById("tier-badge");
   if (badge) badge.textContent = isFree() ? "Free · saved routes" : "Create your own route";
-  history.replaceState(null, "", location.pathname + (new URLSearchParams(location.search).get("trip") ? location.search : "") + location.hash);
+  // tidy ?tier= out of the address bar, but keep params later steps still need (?trip=, ?route=)
+  const keepQuery = ["trip", "route"].some((k) => new URLSearchParams(location.search).get(k));
+  history.replaceState(null, "", location.pathname + (keepQuery ? location.search : "") + location.hash);
 
   map.init(document.getElementById("map"));
   itinerary.bindForm();
@@ -55,6 +57,12 @@ async function boot() {
   });
 
   const ok = await api.probe();
+  // a public route page's "Drive this route free" button lands here with ?route=<id>
+  const routeParam = new URLSearchParams(location.search).get("route");
+  if (ok && routeParam) {
+    history.replaceState(null, "", location.pathname);
+    library.useRoute(routeParam).catch((err) => itinerary.toast(err.message, 5000));
+  }
   if (ok && !isFree()) {
     const p = await pay.init();
     if (!p.owner && !p.enabled) { // a hosted server without Stripe: the passphrase is the only door

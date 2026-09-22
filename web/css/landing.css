@@ -55,3 +55,27 @@ h1 { margin: 0; font-size: 40px; letter-spacing: -.01em; }
 .doc th, .doc td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 .doc th { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
 .doc .foot { margin-top: 30px; }
+
+/* public route pages */
+.routes .lede-left { text-align: left; color: var(--muted); font-size: 17px; margin: 0 0 14px; }
+.route-cta { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 18px; }
+.btn-cta { display: inline-block; padding: 12px 18px; border-radius: 12px; background: var(--accent); color: var(--accent-text); font-weight: 700; text-decoration: none; }
+.btn-cta.ghost { background: transparent; color: var(--accent); border: 2px solid var(--accent); }
+.route-map { display: block; width: 100%; height: auto; max-width: 640px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin: 0 0 10px; }
+.route-map circle { fill: var(--accent); stroke: var(--card); stroke-width: 2; }
+.route-map .start circle { fill: var(--free); } .route-map .end circle { fill: #c8302f; }
+.route-map text { fill: #fff; font: 700 12px system-ui, sans-serif; }
+.route-ends { color: var(--muted); margin: 0 0 8px; }
+.route-stops { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.route-stop { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.route-stop-head { display: flex; align-items: center; gap: 10px; }
+.route-stop-head h3 { margin: 0; font-size: 18px; }
+.route-stop-head .num { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-text); display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex: 0 0 auto; }
+.route-stop-head .tag { font-size: 12px; background: color-mix(in srgb, #c7860a 20%, transparent); color: #c7860a; padding: 1px 8px; border-radius: 999px; }
+.route-stop p { margin: 8px 0 0; }
+.route-narr { color: var(--muted); font-style: italic; }
+.route-meta { color: var(--muted); font-size: 14px; }
+.route-cards { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.route-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.route-card a { color: var(--accent); text-decoration: none; font-size: 18px; }
+.route-card p { margin: 6px 0; }

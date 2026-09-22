@@ -46,17 +46,21 @@ function open() {
 
 // ---------- device / browser from the User-Agent (family only) ----------
 
+const BOT_RE = /bot|crawl|spider|slurp|curl|wget|python|node|Go-http|HeadlessChrome|Googlebot|bingbot|DuckDuckBot|Baiduspider|YandexBot|facebookexternalhit|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|TelegramBot|GPTBot|ClaudeBot|Claude-Web|anthropic-ai|CCBot|PerplexityBot|Applebot|Bytespider|AhrefsBot|SemrushBot|MJ12bot|PetalBot|Lighthouse|PageSpeed/i;
+export const isBot = (ua = "") => BOT_RE.test(ua);
+
 export function deviceOf(ua = "") {
+  if (isBot(ua)) return "bot/script"; // Googlebot says "Android", so crawlers must be checked first
   if (/iPhone/i.test(ua)) return "iPhone";
   if (/iPad/i.test(ua)) return "iPad";
   if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? "Android phone" : "Android tablet";
   if (/Windows/i.test(ua)) return "Windows";
   if (/Macintosh/i.test(ua)) return "Mac";
   if (/Linux/i.test(ua)) return "Linux";
-  if (/bot|crawl|spider|curl|wget|python|node|Go-http|HeadlessChrome/i.test(ua)) return "bot/script";
   return "other";
 }
 export function browserOf(ua = "") {
+  if (isBot(ua)) return "crawler";
   if (/Edg\//i.test(ua)) return "Edge";
   if (/OPR\//i.test(ua)) return "Opera";
   if (/SamsungBrowser/i.test(ua)) return "Samsung";
@@ -139,6 +143,30 @@ export function track(req, kind, detail = "", ms = null) {
     state.lastError = `insert: ${err.message}`;
     console.warn("[analytics]", err.message);
   }
+}
+
+// Cloudflare's IPv4 ranges: rows recorded with one of these are from before the proxy fix and
+// can't be located (the visitor's IP is lost); the backfill leaves them alone.
+const CF_RE = /^(104\.(1[6-9]|2\d|3[01])\.|172\.(6[4-9]|7[01])\.|162\.158\.|141\.101\.|108\.162\.|173\.245\.|188\.114\.|190\.93\.|197\.234\.|198\.41\.|103\.2[12]\.|103\.31\.|131\.0\.72\.)/;
+
+/**
+ * One-off repair: look up the location for events that have a real IP but no city/country
+ * (lookups that failed at the time). Serial, one IP a second, at most `limit` IPs per call.
+ */
+export async function backfillGeo(limit = 100) {
+  const d = open();
+  const ips = d.prepare(`SELECT DISTINCT ip FROM events WHERE city = '' AND country = '' AND ip <> '' ORDER BY ts DESC`).all().map((r) => r.ip)
+    .filter((ip) => !PRIVATE_IP.test(ip) && !CF_RE.test(ip)).slice(0, limit);
+  let filled = 0;
+  for (const ip of ips) {
+    const g = await geoLookup(ip);
+    if (g && (g.city || g.country)) {
+      d.prepare(`UPDATE events SET city = ?, region = ?, country = ? WHERE ip = ? AND city = '' AND country = ''`).run(g.city || "", g.region || "", g.country || "", ip);
+      filled++;
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return { checked: ips.length, filled };
 }
 
 export function purge() {

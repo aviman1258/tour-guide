@@ -159,6 +159,12 @@ holds the pass/fail examples.
 
 ## Usage analytics and the admin page
 
+Known crawlers (Googlebot, Bingbot, the AI bots, link-preview fetchers) are classified as
+`bot/script` / `crawler` before the phone-or-desktop guess, since Googlebot's user agent says
+"Android". Rows with a real IP but no location are retried by a backfill 15 s after boot and daily
+(`backfillGeo`); rows recorded under Cloudflare's edge addresses before the `TRUST_PROXY` fix are
+left alone, as the visitor's IP is gone.
+
 `server/lib/analytics.js` records one row per page open and per API action (plan, prepare,
 publish, route search/use, errors): time, IP, coarse location, tier, device and browser
 family, event kind, a short detail, duration. Nothing typed into forms, no names, no phone GPS.
@@ -260,6 +266,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `POST /api/pay/release` | `{token}` | cancels an unused hold |
 | `POST /api/pay/webhook` | Stripe signature | mirrors PaymentIntent state onto the credit |
 | `GET /api/admin/sales?days=` | `x-admin-key` | revenue, credits by status and tier, recent credits |
+| `GET /routes`, `GET /routes/:id/:slug`, `GET /sitemap.xml` | | server-rendered public pages for published routes, and the sitemap listing them |
 | `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |
@@ -394,8 +401,17 @@ and drive mode all work from the phone. The browser also keeps its own history o
 
 ### Search engines
 
+**Every published route is a public page.** `GET /routes` lists them and
+`GET /routes/:id/:slug` renders one (`server/routePages.js`): title, description, an inline SVG of
+the route with numbered stops, each stop's blurb and the first sentence of its narration,
+Wikipedia links, a "Drive this route free" button (`plan.html?tier=free&route=<id>`, which loads
+the route on the plan page), TouristTrip structured data and social cards. All user text is
+HTML-escaped. A wrong slug redirects to the canonical one; a deleted route gives a 404 page.
+Views are logged as `route_index` / `route_page` events, crawlers included.
+
 `web/robots.txt` allows everything except `/api/`, the admin page and drive mode (an app screen
-with nothing to index), and points at `web/sitemap.xml` (landing, plan, terms, privacy). The
+with nothing to index), and points at `/sitemap.xml`, which the server generates from the static
+pages plus every published route. The
 landing page carries a canonical link, Open Graph and Twitter cards with `web/img/og.png`
 (1200×630, rendered from the mascot SVG), and JSON-LD describing a `WebApplication` with the four
 offers, so search results can show the prices. `plan.html` has its own title and description;

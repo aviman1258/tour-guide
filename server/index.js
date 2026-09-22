@@ -17,6 +17,7 @@ import * as analytics from "./lib/analytics.js";
 import * as usage from "./lib/usage.js";
 import pay from "./lib/pay.js";
 import owner from "./lib/owner.js";
+import * as routePages from "./routePages.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -42,6 +43,10 @@ app.use(express.json({ limit: "4mb" }));
 // Page opens are reported by the page itself (POST /api/ping) so visits served from the
 // offline cache or the installed app are counted too; the server only sees API calls otherwise.
 setInterval(() => { try { analytics.purge(); } catch { /* ignore */ } }, 6 * 3600_000).unref();
+// repair locations that failed to resolve earlier (a few seconds after boot, then daily)
+const backfill = () => analytics.backfillGeo().then((r) => { if (r.checked) console.log(`[analytics] geo backfill: ${r.filled}/${r.checked} IPs located`); }).catch(() => {});
+setTimeout(backfill, 15_000).unref();
+setInterval(backfill, 24 * 3600_000).unref();
 
 // wraps async handlers so thrown httpErrors reach the error middleware
 const h = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
@@ -390,6 +395,24 @@ app.post("/api/prepare-drive", h(async (req, res) => {
     clearInterval(heartbeat);
     res.end();
   }
+}));
+
+// ---------- public route pages (server-rendered, indexable) ----------
+app.get("/routes", h(async (req, res) => {
+  const routes = library.list();
+  analytics.track(req, "route_index", `${routes.length} routes`);
+  res.type("html").send(routePages.indexPage(routes));
+}));
+app.get("/routes/:id/:slug?", h(async (req, res) => {
+  let r;
+  try { r = library.get(req.params.id, { countUse: false }); } catch { return res.status(404).type("html").send(routePages.notFoundPage()); }
+  const canonicalSlug = routePages.slug(r.summary.title);
+  if (req.params.slug !== canonicalSlug) return res.redirect(301, `/routes/${encodeURIComponent(r.summary.id)}/${canonicalSlug}`);
+  analytics.track(req, "route_page", `${r.summary.id} ${r.summary.title}`);
+  res.type("html").send(routePages.routePage(r.summary, r.package));
+}));
+app.get("/sitemap.xml", h(async (_req, res) => {
+  res.type("application/xml").send(routePages.sitemap(library.list()));
 }));
 
 app.use(express.static(WEB_DIR, { extensions: ["html"] }));

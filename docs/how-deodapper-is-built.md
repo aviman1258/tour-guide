@@ -171,6 +171,13 @@ Domain property `deodapper.com`, verified through the Cloudflare integration (it
 record). Sitemap submitted as `https://deodapper.com/sitemap.xml`. Use **URL inspection →
 Request indexing** after big content changes. Bing Webmaster Tools can import this property.
 
+**Route pages are the SEO engine.** Every published route has a public page at
+`deodapper.com/routes/<id>/<slug>` (title, stops, map, first line of each story, "Drive this
+route free"), listed at `deodapper.com/routes` and in the sitemap automatically. Ranking for
+"self-guided tours" in general is not realistic; ranking for "IAH to the Galleria scenic drive"
+is, and each published route adds one such page. Publish routes for the cities you care about,
+then use URL inspection → Request indexing on the new page once.
+
 ### 2.7 The free data services
 
 No accounts, but each has rules the server follows:
@@ -226,6 +233,10 @@ the code knows which mode it is in.
 
 **Refund a route.** Stripe → Payments → the payment → Refund. Check `/admin.html` → Sales: the
 credit flips to `refunded`.
+
+**Crawler traffic.** Google and Bing render the pages, so they fire the same "page opened"
+beacon as a person. They show under Devices as `bot/script · crawler`. "Unknown" locations are
+rows from before the proxy fix on 21 September 2026; nothing can recover those.
 
 **See what's happening.** `/admin.html` (password `ADMIN_SECRET`): visitors, where from, devices,
 actions, Sales (revenue, holds, refunds), Claude cost per route, shared routes with Delete.
