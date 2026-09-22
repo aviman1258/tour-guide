@@ -50,7 +50,7 @@ async function geosearchPatient(s, log) {
  * @param interests  free text
  * @returns { candidatesByLeg: Map<legIndex, [{pageid,title,type,lat,lon,alongM,alongLegM,extract,score}]>, stats }
  */
-export async function findDriveBys({ samples, points, cum, boundaries, stops, interests, log = () => {}, onProgress = () => {}, signal }) {
+export async function findDriveBys({ samples, points, cum, boundaries, stops, interests, minGapByLeg = null, log = () => {}, onProgress = () => {}, signal }) {
   // 1. geosearch each sample, strictly one at a time
   const raw = new Map(); // pageid → hit
   let failures = 0;
@@ -128,7 +128,8 @@ export async function findDriveBys({ samples, points, cum, boundaries, stops, in
   }
   for (const [leg, list] of candidatesByLeg) {
     list.sort((a, b) => b.score - a.score);
-    candidatesByLeg.set(leg, spreadOut(list, MIN_GAP_M).slice(0, PER_LEG_CAP).sort((a, b) => a.alongM - b.alongM));
+    const gap = minGapByLeg?.[leg] ?? MIN_GAP_M; // dense city legs allow closer stories than a highway
+    candidatesByLeg.set(leg, spreadOut(list, gap).slice(0, PER_LEG_CAP).sort((a, b) => a.alongM - b.alongM));
   }
   return { candidatesByLeg, stats: { samples: samples.length, geosearchEmpty: failures, raw: raw.size, corridor: pre.length, scored: scored.length } };
 }

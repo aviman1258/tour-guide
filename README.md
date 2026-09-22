@@ -313,7 +313,8 @@ the drive itself needs no server and no Claude, only cell data for map tiles.
    (≥ 3000 bytes, ≥ 200 chars of intro); score by popularity, type and interest keywords; keep
    up to 8 candidates per leg, spread at least 1.5 km apart.
 4. One Claude call writes every script: 90-150 words per stop, 40-70 per drive-by, at most two
-   drive-bys per leg, none on legs under 3 km, only facts from the supplied extract, no
+   drive-bys per leg by driving time (`server/lib/legAllowance.js`: under 2 min none, under 6 min
+   one, under 15 min two, else three; spaced about 75 s of driving apart, 400 m to 2.5 km), only facts from the supplied extract, no
    "left/right". The server validates word counts and drops scripts that name unknown places.
    A stop Claude skipped gets a plain fallback so it is never silent.
    With `Accept: text/event-stream` the endpoint streams progress (`estimate`, `phase`, `scan`,

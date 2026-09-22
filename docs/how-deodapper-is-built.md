@@ -308,7 +308,9 @@ add (search, map tap, Suggest more), mark meal stops and re-time; every edit re-
 **Prepare drive** (`server/narrate.js`, `server/lib/wikiGeo.js`): the route is scanned in 5 km
 circles for Wikipedia articles within 300 m of the road, filtered for quality and interest,
 and Claude writes a 90 to 150 word script per stop and 40 to 70 words per drive-by, facts only
-from the supplied extracts, tone-guarded (no tragedies on a pleasure drive). The result, the
+from the supplied extracts, tone-guarded (no tragedies on a pleasure drive). How many drive-bys a
+leg gets depends on its driving time, not its length (`server/lib/legAllowance.js`), so a dense
+Manhattan hop gets a story every few blocks and a highway leg every few miles. The result, the
 "drive package", is saved in the phone's IndexedDB.
 
 **Drive** (`web/js/drive.js` and friends): fully on the phone, offline-capable. GPS fixes are

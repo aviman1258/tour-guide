@@ -9,6 +9,7 @@
 //   done      {package}
 
 import { httpError } from "./lib/http.js";
+import { legAllowance } from "./lib/legAllowance.js";
 import * as wikipedia from "./wikipedia.js";
 import * as claude from "./claude.js";
 import { routeFor } from "./schedule.js";
@@ -50,8 +51,12 @@ export async function prepareDrive(itinerary, { emit = () => {}, signal } = {}) 
   emit("phase", { phase: "scan", status: "start" });
   t = Date.now();
   const samples = sampleAlong(points, cum, SAMPLE_STEP_M);
+  // how much room each leg has for stories comes from its driving time, not its length (Manhattan vs. Houston)
+  const legDur = (i) => route.legs?.[i]?.durationSec ?? 0;
+  const allowances = boundaries.slice(0, -1).map((b, i) => legAllowance(legDur(i), boundaries[i + 1] - b));
   const { candidatesByLeg, stats } = await findDriveBys({
     samples, points, cum, boundaries, stops, interests: itinerary.interests, log, signal,
+    minGapByLeg: allowances.map((a) => a.minGapM),
     onProgress: (p) => emit("scan", p),
   });
   if (gone()) return null;
@@ -82,8 +87,9 @@ export async function prepareDrive(itinerary, { emit = () => {}, signal } = {}) 
     const to = i === stops.length ? end.label : stops[i].name;
     const lengthM = boundaries[i + 1] - boundaries[i];
     const candidates = candidatesByLeg.get(i) || [];
-    if (lengthM < 3000) continue; // quiet: too short for a drive-by
-    legs.push({ legIndex: i, from, to, lengthM, candidates });
+    const a = allowances[i];
+    if (!a.maxDrivebys || !candidates.length) continue; // quiet: under two minutes of driving, or nothing to say
+    legs.push({ legIndex: i, from, to, lengthM, minutes: a.minutes, maxDrivebys: a.maxDrivebys, minGapM: a.minGapM, candidates });
   }
   let scripts;
   try {

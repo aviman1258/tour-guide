@@ -97,7 +97,7 @@ Tie to the traveler's interests when natural, never forced. End each stop script
 
 Lengths: kind=stop scripts 90 to 150 words. kind=driveby scripts 40 to 70 words.
 
-Selection: write one script for every planned stop. For drive-bys, pick at most two candidates per leg, favoring the strongest stories; skip legs shorter than three kilometers and skip weak candidates entirely. Quiet stretches are fine. Never pick two drive-bys within two kilometers of each other along the route.
+Selection: write one script for every planned stop. For drive-bys, each leg states how many it has room for (maxDrivebys, from its driving time) and how far apart they must be (minGapKm): pick up to that many, favoring the strongest stories, and skip weak candidates entirely; quiet stretches are fine. In a dense city that means a story every few blocks; on a highway, every few miles. Legs with no room are not listed.
 
 Tone guard: this is a pleasure drive. Skip tragedies, crimes, disasters, accidents and deaths as drive-by subjects, and leave them out of stop scripts too, unless the place is historically defined by that event (a memorial, a battlefield, a famous cemetery) and the traveler's interests point there. A hotel fire or a shooting is not a story for this ride; pick something else or stay quiet.
 
@@ -247,6 +247,7 @@ export async function writeNarration({ interests, stops, legs, signal }) {
     stops: stops.map((s) => ({ id: s.id, name: s.name, category: s.category, whyItMatches: s.whyItMatches, dwellMinutes: s.dwellMinutes, extract: s.extract })),
     legs: legs.map((l) => ({
       legIndex: l.legIndex, from: l.from, to: l.to, lengthKm: Math.round(l.lengthM / 100) / 10,
+      minutes: l.minutes, maxDrivebys: l.maxDrivebys, minGapKm: Math.round((l.minGapM || 0) / 100) / 10,
       candidates: l.candidates.map((c) => ({ pageid: String(c.pageid), title: c.title, type: c.type, kmAlongLeg: Math.round(c.alongLegM / 100) / 10, extract: c.extract })),
     })),
     note: "Call the write_narration tool. targetId = stop id for stops, pageid string for drive-bys.",
