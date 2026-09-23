@@ -79,9 +79,10 @@ lockouts, and the Claude transport (`sdk` on Render).
 
 - **Registrar:** deodapper.com is registered through Cloudflare Registrar (Domains →
   Registrations). Auto-renews yearly on the card on file.
-- **DNS** (deodapper.com → DNS): a `CNAME` for `deodapper.com` pointing at
-  `tour-guide-i6kk.onrender.com`, proxy status **DNS only** (grey cloud). Keep it DNS-only:
-  Render terminates TLS itself. There is also a `TXT` `google-site-verification=…` added by
+- **DNS** (deodapper.com → DNS): a `CNAME` for `deodapper.com` and another for `www`, both
+  pointing at `tour-guide-i6kk.onrender.com`, proxy status **DNS only** (grey cloud). Keep them
+  DNS-only: Render terminates TLS itself. Render lists both as custom domains and redirects
+  `www.deodapper.com` to the bare domain (301). There is also a `TXT` `google-site-verification=…` added by
   Google via the Cloudflare integration, and the MX/TXT records Email Routing added.
 - **Email Routing** (Email → Email Routing → deodapper.com): custom address
   `support@deodapper.com` forwards to your Gmail. That address is on the terms and privacy pages,
