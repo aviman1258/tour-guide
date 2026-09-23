@@ -1,6 +1,7 @@
 // "Prepare drive": streams the narration build (route → corridor scan → Claude → assemble)
 // with live progress, an estimate learned from earlier runs, and a Cancel. Stores the
 // DrivePackage in IndexedDB. Also export / import of the package as a JSON file.
+import { samePlan, matchingPackage } from "./planMatch.js";
 
 import * as state from "./state.js";
 import * as api from "./api.js";
@@ -168,7 +169,40 @@ export function bind() {
     }
   });
 
-  // point the Drive link at the active trip, if any
-  const active = storage.getActiveTripId();
-  if (active) $("drive-link").href = `drive.html?trip=${encodeURIComponent(active)}`;
+  // The Drive link follows the plan on screen: it opens the package prepared for THESE stops.
+  // With stops but no package yet, it offers to prepare instead of silently opening an older trip.
+  const link = $("drive-link");
+  let timer = null;
+  const refreshLink = () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const it = state.get();
+      if (!it.start || !it.end || !it.stops.length) { // empty planner: behave like the installed app and open the last trip
+        const active = storage.getActiveTripId();
+        link.href = active ? `drive.html?trip=${encodeURIComponent(active)}` : "drive.html";
+        link.dataset.unprepared = "";
+        link.textContent = "Drive mode";
+        return;
+      }
+      const pkg = (await storage.getTrip(state.tripId(it)).catch(() => null)) || matchingPackage(it, await storage.listTrips().catch(() => []));
+      if (pkg && samePlan(pkg.itinerary, it)) {
+        link.href = `drive.html?trip=${encodeURIComponent(pkg.tripId)}`;
+        link.dataset.unprepared = "";
+        link.textContent = "Drive this plan";
+      } else {
+        link.href = "#";
+        link.dataset.unprepared = "1";
+        link.textContent = "Drive mode";
+      }
+    }, 150);
+  };
+  link.addEventListener("click", (e) => {
+    if (link.dataset.unprepared !== "1") return;
+    e.preventDefault();
+    const btn = $("prepare-btn");
+    if (btn && !btn.closest("[hidden]") && confirm("This plan hasn't been prepared for driving yet, so there's no narration for it. Prepare it now?")) { btn.scrollIntoView({ behavior: "smooth", block: "center" }); btn.click(); }
+    else toast("Prepare the drive (or save the route to this phone) before driving it.", 5000);
+  });
+  state.subscribe(refreshLink);
+  refreshLink();
 }

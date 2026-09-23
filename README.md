@@ -87,8 +87,12 @@ The account-level backstop is Anthropic's prepaid credit balance (auto-reload of
 out the API stops, holds are released, nobody is charged.
 
 Flow: the Plan button shows the price for the current times. Pressing it opens a card with
-Stripe's Payment Element; `POST /api/pay/intent` creates a PaymentIntent with **manual capture**,
-so the amount is held, not charged. After the bank confirms, `POST /api/pay/confirm` reads the
+Stripe's Payment Element (card only, plus wallets; an optional receipt email is passed straight
+to Stripe as `receipt_email`, never stored). To the visitor it is one plain step, "Pay $2.99 and
+plan my tour", confirmed with a toast. Underneath, `POST /api/pay/intent` creates a PaymentIntent
+with **manual capture**, so the amount is held, not charged, until the route is ready; the
+wording everywhere says "charged now, cancelled automatically if planning fails", which is how a
+pending charge looks to a cardholder. After the bank confirms, `POST /api/pay/confirm` reads the
 intent back and the credit becomes `authorized`; planning runs with the credit token in an
 `x-credit` header; when the plan succeeds the server captures the hold (`captured`). Failed or
 cancelled plans leave the hold in place for another try; Cancel on the card, or an hourly sweep
@@ -209,7 +213,13 @@ session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answer
 3. **Routing** (`server/router.js`): Valhalla's public server routes the day, honouring
    *Avoid tolls* / *Avoid highways* when ticked and flagging when no such route exists; the
    OSRM demo server is the fallback for plain routes. The schedule is walked from your start
-   time plus a 30 min buffer: drive + 3 min parking + dwell per stop.
+   time plus a 30 min buffer: drive + 3 min parking + dwell per stop. Drive times include
+   **typical traffic** (`web/js/traffic.js`): each leg is slowed by a multiplier for the day and
+   hour it departs (weekday morning peak ×1.45, evening peak ×1.5, midday ×1.1, night ×1.0;
+   weekends ×1.0 to ×1.15; highway-speed legs damped 20%). The status bar shows how many minutes
+   that added. The public routers carry no traffic data, so this is a calibrated schedule, not
+   live or historical traffic; `it.traffic = false` turns it off. A paid routing API (Google
+   Routes, TomTom) with real historical traffic is the upgrade path if it ever matters.
 4. **Lunch** lands on the highest-priority food-friendly stop you reach between 11:30 and
    2:00 (ties go to the one nearest 12:30) and gets an hour. Any number of stops can be made
    meal breaks by hand with **Stop here to eat** (breakfast, dinner, a second lunch); each gets
@@ -347,6 +357,11 @@ the drive itself needs no server and no Claude, only cell data for map tiles.
 - A stop counts as **visited** after 20 s stopped inside its radius, when you leave it again,
   when route progress passes it by 1.2 km, or when you tap *Visited*. Fired/visited state is
   persisted so a page reload mid-drive does not replay anything.
+- **Weather at the stops** (`web/js/weather.js`): one Open-Meteo request from the browser for
+  all stops (free, no key, 30-minute cache). Each stop marker gets a badge with an icon and the
+  temperature, and the stop list and next-stop card show it too: the forecast for the planned
+  arrival hour when the trip date is within 7 days, otherwise current conditions. Purely
+  decorative: offline or blocked, nothing is shown and the drive is unaffected.
 - **Next-turn banner** from the route steps, with a green "✓ On route" line while the car is
   on the line and an off-route card (bearing arrow + distance to the next stop) when it isn't.
 - **Spoken directions** (`web/js/turnVoice.js`, a 3-position slider under the controls,
@@ -411,6 +426,11 @@ limits, runs the content filter, and falls back to a plain generated listing if 
 unusable or Claude is down. Both fields stay editable; "Draft again" asks for a fresh one. Drafts
 are cached per set of stops, the call sits behind the same budget, rate and credit guards as the
 other AI routes, and it costs about half a cent.
+
+**The Drive link follows the plan on screen.** It opens the package prepared for exactly these
+stops (`planMatch`). If the plan on screen has no package yet, it offers to run Prepare drive
+instead of silently opening an older trip. With an empty planner it opens the last trip, like the
+installed app does.
 
 **Every published route is a public page.** `GET /routes` lists them and
 `GET /routes/:id/:slug` renders one (`server/routePages.js`): title, description, an inline SVG of

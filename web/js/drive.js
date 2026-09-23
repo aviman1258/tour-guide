@@ -9,6 +9,7 @@ import { createTurnVoice, MODES as TURN_MODES, MODE_LABEL as TURN_LABEL, loadTur
 import { lineToPoints, cumulative, project, haversineM, bearingDeg } from "./routeMath.js";
 import { fmtMiles, fmtDuration, to12h, escapeHtml, toMinutes as toMin, toHHMM } from "./format.js";
 import { ping } from "./ping.js";
+import * as weather from "./weather.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -21,6 +22,7 @@ const state = {
   lastFix: null, lastProj: null, offRoute: false, offCount: 0, onCount: 0, nextManeuverIdx: 0,
   nextStopIdx: 0, driveState: { fired: {}, visited: [] }, saveTimer: null, turnVoice: createTurnVoice({ mode: loadTurnMode() }),
   map: null, car: null, carLayer: null, stopMarkers: [], poiMarkers: new Map(), follow: true, followTimer: null,
+  weather: new Map(), // stopId → { tempF, icon, text, when } from Open-Meteo
 };
 
 // ---------- boot ----------
@@ -110,10 +112,10 @@ function initMap() {
 function drawRoute() {
   const it = state.it;
   L.geoJSON(it.route.geometry, { style: { color: "#5aa5dc", weight: 6, opacity: 0.9 } }).addTo(state.map);
-  const num = (label, cls) => L.divIcon({ className: "", html: `<div class="marker-num ${cls}">${label}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
-  L.marker([it.start.lat, it.start.lon], { icon: num("S", "start") }).addTo(state.map);
-  L.marker([it.end.lat, it.end.lon], { icon: num("E", "end") }).addTo(state.map);
-  state.stopMarkers = it.stops.map((s, i) => L.marker([s.lat, s.lon], { icon: num(i + 1, state.geofence.visited.has(s.id) ? "visited" : "") }).bindPopup(`<b>${escapeHtml(s.name)}</b>`).addTo(state.map));
+  L.marker([it.start.lat, it.start.lon], { icon: stopIcon("S", "start") }).addTo(state.map);
+  L.marker([it.end.lat, it.end.lon], { icon: stopIcon("E", "end") }).addTo(state.map);
+  state.stopMarkers = it.stops.map((s, i) => L.marker([s.lat, s.lon], { icon: stopIcon(i + 1, state.geofence.visited.has(s.id) ? "visited" : "", state.weather.get(s.id)) }).bindPopup(`<b>${escapeHtml(s.name)}</b>`).addTo(state.map));
+  loadWeather();
   for (const n of state.pkg.narration) {
     if (n.kind !== "driveby") continue;
     const m = L.marker([n.lat, n.lon], { icon: L.divIcon({ className: "", html: `<div class="marker-poi ${state.geofence.fired[n.id] ? "done" : ""}"></div>`, iconSize: [10, 10], iconAnchor: [5, 5] }) })
@@ -121,6 +123,25 @@ function drawRoute() {
     state.poiMarkers.set(n.id, m);
   }
   state.map.fitBounds(L.geoJSON(it.route.geometry).getBounds(), { padding: [40, 40] });
+}
+
+/** Numbered stop marker, with a small weather badge beside it when we know the forecast. */
+function stopIcon(label, cls, wx) {
+  const badge = wx ? `<div class="marker-wx" title="${escapeHtml(wx.text)} ${wx.when}">${wx.icon} ${wx.tempF}°</div>` : "";
+  return L.divIcon({ className: "", html: `<div class="marker-wrap"><div class="marker-num ${cls}">${label}</div>${badge}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
+}
+
+/** Fetch the weather for every stop (one request), then redraw badges, list and next-stop card. */
+async function loadWeather() {
+  const it = state.it;
+  const wx = await weather.forStops(it.stops, it.schedule, it.date);
+  if (!wx.size || state.it !== it) return;
+  state.weather = wx;
+  it.stops.forEach((s, i) => state.stopMarkers[i]?.setIcon(stopIcon(i + 1, state.geofence.visited.has(s.id) ? "visited" : "", wx.get(s.id))));
+  refreshMarkers();
+  renderStopList();
+  renderNextStop(state.lastFix, state.offRoute ? null : state.lastProj?.progressM);
+  log(`weather: ${wx.size} stops`);
 }
 
 function updateCar(lat, lon, heading) {
@@ -136,7 +157,7 @@ function updateCar(lat, lon, heading) {
 
 function refreshMarkers() {
   state.it.stops.forEach((s, i) => {
-    const el = state.stopMarkers[i].getElement()?.firstElementChild;
+    const el = state.stopMarkers[i].getElement()?.querySelector(".marker-num");
     if (el) el.classList.toggle("visited", state.geofence.visited.has(s.id));
   });
   for (const [id, m] of state.poiMarkers) m.getElement()?.firstElementChild?.classList.toggle("done", Boolean(state.geofence.fired[id]));
@@ -312,7 +333,7 @@ function renderStopList() {
       <div class="num">${visited ? "✓" : i + 1}</div>
       <div class="grow">
         <div class="name">${escapeHtml(s.name)}</div>
-        <div class="sub">${visited ? "Visited" : isNext ? "Next up" : "Upcoming"}${sched ? ` · ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : ""}${s.lunch !== "none" ? (s.lunch === "auto" ? " · lunch" : " · meal") : ""}</div>
+        <div class="sub">${visited ? "Visited" : isNext ? "Next up" : "Upcoming"}${sched ? ` · ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : ""}${s.lunch !== "none" ? (s.lunch === "auto" ? " · lunch" : " · meal") : ""}${state.weather.get(s.id) ? ` · ${weather.wxShort(state.weather.get(s.id))}` : ""}</div>
       </div>
       <div class="acts">
         <button type="button" class="btn btn-sm ${playingId === s.id ? "playing" : ""}" data-act="play" title="Hear this stop's narration" ${narration ? "" : "disabled"}>${playingId === s.id ? "■" : "▶"}</button>
@@ -410,7 +431,8 @@ function renderNextStop(fix, progressM) {
   if (s?.thumbnail) { thumb.src = s.thumbnail; thumb.hidden = false; } else thumb.hidden = true;
 
   if (!fix) {
-    $("next-meta").textContent = sched ? `planned ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : "";
+    const wx = s && state.weather.get(s.id);
+    $("next-meta").textContent = `${sched ? `planned ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : ""}${wx ? `${sched ? " · " : ""}${wx.icon} ${wx.tempF}° ${wx.text}` : ""}`;
     return;
   }
   let distM, etaMin;

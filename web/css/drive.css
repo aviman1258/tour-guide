@@ -193,3 +193,11 @@ details[open] > summary .chevron { transform: rotate(90deg); display: inline-blo
   width: 34px; height: 34px; display: grid; place-items: center; font-size: 26px; color: #fff;
   filter: drop-shadow(0 1px 3px rgba(0,0,0,.7)); transition: transform .5s linear;
 }
+
+/* weather badge beside a stop marker */
+.marker-wrap { position: relative; width: 26px; height: 26px; }
+.marker-wx {
+  position: absolute; left: 28px; top: 2px; white-space: nowrap; font-size: 12px; font-weight: 700; line-height: 1;
+  background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 3px 7px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.3); pointer-events: none;
+}

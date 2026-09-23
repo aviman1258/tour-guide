@@ -3,6 +3,7 @@
 
 import { haversineM, detourM } from "./routeMath.js";
 import { toMinutes, toHHMM } from "./format.js";
+import { trafficMinutes, dayOfWeekFor } from "./traffic.js";
 
 export const PARKING_MINUTES = 3; // per stop, on top of drive time
 export const LUNCH_WINDOW = { start: 11 * 60 + 30, end: 14 * 60, ideal: 12 * 60 + 30 };
@@ -33,15 +34,26 @@ export function walk(it, legMinutes) {
   const warnings = [];
   const depart = toMinutes(it.arrivalTime) + (it.departBufferMinutes ?? 30);
   const deadline = toMinutes(it.deadline);
+  // typical traffic: each leg is slowed by the time of day it departs (it.traffic === false turns it off)
+  const useTraffic = it.traffic !== false;
+  const dow = dayOfWeekFor(it.date);
+  const legMeters = (i) => it.route?.legs?.[i]?.distanceM ?? null;
+  let trafficAdded = 0;
+  const legAt = (i, startMin) => {
+    const free = legMinutes[i] ?? 0;
+    const withTraffic = useTraffic ? trafficMinutes(free, startMin, dow, legMeters(i)) : free;
+    trafficAdded += withTraffic - free;
+    return withTraffic;
+  };
   let t = depart;
   const items = it.stops.map((s, i) => {
-    const leg = legMinutes[i] + PARKING_MINUTES;
+    const leg = legAt(i, t) + PARKING_MINUTES;
     const arrive = t + leg;
     const dep = arrive + s.dwellMinutes;
     t = dep;
     return { stopId: s.id, arrive: toHHMM(arrive), depart: toHHMM(dep), arriveMin: arrive, legMinutes: Math.round(leg) };
   });
-  const hotelArrive = t + (legMinutes[it.stops.length] ?? 0);
+  const hotelArrive = t + legAt(it.stops.length, t);
   const slack = deadline - (it.safetyBufferMinutes ?? 15) - hotelArrive;
   const status = slack >= 0 ? (slack <= TIGHT_MINUTES ? "tight" : "ok") : slack >= -TIGHT_MINUTES ? "tight" : "late";
   const meals = it.stops.filter((s) => s.lunch !== "none");
@@ -55,6 +67,7 @@ export function walk(it, legMinutes) {
     status,
     lunchStopId: lunchStop?.id || null,
     mealStopIds: meals.map((s) => s.id),
+    trafficMinutes: Math.round(trafficAdded),
     warnings,
     _arriveMin: items.map((x) => x.arriveMin),
   };

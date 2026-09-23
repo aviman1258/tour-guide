@@ -123,7 +123,7 @@ app.post("/api/pay/intent", h(async (req, res) => {
   res.json(r);
 }));
 app.post("/api/pay/confirm", h(async (req, res) => {
-  const v = await pay.confirm(req.body?.token || req.get("x-credit") || "");
+  const v = await pay.confirm(req.body?.token || req.get("x-credit") || "", { receiptEmail: req.body?.receiptEmail || "" });
   analytics.track(req, `pay_${v.status}`, `${v.id} ${v.label} ${v.price}`);
   res.json(v);
 }));

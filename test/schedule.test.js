@@ -12,7 +12,7 @@ const stop = (id, name, lat, lon, extra = {}) => ({
 
 function houston() {
   return {
-    version: 1, start: IAH, end: HOTEL, arrivalTime: "11:30", deadline: "15:00",
+    version: 1, start: IAH, end: HOTEL, arrivalTime: "11:30", deadline: "15:00", traffic: false, // free-flow math; traffic has its own tests
     departBufferMinutes: 30, safetyBufferMinutes: 15, interests: "indian stuff, historic neighborhoods, upper affluent",
     stops: [
       stop("heights", "Houston Heights", 29.7989, -95.3983, { priority: 4 }),

@@ -135,7 +135,7 @@ export function bindForm() {
       pay.refresh(state.get());
     } catch (err) {
       if (err.cancelled) { showMsg("plan-msg", ""); toast(err.message === "Payment cancelled." ? "No charge. Plan when you're ready." : "Planning cancelled"); }
-      else showMsg("plan-msg", err.message, true);
+      else showMsg("plan-msg", `${err.message}${pay.storedCredit()?.status === "authorized" && pay.storedCredit()?.plansLeft === 3 ? " You haven't been charged: your payment stays ready for another try and is cancelled on its own if you don't." : ""}`, true);
     } finally {
       $("plan-btn").disabled = false;
       $("cancel-plan-btn").hidden = true;
@@ -259,8 +259,9 @@ function renderStatus(it) {
   const flags = [];
   if (it.route.flags?.hasToll) flags.push("tolls");
   if (it.routeOptions?.avoidHighways && it.route.flags?.hasHighway) flags.push("highway");
-  bar.textContent = `Arrive ${to12h(s.hotelArrive)} · ${verdict} · ${fmtMiles(it.route.totalM)} driving${flags.length ? ` · ⚠ ${flags.join(", ")}` : ""}`;
-  bar.title = (s.warnings || []).join("\n");
+  const traffic = s.trafficMinutes > 0 ? ` · incl. ${fmtDuration(s.trafficMinutes)} typical traffic` : "";
+  bar.textContent = `Arrive ${to12h(s.hotelArrive)} · ${verdict} · ${fmtMiles(it.route.totalM)} driving${traffic}${flags.length ? ` · ⚠ ${flags.join(", ")}` : ""}`;
+  bar.title = [...(s.warnings || []), s.trafficMinutes > 0 ? "Drive times include typical traffic for the day and hour each leg starts (weekday rush hours run up to 50% slower). Not live traffic." : ""].filter(Boolean).join("\n");
 }
 
 /** While a plan streams in: phase, estimate, and every candidate with its verification status. */

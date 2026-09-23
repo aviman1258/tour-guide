@@ -70,7 +70,7 @@ export function renderPrice(it) {
     if (line) { line.hidden = false; line.textContent = `${c.label} route paid · ${c.plansLeft} plan${c.plansLeft === 1 ? "" : "s"} left for this start and end · narration and publishing included`; }
   } else {
     btn.textContent = `Plan my tour · ${q.price}`;
-    if (line) { line.hidden = false; line.textContent = `${q.label} (${q.blurb}) · ${q.price} · you're only charged when your route is ready`; }
+    if (line) { line.hidden = false; line.textContent = `${q.label} (${q.blurb}) · ${q.price}, charged when you press Plan · cancelled automatically if planning fails`; }
   }
 }
 
@@ -114,6 +114,13 @@ export async function withCredit(it, fn) {
 
 // ---------- Stripe.js + the payment card ----------
 
+function note(msg, ms = 4000) {
+  const el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(el._t); el._t = setTimeout(() => (el.hidden = true), ms);
+}
+
 let stripeJs = null;
 function loadStripeJs() {
   if (stripeJs) return stripeJs;
@@ -135,19 +142,18 @@ function payDialog(it, reason = "") {
     dlg.className = "pay";
     dlg.innerHTML = `
       <form method="dialog">
-        <h2>Create your own route</h2>
+        <h2>Pay for this route</h2>
         <div class="pay-quote"><span class="pay-tier"></span><b class="pay-price"></b></div>
         <p class="pay-reason" hidden></p>
         <ul class="pay-includes">
-          <li>Deodap plans the day around your interests</li>
-          <li>Up to 3 plans for this start and end, plus edits</li>
+          <li>Deodap plans the day around your interests, up to 3 times for this start and end</li>
           <li>Spoken narration for every stop and the road between</li>
-          <li>Publish it for free-tier drivers if you like</li>
         </ul>
-        <p class="pay-hold">Your card is <b>held, not charged</b>, until the route is ready. If planning fails, the hold is released.</p>
+        <p class="pay-hold">${q.price} is charged when you press Pay. If planning fails for any reason, the charge is cancelled automatically.</p>
         <div class="pay-element"><div class="pay-loading">Loading secure payment form…</div></div>
+        <label class="pay-email">Email for a receipt (optional)<input type="email" name="receipt" autocomplete="email" placeholder="you@example.com" /></label>
         <p class="pay-error" role="alert" hidden></p>
-        <div class="actions"><button type="button" class="cancel">Cancel</button><button type="submit" class="primary" disabled>Hold ${q.price} and plan</button></div>
+        <div class="actions"><button type="button" class="cancel">Cancel</button><button type="submit" class="primary" disabled>Pay ${q.price} and plan my tour</button></div>
         <p class="pay-fine">Payments are handled by Stripe. Deodapper keeps a payment reference only, never your card or contact details. <a href="terms.html" target="_blank" rel="noopener">Terms &amp; refunds</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a></p>
       </form>`;
     dlg.querySelector(".pay-tier").textContent = `${q.label} · ${q.blurb}`;
@@ -174,7 +180,7 @@ function payDialog(it, reason = "") {
       token = intent.token; intentMade = true;
       stripe = Stripe(info.publishableKey);
       elements = stripe.elements({ clientSecret: intent.clientSecret, appearance: { theme: "stripe", variables: { colorPrimary: "#1f5f8b", borderRadius: "10px" } } });
-      const el = elements.create("payment", { layout: "tabs" });
+      const el = elements.create("payment", { layout: "tabs", terms: { card: "never" } });
       dlg.querySelector(".pay-element").innerHTML = "";
       el.mount(dlg.querySelector(".pay-element"));
       el.on("ready", () => { submit.disabled = false; });
@@ -187,23 +193,25 @@ function payDialog(it, reason = "") {
 
     dlg.querySelector("form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      submit.disabled = true; submit.textContent = "Checking with your bank…"; showErr("");
+      submit.disabled = true; submit.textContent = "Paying…"; showErr("");
+      const receiptEmail = dlg.querySelector('input[name="receipt"]').value.trim();
       try { localStorage.setItem(PENDING_KEY, token); } catch { /* ignore */ }
       const { error } = await stripe.confirmPayment({ elements, redirect: "if_required", confirmParams: { return_url: location.origin + location.pathname } });
       if (error) {
         showErr(error.message || "The payment didn't go through.");
-        submit.disabled = false; submit.textContent = `Hold ${q.price} and plan`;
+        submit.disabled = false; submit.textContent = `Pay ${q.price} and plan my tour`;
         return;
       }
       try {
-        const c = await api.payConfirm(token);
+        const c = await api.payConfirm(token, receiptEmail);
         try { localStorage.removeItem(PENDING_KEY); } catch { /* ignore */ }
-        if (c.status !== "authorized" && c.status !== "captured") throw new Error("The bank hasn't confirmed the hold yet. Give it a moment and press Plan again.");
+        if (c.status !== "authorized" && c.status !== "captured") throw new Error("Your bank hasn't confirmed the payment yet. Give it a moment and press Plan again.");
         saveCredit({ token, sig: c.routeSig, tierId: c.tierId, label: c.label, plansLeft: c.plansLeft, status: c.status });
+        note(`Payment of ${q.price} accepted${receiptEmail ? `; receipt to ${receiptEmail}` : ""}. Planning your route…`, 6000);
         finish(() => resolve(token));
       } catch (err) {
         showErr(err.message);
-        submit.disabled = false; submit.textContent = `Hold ${q.price} and plan`;
+        submit.disabled = false; submit.textContent = `Pay ${q.price} and plan my tour`;
       }
     });
   });

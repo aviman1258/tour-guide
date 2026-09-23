@@ -30,7 +30,7 @@
     <h2>What we don't keep</h2>
     <ul>
       <li>Card numbers, expiry dates or security codes. They go from your browser straight to Stripe.</li>
-      <li>Names, email addresses or phone numbers. If you enter them on the payment form, Stripe holds them; we don't receive them.</li>
+      <li>Names, email addresses or phone numbers. If you enter them on the payment form, including the optional receipt email, they go to Stripe; we pass the receipt address straight through and don't store it.</li>
       <li>Your GPS position while driving. Drive mode runs on your phone and works offline; your location is never sent to us.</li>
       <li>Cookies. We use your browser's local storage for settings, your saved routes, your route credit and the random device id, and nothing follows you across sites.</li>
     </ul>
@@ -43,6 +43,7 @@
       <li><b>Wikipedia / Wikimedia</b> and <b>OpenStreetMap's Nominatim</b> are queried by our server for place information. <b>Photon (komoot)</b> and OpenStreetMap map tiles are fetched by your browser directly for the search box and the map, so those services see your IP address.</li>
       <li><b>Valhalla (FOSSGIS) and OSRM</b> compute the driving route from the coordinates involved.</li>
       <li><b>ipwho.is</b> turns IP addresses into an approximate city for our statistics.</li>
+      <li><b>Open-Meteo</b> supplies the weather shown at each stop in drive mode; your browser asks it directly for the stops' coordinates, so it sees your IP address but not who you are.</li>
       <li><b>Render</b> hosts the server and <b>Cloudflare</b> serves the domain. Data is stored in the United States.</li>
     </ul>
 

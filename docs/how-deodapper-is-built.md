@@ -39,6 +39,7 @@ the phone's own GPS and text-to-speech. There are no user accounts and no card d
 | **Photon (komoot)** | Type-ahead place search in the browser | none | none | free |
 | **OpenStreetMap tiles** | The map images | none | none | free, fair use |
 | **ipwho.is** | IP → approximate city for usage stats | none | none (`GEO_LOOKUP=0` disables) | free tier |
+| **Open-Meteo** | Weather and temperature at each stop in drive mode | none | none | free, non-commercial tier (< 10k calls/day) |
 
 The sections below say, for each one, what you did to set it up and what to do when something
 changes.
@@ -149,7 +150,11 @@ task is **Provide an external account** (bank account for payouts). Charges work
 payouts wait in your Stripe balance until it's added. Add it through that task when the new bank
 account exists.
 
-**Money flow:** card held when the visitor presses Plan → captured when the route is ready →
+**What the visitor sees:** one step, "Pay $2.99 and plan my tour", card only, optional receipt
+email (Stripe sends the receipt; enable Settings → Emails → Successful payments). The copy says
+"charged now, cancelled automatically if planning fails".
+
+**Money flow:** card held when the visitor presses Pay → captured when the route is ready →
 Stripe fee deducted → balance → paid out to your bank on Stripe's schedule (2 business days
 rolling by default; changeable under Balances → Payout settings).
 
@@ -198,6 +203,9 @@ No accounts, but each has rules the server follows:
   visitor's IP, which the privacy page discloses. Tiles must not be bulk-downloaded; the
   service worker only caches tiles the map actually showed.
 - **ipwho.is:** one lookup per IP per week, cached; free tier is plenty.
+- **Open-Meteo:** called from the phone in drive mode, one request per trip per half hour, all
+  stops in a single call. Free for non-commercial use up to 10,000 calls a day; if Deodapper
+  ever grows past that, their paid API is $29/month.
 
 ---
 
@@ -301,6 +309,10 @@ About 9,600 lines of code across server, web and tests. Shared modules run in bo
 `web/js/format.js`.
 
 ### 5.2 The three big flows
+
+**Timing** includes typical traffic (`web/js/traffic.js`): a fixed weekday/weekend curve by hour,
+not live data. Real historical traffic would mean a paid routing API (Google Routes or TomTom)
+and another account; the hook is `legFn` in `schedule-core.js`.
 
 **Plan** (`server/plan.js`): the visitor gives start, end, a time window and interests. Claude
 proposes 10 to 14 candidate stops with exact Wikipedia titles. The server grounds every one:

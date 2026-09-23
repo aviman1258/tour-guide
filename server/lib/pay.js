@@ -117,7 +117,7 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
     const token = randomBytes(24).toString("base64url");
     const pi = await stripe.paymentIntents.create({
       amount: q.cents, currency: CURRENCY, capture_method: "manual",
-      automatic_payment_methods: { enabled: true },
+      payment_method_types: ["card"], // one simple form; wallets (Apple/Google Pay) still appear where available
       description: `Deodapper · ${q.label} route`,
       metadata: { credit: id, tier: q.tierId },
     });
@@ -131,10 +131,15 @@ export function createPay({ stripe = null, file = FILE, now = () => Date.now() }
   }
 
   /** Step 2 (after the browser confirmed the card): read the PaymentIntent back and update the credit. */
-  async function confirm(token) {
+  async function confirm(token, { receiptEmail = "" } = {}) {
     const row = find(token);
     if (!row) throw httpError(404, "unknown credit");
     if (!stripe) throw httpError(503, "Payments aren't set up on this server yet.");
+    // an optional receipt address goes to Stripe (which emails the receipt on capture); we don't keep it
+    const email = String(receiptEmail || "").trim().slice(0, 254);
+    if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      try { await stripe.paymentIntents.update(row.pi_id, { receipt_email: email }); } catch (err) { row.last_error = `receipt: ${err.message}`.slice(0, 300); }
+    }
     const pi = await stripe.paymentIntents.retrieve(row.pi_id);
     return view(applyPi(row, pi));
   }

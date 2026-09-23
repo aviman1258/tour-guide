@@ -129,7 +129,7 @@ export const whoami = () => call("GET", "/api/whoami");
 // pay-per-route
 export const payQuote = (arrivalTime, deadline) => call("GET", `/api/pay/quote?arrivalTime=${encodeURIComponent(arrivalTime || "")}&deadline=${encodeURIComponent(deadline || "")}`);
 export const payIntent = (body) => call("POST", "/api/pay/intent", body);
-export const payConfirm = (token) => call("POST", "/api/pay/confirm", { token });
+export const payConfirm = (token, receiptEmail = "") => call("POST", "/api/pay/confirm", { token, receiptEmail });
 export const payCredit = ({ start, end, arrivalTime, deadline }) => call("GET", `/api/pay/credit?start=${start?.lat},${start?.lon}&end=${end?.lat},${end?.lon}&arrivalTime=${encodeURIComponent(arrivalTime || "")}&deadline=${encodeURIComponent(deadline || "")}`);
 export const payRelease = (token) => call("POST", "/api/pay/release", { token });
 
