@@ -104,7 +104,7 @@ input, select, textarea {
 }
 textarea { min-height: 60px; resize: vertical; }
 /* date/time pickers share one row: smaller text so mm/dd/yyyy and the clock fit */
-input[type="date"], input[type="time"] { font-size: 13px; padding: 9px 6px; letter-spacing: -.01em; }
+input[type="date"], input[type="time"], select#arrival, select#deadline { font-size: 13px; padding: 9px 6px; letter-spacing: -.01em; }
 .hint { font-size: 13px; color: var(--muted); }
 .msg { font-size: 14px; padding: 8px 10px; border-radius: 8px; background: var(--line); margin-top: 8px; }
 .msg.error { background: color-mix(in srgb, var(--late) 15%, transparent); color: var(--late); }

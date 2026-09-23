@@ -109,9 +109,30 @@ function bindSearch({ input, button, results, near, pickLabel, onPick, busyLabel
   $(input).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
 }
 
+/** Times are dropdowns in 15-minute steps: one tap on any phone, and no native clock dialog
+ *  (Android's overflowed the screen on some devices). Odd values (from a shared link) get their own option. */
+function fillTimeSelect(sel, defaultValue) {
+  for (let m = 5 * 60; m < 24 * 60; m += 15) {
+    const v = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    const o = document.createElement("option");
+    o.value = v; o.textContent = to12h(v);
+    sel.appendChild(o);
+  }
+  sel.value = defaultValue;
+}
+function ensureTimeOption(sel, v) {
+  if (!v || [...sel.options].some((o) => o.value === v)) return;
+  const o = document.createElement("option");
+  o.value = v; o.textContent = to12h(v);
+  const after = [...sel.options].find((x) => x.value > v);
+  sel.insertBefore(o, after || null);
+}
+
 export function bindForm() {
   bindEndpoint("start");
   bindEndpoint("end");
+  fillTimeSelect($("arrival"), "09:00");
+  fillTimeSelect($("deadline"), "21:00");
 
   for (const [id, key] of [["date", "date"], ["arrival", "arrivalTime"], ["deadline", "deadline"], ["interests", "interests"]]) {
     $(id).addEventListener("change", () => {
@@ -217,7 +238,7 @@ function renderResults(container, stops, onPick, label, near) {
 
 export function render(it) {
   // form values (only when they differ, to avoid clobbering typing)
-  const setVal = (id, v) => { const el = $(id); if (el.value !== (v ?? "")) el.value = v ?? ""; };
+  const setVal = (id, v) => { const el = $(id); if (el.tagName === "SELECT") ensureTimeOption(el, v); if (el.value !== (v ?? "")) el.value = v ?? ""; };
   pay.renderPrice(it);
   setVal("date", it.date);
   setVal("arrival", it.arrivalTime);

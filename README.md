@@ -232,6 +232,10 @@ session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answer
    then are more stops cut. Once OSRM's real timings come back, the best cut stop is added
    back if there's 20+ min to spare. Cut stops show under "Didn't fit" with *Add back*.
 
+The start and end times are dropdowns in 15-minute steps (5:00 AM to 11:45 PM) rather than
+`<input type="time">`: Android's native clock dialog overflowed the screen on some phones, and
+a list is one tap anyway. Unusual times from a shared link get their own option.
+
 Edits (reorder, remove, add by search, tap the map, "Suggest more", "Stop here to eat", dwell) all
 re-route and re-schedule but never trim on their own.
 
