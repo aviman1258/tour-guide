@@ -52,6 +52,17 @@ body {
   font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   background: var(--line);
 }
+/* phones: the header can't fit brand + status + Drive button in one row, so the status bar
+   drops to its own full-width row underneath and may wrap to two lines */
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; row-gap: 6px; }
+  .brand { flex: 1 1 0; min-width: 0; } /* the title shrinks (ellipsis) so the Drive button stays on the first row */
+  .topbar h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar nav { margin-left: auto; flex: 0 0 auto; }
+  .topbar nav .btn { padding: 8px 12px; font-size: 14px; white-space: nowrap; min-height: 40px; }
+  .status-bar { order: 3; flex: 1 1 100%; white-space: normal; line-height: 1.3; border-radius: 10px; padding: 5px 10px; font-size: 13px; }
+  .status-bar[hidden] { display: none; }
+}
 .status-bar.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
 .status-bar.tight { background: color-mix(in srgb, var(--tight) 20%, transparent); color: var(--tight); }
 .status-bar.late { background: color-mix(in srgb, var(--late) 18%, transparent); color: var(--late); }
