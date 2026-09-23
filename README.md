@@ -406,6 +406,7 @@ pick this repo, then set the secrets it asks for:
 - `DAILY_CLAUDE_BUDGET_USD` — daily Claude spend breaker (default `25`, `0` = off); see "Keeping
   the Claude bill bounded".
 - `AI_CALLS_PER_HOUR` — per-IP cap on plan/suggest/prepare for non-owners (default `20`).
+- `INDEXNOW_KEY` — optional; enables IndexNow pings to Bing and friends (see "Search engines").
 - `CLAUDE_RATES` — optional; USD per million tokens per model for the cost panel (see the
   analytics section). Production has it set to the September 2026 list prices; without it the
   built-in defaults (same numbers) are used and the panel says "verify".
@@ -443,6 +444,14 @@ Wikipedia links, a "Drive this route free" button (`plan.html?tier=free&route=<i
 the route on the plan page), TouristTrip structured data and social cards. All user text is
 HTML-escaped. A wrong slug redirects to the canonical one; a deleted route gives a 404 page.
 Views are logged as `route_index` / `route_page` events, crawlers included.
+
+**IndexNow** (`server/lib/indexnow.js`): with `INDEXNOW_KEY` set (any 8-128 letters/digits;
+the server serves it at `/<key>.txt` as proof of ownership), publishing or deleting a route pings
+`api.indexnow.org` with the affected URLs, so Bing, Yandex, Naver and Seznam pick them up within
+hours rather than whenever they crawl. ChatGPT and DuckDuckGo search through Bing, so this is
+what makes the site findable there. The admin page has a "Submit pages to Bing" button that sends
+every public page at once (`POST /api/admin/indexnow`); health reports the last status. Google
+does not use IndexNow; it relies on the sitemap in Search Console.
 
 `web/robots.txt` allows everything except `/api/`, the admin page and drive mode (an app screen
 with nothing to index), and points at `/sitemap.xml`, which the server generates from the static

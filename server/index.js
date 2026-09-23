@@ -19,6 +19,7 @@ import pay from "./lib/pay.js";
 import owner from "./lib/owner.js";
 import * as routePages from "./routePages.js";
 import { shapeListing, fallbackListing } from "./lib/describe.js";
+import * as indexnow from "./lib/indexnow.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -191,6 +192,12 @@ app.get("/api/admin/events", requireAdmin, h(async (req, res) => {
   res.json({ events: analytics.recent(Number(req.query.limit) || 200) });
 }));
 // Claude usage and cost, for pricing routes.
+// Submit every public page to IndexNow (Bing, Yandex, Naver, Seznam) in one go.
+app.post("/api/admin/indexnow", requireAdmin, h(async (_req, res) => {
+  const urls = [...STATIC_PAGES, ...library.list().map((r) => routePages.routeUrl(r))];
+  const status = await indexnow.submit(urls);
+  res.json({ submitted: status ? urls.length : 0, status, ...indexnow.stats() });
+}));
 app.get("/api/admin/sales", requireAdmin, h(async (req, res) => {
   const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
   res.json(pay.sales(days));
@@ -206,6 +213,7 @@ app.get("/api/admin/routes", requireAdmin, h(async (_req, res) => {
 app.delete("/api/admin/routes/:id", requireAdmin, h(async (req, res) => {
   const { summary } = library.get(req.params.id, { countUse: false });
   library.remove(req.params.id);
+  pingIndexNow([routePages.routeUrl(summary), `${routePages.BASE}/routes`]); // IndexNow takes removed URLs too
   console.log(`[admin] deleted route ${summary.id} "${summary.title}"`);
   analytics.track(req, "admin_delete", `${summary.id} ${summary.title}`);
   res.status(204).end();
@@ -228,6 +236,7 @@ app.get("/api/health", h(async (_req, res) => {
     owner: owner.stats(),
     pay: pay.enabled(),
     budget: usage.budget(),
+    indexnow: indexnow.stats(),
     claude: config.anthropicKey ? "sdk" : "cli",
     data,
     models: { strong: config.modelStrong, fast: config.modelFast },
@@ -358,6 +367,7 @@ app.post("/api/routes", requireAccess("publish"), h(async (req, res) => {
   } catch { /* region is optional */ }
   const summary = library.publish({ pkg, title, description, region, author: "subscriber" });
   console.log(`[library] published ${summary.id} "${summary.title}" (${summary.stopsCount} stops, ${summary.region})`);
+  pingIndexNow([routePages.routeUrl(summary), `${routePages.BASE}/routes`, `${routePages.BASE}/sitemap.xml`]);
   analytics.track(req, "publish", `${summary.id} ${summary.title}`);
   res.status(201).json(summary);
 }));
@@ -423,6 +433,13 @@ app.post("/api/prepare-drive", h(async (req, res) => {
     res.end();
   }
 }));
+
+// IndexNow ownership file: the key itself, at /<key>.txt
+if (config.indexNowKey) {
+  app.get(`/${config.indexNowKey}.txt`, (_req, res) => res.type("text/plain").send(config.indexNowKey));
+}
+const STATIC_PAGES = ["/", "/plan.html", "/routes", "/terms.html", "/privacy.html"].map((p) => `${routePages.BASE}${p}`);
+const pingIndexNow = (urls) => indexnow.submit(urls).then((s) => { if (s) console.log(`[indexnow] ${urls.length} url(s) → ${s}`); });
 
 // ---------- public route pages (server-rendered, indexable) ----------
 app.get("/routes", h(async (req, res) => {

@@ -28,6 +28,8 @@ export const config = {
   // usage log for the admin cost panel. Defaults are placeholders: verify in the Anthropic console.
   claudeRates: parseRates(process.env.CLAUDE_RATES) || { "claude-opus-5": { in: 5, out: 25 }, "claude-haiku-4-5": { in: 1, out: 5 } },
   claudeRatesFromEnv: Boolean(parseRates(process.env.CLAUDE_RATES)),
+  // IndexNow key (any 8-128 hex/letters; served at /<key>.txt). Empty = no search-engine pings.
+  indexNowKey: String(process.env.INDEXNOW_KEY || "").replace(/[^A-Za-z0-9-]/g, "").slice(0, 128),
   // Daily Claude spend (USD, by the rates above) after which AI routes refuse until midnight UTC. 0 = off.
   dailyClaudeBudgetUsd: Number(process.env.DAILY_CLAUDE_BUDGET_USD ?? "25"),
   // AI calls (plan / suggest / prepare) per IP per hour for non-owners, on top of per-credit quotas.

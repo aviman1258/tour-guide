@@ -32,6 +32,7 @@ the phone's own GPS and text-to-speech. There are no user accounts and no card d
 | **Anthropic** | Claude models that plan stops and write narration | console.anthropic.com | `ANTHROPIC_API_KEY` | per use, ~$0.35/route est. |
 | **Stripe** | Card payments, holds, refunds, payouts | dashboard.stripe.com, account `acct_1UIDdJ2clkS7h6Fg` | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | 2.9% + 30¢ per charge |
 | **Google Search Console** | Tells Google the site exists, shows search stats | search.google.com/search-console, Domain property deodapper.com | verified via TXT record | free |
+| **Bing Webmaster Tools + IndexNow** | Bing, DuckDuckGo and ChatGPT search; instant URL pings | bing.com/webmasters (import from Google) | `INDEXNOW_KEY` (self-chosen, public, served at `/<key>.txt`) | free |
 | **Wikipedia / Wikimedia** | Place facts, coordinates, article summaries | none | identifying `User-Agent` (`CONTACT`) | free, rate-limited |
 | **OpenStreetMap Nominatim** | Geocoding (address ↔ coordinates) | none | same `User-Agent`, 1 request/second | free |
 | **Valhalla (FOSSGIS)** | Driving routes, avoid tolls/highways, turn instructions | none | `VALHALLA_BASE_URL` | free, public server |
@@ -182,6 +183,16 @@ opens, in a fixed shape: "City: two or three highlights" and a specific one-to-t
 description with no brochure language. The publisher can edit or ask for another draft. This keeps
 the public pages consistent and search-friendly without anyone having to write copy.
 
+### 2.6a Bing, DuckDuckGo, ChatGPT
+
+Google found the site on its own, but Bing's index (which DuckDuckGo and ChatGPT's browsing use)
+is separate. Two things feed it: **Bing Webmaster Tools** (bing.com/webmasters → Import from
+Google Search Console, one click, gives you Bing's reports) and **IndexNow**, which the server
+does automatically: every published or deleted route is pinged to `api.indexnow.org` with
+`INDEXNOW_KEY`, and the admin page's "Submit pages to Bing" button sends every public page at once.
+The key is not a secret; it only has to match the file the server serves at
+`deodapper.com/<key>.txt`. Rotate it by changing the variable; nothing else needs to change.
+
 **Route pages are the SEO engine.** Every published route has a public page at
 `deodapper.com/routes/<id>/<slug>` (title, stops, map, first line of each story, "Drive this
 route free"), listed at `deodapper.com/routes` and in the sitemap automatically. Ranking for
@@ -219,6 +230,7 @@ No accounts, but each has rules the server follows:
 | `ADMIN_SECRET` | yes, invented | Password for `/admin.html`. Unset = admin disabled |
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | yes | Section 2.5. All three empty = payments off, passphrase-only site |
 | `CONTACT` | yes | Email in the User-Agent sent to Wikipedia/OSM. Use `support@deodapper.com` |
+| `INDEXNOW_KEY` | optional | Self-chosen key for IndexNow pings to Bing and friends (section 2.6a) |
 | `CLAUDE_RATES` | optional | Per-million token prices for the cost panel and the budget breaker |
 | `DAILY_CLAUDE_BUDGET_USD` | `25` default | Daily Claude spend after which planning, Suggest more and narration refuse until midnight UTC. `0` = off |
 | `AI_CALLS_PER_HOUR` | `20` default | Per-IP hourly cap on those three routes for non-owners |

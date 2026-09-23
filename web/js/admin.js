@@ -155,6 +155,14 @@ $("routes").addEventListener("click", async (e) => {
     $("msg").textContent = err.message; $("msg").hidden = false; $("msg").classList.add("error");
   }
 });
+$("indexnow-btn")?.addEventListener("click", async () => {
+  const b = $("indexnow-btn"), m = $("indexnow-msg");
+  b.disabled = true; m.hidden = false; m.textContent = "Submitting…";
+  try {
+    const r = await api(`/api/admin/indexnow`, "POST");
+    m.textContent = !r.enabled ? "IndexNow is off: set INDEXNOW_KEY in Render first." : r.status ? `Submitted ${r.submitted} pages (IndexNow answered ${r.status}). Bing usually crawls within a day.` : `Couldn't reach IndexNow: ${r.lastError || "unknown error"}`;
+  } catch (err) { m.textContent = err.message; } finally { b.disabled = false; }
+});
 $("refresh").addEventListener("click", load);
 $("logout").addEventListener("click", () => { setKey(""); location.reload(); });
 load();
