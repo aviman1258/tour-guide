@@ -43,6 +43,7 @@
       <li><b>Wikipedia / Wikimedia</b> and <b>OpenStreetMap's Nominatim</b> are queried by our server for place information. <b>Photon (komoot)</b> and OpenStreetMap map tiles are fetched by your browser directly for the search box and the map, so those services see your IP address.</li>
       <li><b>Valhalla (FOSSGIS) and OSRM</b> compute the driving route from the coordinates involved.</li>
       <li><b>ipwho.is</b> turns IP addresses into an approximate city for our statistics.</li>
+      <li><b>Google Places</b>, when the operator has enabled it, is asked about a place name and a route area only after Wikipedia and OpenStreetMap have nothing; it learns the search text, not who you are.</li>
       <li><b>Open-Meteo</b> supplies the weather shown at each stop in drive mode; your browser asks it directly for the stops' coordinates, so it sees your IP address but not who you are.</li>
       <li><b>Render</b> hosts the server and <b>Cloudflare</b> serves the domain. Data is stored in the United States.</li>
     </ul>

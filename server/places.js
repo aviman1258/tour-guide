@@ -9,7 +9,7 @@ import { TtlCache, DAY } from "./lib/cache.js";
 import { categoryForKind } from "./photon.js";
 
 const ENDPOINT = "https://places.googleapis.com/v1/places:searchText";
-const FIELDS = "places.id,places.displayName,places.location,places.types,places.primaryType,places.formattedAddress,places.editorialSummary,places.rating,places.userRatingCount";
+const FIELDS = "places.id,places.displayName,places.location,places.types,places.primaryType,places.formattedAddress"; // Pro SKU fields only; ratings/summary would bill every call at the Enterprise rate
 const cache = new TtlCache(2000);
 const state = { calls: 0, lastStatus: null, lastError: null };
 export const stats = () => ({ enabled: Boolean(config.googlePlacesKey), ...state });
@@ -19,10 +19,10 @@ export function normalize(p) {
   const types = p.types || [];
   return {
     id: p.id, name: p.displayName?.text || "", lat: p.location?.latitude, lon: p.location?.longitude,
-    address: p.formattedAddress || "", summary: p.editorialSummary?.text || "",
+    address: p.formattedAddress || "", summary: "",
     kind: p.primaryType || types[0] || "", types,
     category: categoryForKind([p.primaryType, ...types].filter(Boolean).join(" ")),
-    rating: p.rating ?? null, ratings: p.userRatingCount ?? null,
+
   };
 }
 

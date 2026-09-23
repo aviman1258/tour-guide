@@ -19,8 +19,7 @@ test("Google Places results normalize to our place shape", () => {
   const p = normalize({ id: "x", displayName: { text: "Kali Mandir" }, location: { latitude: 33.54, longitude: -117.78 }, types: ["hindu_temple", "place_of_worship", "point_of_interest"], primaryType: "hindu_temple", formattedAddress: "1 Temple Way, Laguna Beach, CA", editorialSummary: { text: "Small Hindu temple." }, rating: 4.8, userRatingCount: 120 });
   assert.equal(p.name, "Kali Mandir");
   assert.equal(p.category, "temple");
-  assert.equal(p.summary, "Small Hindu temple.");
-  assert.equal(p.rating, 4.8);
+  assert.equal(p.address, "1 Temple Way, Laguna Beach, CA");
 });
 
 test("searchText is off without a key, sends the field mask with one, and never throws", async () => {

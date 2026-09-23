@@ -209,8 +209,10 @@ lookup can find it. Google Places knows it. Setting it up: console.cloud.google.
 project ("Deodapper") → APIs & Services → Library → enable **Places API (New)** → Credentials →
 Create API key → restrict the key to "Places API (New)" (Application restrictions: none, it's used
 server-side) → paste into Render as `GOOGLE_PLACES_KEY`. Billing must be enabled on the project,
-but Google gives each Places SKU a free monthly allowance (thousands of Text Search calls); at
-Deodapper's volume this should cost nothing, and the Cloud console's Billing page shows usage.
+but Google gives each Places SKU a free monthly allowance; the app requests only "Pro" tier
+fields (name, location, type, address), which has thousands of free Text Search calls a month, and
+deliberately not ratings or summaries, which would bill every call at the Enterprise rate. At
+Deodapper's volume this should cost nothing. Set a budget alert in Cloud Billing anyway.
 When set, Google is the last fallback in grounding and in place search; stops it supplies show a
 small "place data: Google" note, which Google's terms require. Leave it empty to run on free
 sources only.

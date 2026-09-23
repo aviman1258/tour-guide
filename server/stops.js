@@ -168,8 +168,8 @@ export async function searchPlace(q, { viewbox, near, limit = 3 } = {}) {
   for (const p of ph.slice(0, limit)) stops.push(await stopFromPlace(p));
   if (stops.length) return stops;
 
-  // Wikipedia by name
-  const hits = await wikipedia.search(q, limit);
+  // Wikipedia by name (only titles that resemble the query: a temple search must not return a random saint)
+  const hits = (await wikipedia.search(q, limit)).filter((h) => titleSimilarity(q, h.title) >= 0.5);
   for (const h of hits) {
     let sum = await wikipedia.summary(h.title);
     if (sum && !sum.coordinates) {
