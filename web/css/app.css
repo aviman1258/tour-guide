@@ -325,3 +325,5 @@ dialog.pay .pay-fine a { color: var(--accent); }
 
 dialog.pay .pay-email { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 dialog.pay .pay-email input { font: inherit; font-size: 15px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text); }
+
+.stop .attrib { font-size: 11px; color: var(--muted); }

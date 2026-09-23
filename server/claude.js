@@ -74,7 +74,7 @@ export const NARRATION_TOOL = {
 const PROPOSE_SYSTEM = `You are a sharp local guide planning a self-drive day between two points for a traveler with a few free hours before hotel check-in.
 
 Rules:
-- Every stop must be a real place that has an English Wikipedia article. Give the exact article title in wikipediaTitle, with disambiguators ("Montrose, Houston", "BAPS Shri Swaminarayan Mandir Houston"). If unsure of the exact title, give your best guess and a precise searchHint. Never invent places.
+- Every stop must be a real place. Prefer places with an English Wikipedia article and give the exact title in wikipediaTitle, with disambiguators ("Montrose, Houston", "BAPS Shri Swaminarayan Mandir Houston"). A smaller local place with no article (a neighbourhood temple, a well-known bakery, a small museum) is welcome when it clearly matches the interests: set wikipediaTitle to "" and make searchHint precise enough for a map search ("Kali Mandir, Laguna Beach, California"). Never invent places.
 - Stops must sit along or near the corridor between start and end (a bounding box is provided). Prefer things that make a coherent drive with little backtracking, and list them in a sensible driving order from start to end.
 - Match the traveler's interests literally and generously: "Indian" means temples, Indian commercial districts, restaurants; "historic neighborhoods" means named historic districts and their landmarks; "affluent" means the upscale neighborhoods and master-planned communities of the area, including suburbs.
 - Prefer variety: neighborhoods to drive through, one or two places to get out and walk, and at least two realistic food options (isFoodOption=true) so lunch can land between 11:30 and 2:00.
@@ -83,7 +83,7 @@ Rules:
 - Keep whyItMatches to one plain sentence. Keep summary to two sentences max.
 - You must call the propose_itinerary tool with your answer.`;
 
-const SUGGEST_SYSTEM = `You are a sharp local guide. The traveler already has an itinerary (listed) and wants a few more candidate stops that match their interests and sit near the existing route. Do not repeat anything already listed or dropped. Same grounding rules: real places with English Wikipedia articles, exact article titles, honest priority. Return exactly the number requested. You must call the propose_itinerary tool with your answer.`;
+const SUGGEST_SYSTEM = `You are a sharp local guide. The traveler already has an itinerary (listed) and wants a few more candidate stops that match their interests and sit near the existing route. Do not repeat anything already listed or dropped. Same grounding rules: real places, Wikipedia article title when there is one (else an empty wikipediaTitle and a precise searchHint), honest priority. Return exactly the number requested. You must call the propose_itinerary tool with your answer.`;
 
 const LISTING_TOOL = {
   name: "write_listing",

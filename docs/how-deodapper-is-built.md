@@ -37,7 +37,8 @@ the phone's own GPS and text-to-speech. There are no user accounts and no card d
 | **OpenStreetMap Nominatim** | Geocoding (address ↔ coordinates) | none | same `User-Agent`, 1 request/second | free |
 | **Valhalla (FOSSGIS)** | Driving routes, avoid tolls/highways, turn instructions | none | `VALHALLA_BASE_URL` | free, public server |
 | **OSRM demo** | Fallback router | none | `OSRM_BASE_URL` | free, no uptime promise |
-| **Photon (komoot)** | Type-ahead place search in the browser | none | none | free |
+| **Photon (komoot)** | Type-ahead place search in the browser and on the server (add-a-stop, grounding fallback) | none | none | free |
+| **Google Places API (New)** (optional) | Last-resort search for small local places the free sources don't know | console.cloud.google.com | `GOOGLE_PLACES_KEY` | free monthly tier per SKU, then per call |
 | **OpenStreetMap tiles** | The map images | none | none | free, fair use |
 | **ipwho.is** | IP → approximate city for usage stats | none | none (`GEO_LOOKUP=0` disables) | free tier |
 | **Open-Meteo** | Weather and temperature at each stop in drive mode | none | none | free, non-commercial tier (< 10k calls/day) |
@@ -200,6 +201,20 @@ route free"), listed at `deodapper.com/routes` and in the sitemap automatically.
 is, and each published route adds one such page. Publish routes for the cities you care about,
 then use URL inspection → Request indexing on the new page once.
 
+### 2.6b Google Places (optional)
+
+The free sources have a blind spot: small local places. A neighbourhood temple like Kali Mandir
+in Laguna Beach is in neither Wikipedia, Nominatim, Photon nor OpenStreetMap at all, so no free
+lookup can find it. Google Places knows it. Setting it up: console.cloud.google.com → new
+project ("Deodapper") → APIs & Services → Library → enable **Places API (New)** → Credentials →
+Create API key → restrict the key to "Places API (New)" (Application restrictions: none, it's used
+server-side) → paste into Render as `GOOGLE_PLACES_KEY`. Billing must be enabled on the project,
+but Google gives each Places SKU a free monthly allowance (thousands of Text Search calls); at
+Deodapper's volume this should cost nothing, and the Cloud console's Billing page shows usage.
+When set, Google is the last fallback in grounding and in place search; stops it supplies show a
+small "place data: Google" note, which Google's terms require. Leave it empty to run on free
+sources only.
+
 ### 2.7 The free data services
 
 No accounts, but each has rules the server follows:
@@ -231,6 +246,7 @@ No accounts, but each has rules the server follows:
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | yes | Section 2.5. All three empty = payments off, passphrase-only site |
 | `CONTACT` | yes | Email in the User-Agent sent to Wikipedia/OSM. Use `support@deodapper.com` |
 | `INDEXNOW_KEY` | optional | Self-chosen key for IndexNow pings to Bing and friends (section 2.6a) |
+| `GOOGLE_PLACES_KEY` | optional | Google Places API (New) key, last-resort place search (section 2.6b) |
 | `CLAUDE_RATES` | optional | Per-million token prices for the cost panel and the budget breaker |
 | `DAILY_CLAUDE_BUDGET_USD` | `25` default | Daily Claude spend after which planning, Suggest more and narration refuse until midnight UTC. `0` = off |
 | `AI_CALLS_PER_HOUR` | `20` default | Per-IP hourly cap on those three routes for non-owners |

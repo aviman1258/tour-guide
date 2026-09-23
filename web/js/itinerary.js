@@ -176,7 +176,20 @@ export function bindForm() {
     }
   });
 
-  // add-a-stop search, near the middle of the trip
+  // add-a-stop: the same type-ahead as start/end (biased to the middle of the trip), plus the
+  // Find button for a deeper search (Nominatim → Photon → Wikipedia → Google when configured)
+  const midTrip = () => { const it = state.get(); return it.stops[Math.floor(it.stops.length / 2)] || it.end || it.start; };
+  typeahead.attach($("add-query"), {
+    near: midTrip,
+    onPick: async (p) => {
+      try {
+        const stop = await busy.run("Adding the stop…", () => api.stopFromPlace({ name: p.label, lat: p.lat, lon: p.lon, kind: p.kind, sub: p.sub }));
+        actions.addStop(stop);
+        $("add-query").value = "";
+        toast(`Added ${stop.name}`);
+      } catch (err) { toast(err.message, 4000); }
+    },
+  });
   bindSearch({
     input: "add-query", button: "add-search", results: "add-results",
     near: () => { const it = state.get(); return it.stops[Math.floor(it.stops.length / 2)] || it.end || it.start; },
@@ -360,7 +373,7 @@ function stopCard(it, s, i, sched, { readOnly = false } = {}) {
         ${s.whyItMatches ? `<div class="why">${escapeHtml(s.whyItMatches)}</div>` : ""}
         ${s.blurb ? `<p class="blurb">${escapeHtml(s.blurb)}</p>` : ""}
         <div class="times">
-          ${sched ? `<span>🚗 ${fmtDuration(sched.legMinutes)}</span><span>arrive <b>${to12h(sched.arrive)}</b></span><span>leave <b>${to12h(sched.depart)}</b></span>` : `<span>${s.dwellMinutes} min stop</span>`}
+          ${sched ? `<span>🚗 ${fmtDuration(sched.legMinutes)}</span><span>arrive <b>${to12h(sched.arrive)}</b></span><span>leave <b>${to12h(sched.depart)}</b></span>` : `<span>${s.dwellMinutes} min stop</span>`}${s.source === "google" ? `<span class="attrib">place data: Google</span>` : ""}
         </div>
         ${readOnly ? "" : `<div class="controls">
           <button type="button" class="btn btn-sm btn-icon" data-act="up" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>

@@ -208,8 +208,13 @@ session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answer
 1. **Claude proposes** 10-14 candidate stops for your interests along the start→end corridor,
    with an exact Wikipedia article title, a category, a dwell time and a priority for each.
 2. **The server grounds every candidate**: Wikipedia REST summary → title search →
-   coordinates batch → Nominatim geocode → drop. Anything it can't place is listed under
-   "not found", nothing is invented.
+   coordinates batch → Nominatim geocode → Photon (OpenStreetMap points of interest) → Google
+   Places, if `GOOGLE_PLACES_KEY` is set → drop. Anything it can't place is listed under
+   "not found", nothing is invented. Claude may propose a small local place with no Wikipedia
+   article (empty `wikipediaTitle`, precise `searchHint`); the map sources then have to know it.
+   Many small temples, cafés and family businesses are in none of the free sources, which is what
+   the optional Google Places key is for (`server/places.js`, Text Search with a narrow field mask;
+   stops it supplies carry `source: "google"` and a "place data: Google" note on the card).
 3. **Routing** (`server/router.js`): Valhalla's public server routes the day, honouring
    *Avoid tolls* / *Avoid highways* when ticked and flagging when no such route exists; the
    OSRM demo server is the fallback for plain routes. The schedule is walked from your start
@@ -235,6 +240,11 @@ session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answer
 The start and end times are dropdowns in 15-minute steps (5:00 AM to 11:45 PM) rather than
 `<input type="time">`: Android's native clock dialog overflowed the screen on some phones, and
 a list is one tap anyway. Unusual times from a shared link get their own option.
+
+**Add a stop** has the same type-ahead as the start and end boxes (Photon, biased to the middle
+of the trip); picking a suggestion calls `POST /api/stop-from-place`, which keeps the picked
+coordinates and borrows a matching Wikipedia article's text when one sits on top of it. The Find
+button still runs the deeper `/api/place` search (Nominatim → Photon → Wikipedia → Google).
 
 Edits (reorder, remove, add by search, tap the map, "Suggest more", "Stop here to eat", dwell) all
 re-route and re-schedule but never trim on their own.
@@ -282,6 +292,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `GET /api/admin/sales?days=` | `x-admin-key` | revenue, credits by status and tier, recent credits |
 | `POST /api/routes/describe[?again=1]` | `{itinerary}` (owner or credit) | `{title, description, source}` drafted listing for the publish form |
 | `GET /routes`, `GET /routes/:id/:slug`, `GET /sitemap.xml` | | server-rendered public pages for published routes, and the sitemap listing them |
+| `POST /api/stop-from-place` | `{name, lat, lon, kind, sub}` | a `Stop` for a type-ahead pick, with Wikipedia text when an article sits on it |
 | `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |
@@ -406,6 +417,9 @@ pick this repo, then set the secrets it asks for:
 - `DAILY_CLAUDE_BUDGET_USD` — daily Claude spend breaker (default `25`, `0` = off); see "Keeping
   the Claude bill bounded".
 - `AI_CALLS_PER_HOUR` — per-IP cap on plan/suggest/prepare for non-owners (default `20`).
+- `GOOGLE_PLACES_KEY` — optional; Google Places API (New) key used as the last fallback when
+  grounding stops and in place search (see "How planning works"). Restrict it to the Places API
+  in the Google Cloud console.
 - `INDEXNOW_KEY` — optional; enables IndexNow pings to Bing and friends (see "Search engines").
 - `CLAUDE_RATES` — optional; USD per million tokens per model for the cost panel (see the
   analytics section). Production has it set to the September 2026 list prices; without it the

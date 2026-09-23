@@ -1,6 +1,9 @@
 // Builders for the shared Stop shape (see README "Shapes").
 
 import { randomUUID } from "node:crypto";
+import * as photon from "./photon.js";
+import * as places from "./places.js";
+import { categoryForKind } from "./photon.js";
 import * as wikipedia from "./wikipedia.js";
 import * as nominatim from "./nominatim.js";
 
@@ -125,14 +128,47 @@ function distanceOk(a, b, maxM) {
   return Math.hypot(dLat, dLon) <= maxM;
 }
 
-/** Search a place by name: Nominatim top results, each enriched with Wikipedia. */
-export async function searchPlace(q, { viewbox, limit = 3 } = {}) {
+/**
+ * A Stop from a place the visitor picked in the type-ahead (name + coordinates + OSM kind, or a
+ * Google place). Keeps the picked coordinates, borrows a matching Wikipedia article's text when
+ * one sits on top of it, otherwise uses what the source gave us.
+ */
+export async function stopFromPlace({ name, lat, lon, kind = "", sub = "", summary = "", source = "photon" }) {
+  const category = categoryForKind(kind);
+  const extra = { name, category, source, approxArea: sub };
+  try {
+    const hits = await wikipedia.search(`${name} ${sub}`.trim(), 3);
+    for (const h of hits) {
+      if (titleSimilarity(name, h.title) < 0.5) continue;
+      const sum = await wikipedia.summary(h.title);
+      if (sum?.coordinates && distanceOk(sum.coordinates, { lat, lon }, 3000)) {
+        return makeStop({ ...extra, lat, lon, blurb: sum.extract, thumbnail: sum.thumbnail, wikipediaTitle: sum.title, wikipediaUrl: sum.url });
+      }
+    }
+    const near = await wikipedia.geosearch(lat, lon, 150, 2);
+    for (const g of near) {
+      if (titleSimilarity(name, g.title) < 0.34) continue;
+      const sum = await wikipedia.summary(g.title);
+      if (sum?.coordinates) return makeStop({ ...extra, lat, lon, blurb: sum.extract, thumbnail: sum.thumbnail, wikipediaTitle: sum.title, wikipediaUrl: sum.url });
+    }
+  } catch { /* Wikipedia being busy must not block adding the stop */ }
+  return makeStop({ ...extra, lat, lon, blurb: summary || [kind.replace(/_/g, " "), sub].filter(Boolean).join(" · ") });
+}
+
+/** Search a place by name: Nominatim, then Photon, then Wikipedia, then Google Places if configured. */
+export async function searchPlace(q, { viewbox, near, limit = 3 } = {}) {
   const results = await nominatim.search(q, { viewbox, limit });
   const stops = [];
   for (const r of results) stops.push(await enrichWithWikipedia(r));
   if (stops.length) return stops;
 
-  // Nominatim is weak on POI names (temples, restaurants). Fall back to Wikipedia search.
+  // Photon knows OSM points of interest Nominatim's free-text search misses
+  const center = near || (viewbox ? { lat: (viewbox.minLat + viewbox.maxLat) / 2, lon: (viewbox.minLon + viewbox.maxLon) / 2 } : null);
+  const ph = await photon.search(q, { near: center, limit }).catch(() => []);
+  for (const p of ph.slice(0, limit)) stops.push(await stopFromPlace(p));
+  if (stops.length) return stops;
+
+  // Wikipedia by name
   const hits = await wikipedia.search(q, limit);
   for (const h of hits) {
     let sum = await wikipedia.summary(h.title);
@@ -144,6 +180,11 @@ export async function searchPlace(q, { viewbox, limit = 3 } = {}) {
     }
     if (sum?.coordinates) stops.push(stopFromSummary(sum));
   }
+  if (stops.length || !places.enabled()) return stops;
+
+  // Google Places, when a key is configured: the only source that knows the small local places
+  const g = await places.searchText(q, { near: center, limit });
+  for (const p of g.slice(0, limit)) stops.push(await stopFromPlace({ ...p, sub: p.address, source: "google" }));
   return stops;
 }
 

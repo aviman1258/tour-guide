@@ -65,6 +65,7 @@ export async function probe() {
 export const health = () => call("GET", "/api/health");
 export const place = (q, near) => call("GET", `/api/place?q=${encodeURIComponent(q)}${near ? `&near=${near.lat},${near.lon}` : ""}`);
 export const reverse = (lat, lon) => call("GET", `/api/reverse?lat=${lat}&lon=${lon}`);
+export const stopFromPlace = (place) => call("POST", "/api/stop-from-place", place);
 export const plan = (input, signal) => call("POST", "/api/plan", input, signal);
 export const estimate = () => call("GET", "/api/estimate");
 

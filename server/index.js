@@ -20,6 +20,7 @@ import owner from "./lib/owner.js";
 import * as routePages from "./routePages.js";
 import { shapeListing, fallbackListing } from "./lib/describe.js";
 import * as indexnow from "./lib/indexnow.js";
+import * as places from "./places.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -72,7 +73,7 @@ const requireSubscriber = (req, res, next) => {
   res.status(401).json({ error: "This feature is for subscribers. Enter the app passphrase.", needsKey: true });
 };
 const freeLimiter = createLimiter({ max: 90, windowMs: 10 * 60_000 });
-app.use(["/api/place", "/api/reverse", "/api/schedule", "/api/routes", "/api/ping", "/api/owner/unlock", "/api/pay/quote", "/api/pay/intent", "/api/pay/confirm", "/api/pay/credit", "/api/pay/release"], limitFree(freeLimiter));
+app.use(["/api/place", "/api/reverse", "/api/stop-from-place", "/api/schedule", "/api/routes", "/api/ping", "/api/owner/unlock", "/api/pay/quote", "/api/pay/intent", "/api/pay/confirm", "/api/pay/credit", "/api/pay/release"], limitFree(freeLimiter));
 
 // Paid features: the owner (passphrase) always passes. Otherwise a valid route credit is needed
 // (x-credit header). Without Stripe configured the passphrase is the only door, as before.
@@ -237,6 +238,7 @@ app.get("/api/health", h(async (_req, res) => {
     pay: pay.enabled(),
     budget: usage.budget(),
     indexnow: indexnow.stats(),
+    places: places.stats(),
     claude: config.anthropicKey ? "sdk" : "cli",
     data,
     models: { strong: config.modelStrong, fast: config.modelFast },
@@ -253,7 +255,15 @@ app.get("/api/place", h(async (req, res) => {
     const [lat, lon] = String(req.query.near).split(",").map(Number);
     if (Number.isFinite(lat) && Number.isFinite(lon)) viewbox = bbox([{ lat, lon }], 40);
   }
-  res.json({ results: await stops.searchPlace(q, { viewbox }) });
+  const nearPt = viewbox ? { lat: (viewbox.minLat + viewbox.maxLat) / 2, lon: (viewbox.minLon + viewbox.maxLon) / 2 } : undefined;
+  res.json({ results: await stops.searchPlace(q, { viewbox, near: nearPt }) });
+}));
+
+// A stop from a place picked in the add-a-stop type-ahead. Body: { name, lat, lon, kind, sub }.
+app.post("/api/stop-from-place", h(async (req, res) => {
+  const { name, lat, lon, kind, sub } = req.body || {};
+  if (!name || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) throw httpError(400, "name, lat and lon are required");
+  res.json(await stops.stopFromPlace({ name: String(name).slice(0, 120), lat: Number(lat), lon: Number(lon), kind: String(kind || ""), sub: String(sub || "").slice(0, 160) }));
 }));
 
 app.get("/api/reverse", h(async (req, res) => {
