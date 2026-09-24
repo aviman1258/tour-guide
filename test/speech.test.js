@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createSpeech } from "../web/js/speech.js";
+import { createSpeech, matchVoice, voiceQuality } from "../web/js/speech.js";
 
 // No speechSynthesis in Node: the queue runs in its silent timer-driven mode.
 
@@ -111,4 +111,16 @@ test("a stop that arrives during a turn prompt outranks the paused drive-by", ()
   assert.equal(sp.current.id, "stop1");
   assert.ok(ended.some((e) => e.item.id === "db1" && e.interrupted), "the drive-by is given up");
   sp.stop();
+});
+
+test("matchVoice ranks the natural-sounding builds first, per preset and on auto", () => {
+  const v = (name, lang, extra = {}) => ({ name, lang, localService: true, default: false, ...extra });
+  const ios = [v("Samantha", "en-US", { default: true }), v("Samantha (Enhanced)", "en-US"), v("Fred", "en-US"), v("Daniel", "en-GB"), v("Daniel (Premium)", "en-GB", { localService: false })];
+  assert.equal(matchVoice("us-female", ios).name, "Samantha (Enhanced)");
+  assert.equal(matchVoice("gb-male", ios).name, "Daniel (Premium)", "premium beats local when it is the same voice");
+  assert.equal(matchVoice("auto", ios).name, "Samantha (Enhanced)", "auto picks the best English voice, not the robotic default");
+  const windows = [v("Microsoft David - English (United States)", "en-US", { default: true }), v("Microsoft Aria Online (Natural) - English (United States)", "en-US", { localService: false })];
+  assert.equal(matchVoice("auto", windows).name.split(" ")[1], "Aria");
+  assert.ok(voiceQuality(v("Whisper", "en-US")) < 0, "novelty voices sink");
+  assert.equal(matchVoice("in-female", ios), null, "no Indian English voice on this device");
 });

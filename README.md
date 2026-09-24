@@ -211,6 +211,10 @@ session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answer
 
 1. **Claude proposes** 10-14 candidate stops for your interests along the start→end corridor,
    with an exact Wikipedia article title, a category, a dwell time and a priority for each.
+   Stays are short by default because this is a driving tour: a neighborhood, landmark or
+   viewpoint gets 5-10 minutes, a park, cemetery or temple 10-20, a museum or a meal 45
+   (`DEFAULT_DWELL` in `server/stops.js`, the prompt's dwell guidance, and the compression floors
+   `MIN_DWELL` in `web/js/schedule-core.js`). Any stay can be lengthened on its card.
 2. **The server grounds every candidate**: Wikipedia REST summary → title search →
    coordinates batch → Nominatim geocode → Photon (OpenStreetMap points of interest) → Google
    Places, if `GOOGLE_PLACES_KEY` is set → drop. Anything it can't place is listed under
@@ -301,6 +305,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |
+| `POST /api/reroute` | `{from:{lat,lon}, to:{lat,lon}, routeOptions?}` | one routed leg with steps (drive mode's way back to the planned line; 50 km cap, rate-limited with the free endpoints) |
 | `POST /api/suggest` | `{itinerary, count}` | `{candidates: Stop[]}` not already in the plan |
 | `GET /api/place?q=&near=lat,lon` | explicit submit only | `{results: Stop[]}` |
 | `GET /api/reverse?lat=&lon=` | | `Stop` for a map click |
@@ -387,8 +392,27 @@ deriving content from them.
   starts `watchPosition`. Coming back from the background re-acquires the lock, restarts GPS
   and restarts the current narration (iOS wedges the speech engine otherwise).
 - Each fix is projected onto the route (`routeMath.project`) to get progress along the route
-  and off-route distance. 75 m off for 3 fixes = off route: the banner switches to a bearing
-  arrow toward the next stop, geofences keep working on raw distance. Under 40 m = back on.
+  and off-route distance. 75 m off for 3 fixes = off route; under 40 m = back on. Geofences keep
+  working on raw distance either way.
+- **Back on course** (`web/js/reroute.js`, `POST /api/reroute`): the moment the car is off route
+  the phone asks the server for a short detour from where it is to a point on the planned line a
+  little ahead of where it left (45 s of travel, at least 400 m, never past the next unvisited
+  stop). The server routes it with Valhalla/OSRM using the trip's toll/highway options, no Claude,
+  no credit. The detour is drawn dashed orange, the banner follows its turns ("Detour · in 0.2 mi ·
+  1.1 mi back to the route") and the same speed-aware prompts are spoken along it, after a
+  "Rerouting." If the car leaves the detour too it asks again, at most every 8 s and normally every
+  20 s. The detour disappears the moment the car is back on the planned line ("Back on the route.").
+  Offline, or while the request is pending, the banner falls back to a bearing arrow and distance to
+  the next stop.
+- **Driver's view** (🧭 button next to the mute button, remembered per device, default on): while
+  driving, the map turns so the direction of travel points up and the car sits in the lower third of
+  the visible map, like a car navigation screen. The map element is oversized to the screen
+  diagonal and rotated with CSS; stop markers, weather badges and popups counter-rotate so they stay
+  readable. GPS heading is ignored below 1.5 m/s (it is noise when stopped), so the map holds its
+  last rotation at lights. Touching the map returns it to north-up and pauses following for 15 s,
+  as before; "North up" keeps the classic map with the car centred. Only real touches pause following
+  now: the app's own zooms used to trip the same handler and stop the map following for the first
+  half minute of a drive.
 - **Geofence** (`web/js/geofence.js`, pure, unit-tested): a narration fires once, when you are
   inside its radius *and getting closer*. Stops use their own radius (250 m; 600 m for
   neighborhoods). Drive-bys widen to `speed × 20 s` (max 800 m) so they start before you pass,
@@ -398,6 +422,13 @@ deriving content from them.
 - **Speech** (`web/js/speech.js`): one voice at a time; a stop interrupts a drive-by, drive-bys
   wait. Text is spoken sentence by sentence so Skip is instant and Chrome's long-utterance
   cutoff never hits. Watchdog timers cover the iOS `onend` bug.
+- **Voice choice**: the phone's own text-to-speech voices, ranked by how natural they sound
+  (`voiceQuality`: "Natural"/"Neural"/"Premium"/"Enhanced"/Siri builds first, novelty and compact
+  voices last), so "Samantha (Enhanced)" beats plain "Samantha" without the user doing anything.
+  The Voice panel explains how to download a high-quality voice once (iPhone: Settings ›
+  Accessibility › Spoken Content › Voices; Android: Google text-to-speech › Install voice data).
+  The next step up would be a cloud neural voice (Google Cloud Text-to-Speech, roughly 2-3¢ of
+  audio per route, generated at prepare time and stored with the package); not built.
 - A stop counts as **visited** after 20 s stopped inside its radius, when you leave it again,
   when route progress passes it by 1.2 km, or when you tap *Visited*. Fired/visited state is
   persisted so a page reload mid-drive does not replay anything.
@@ -409,13 +440,19 @@ deriving content from them.
 - **Next-turn banner** from the route steps, with a green "✓ On route" line while the car is
   on the line and an off-route card (bearing arrow + distance to the next stop) when it isn't.
 - **Spoken directions** (`web/js/turnVoice.js`, a 3-position slider under the controls,
-  remembered per device, default Reserved):
+  remembered per device, default Reserved). The prompt distances follow the car's speed:
+  - **highway pace** (50 mph and up): "In one mile, take the exit…", "In half a mile, …", then
+    "Take the exit onto I-45 South in 500 feet." (no "now" at 70 mph; 500 ft is the call).
+  - **surface streets** (18-50 mph): a heads-up around a quarter mile when the turn started far
+    away, "In 500 feet, turn left onto Y", then "Turn left now." at about 100 ft.
+  - **slow** (under 18 mph, car parks, neighbourhood streets): "In 250 feet, …", then "now" at
+    about 60 ft.
+  A stage already spoken is never repeated when the car slows into a different band, and slowing
+  never adds a late one. Then the modes:
   - *Talkative* — after each turn, "Keep going straight on X for 1.3 miles"; every two minutes
     on a long stretch, "You're on the route. Next, turn left onto Y in 2.1 miles"; then the
-    approach below. Also a one-line heads-up for "continue onto" steps.
-  - *Reserved* — only the approach: "In half a mile / a quarter mile, turn left onto Y",
-    "In 200 feet, …", "In 100 feet, …", "Turn left now." (the far prompt is skipped when the
-    turn is already under 0.2 mi away; "continue" steps are silent).
+    approach above. Also a one-line heads-up for "continue onto" steps.
+  - *Reserved* — only the approach ("continue" steps are silent).
   - *Mute* — banner only.
   Both speaking modes say "Back on the route." after an off-route spell. In the speech queue a
   newer turn prompt replaces a pending or playing one. The turn prompts themselves interrupt any

@@ -15,9 +15,10 @@ export const CATEGORIES = [
   "district", "food", "shopping", "viewpoint", "other",
 ];
 
+// This is a driving tour: the default stay is a few minutes unless you actually get out.
 const DEFAULT_DWELL = {
-  neighborhood: 15, district: 20, landmark: 20, museum: 60, temple: 45, park: 30,
-  cemetery: 20, food: 60, shopping: 30, viewpoint: 15, other: 20,
+  neighborhood: 5, district: 10, landmark: 5, museum: 45, temple: 15, park: 10,
+  cemetery: 10, food: 45, shopping: 15, viewpoint: 5, other: 5,
 };
 
 export function trimText(s, n) {

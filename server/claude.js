@@ -22,7 +22,7 @@ const STOP_ITEM = {
     searchHint: { type: "string", description: "Name, the actual municipality it sits in (the suburb, not the metro name), and state. E.g. 'BAPS Shri Swaminarayan Mandir, Stafford, Texas'. Used for geocoding if the article has no coordinates." },
     category: { type: "string", enum: CATEGORIES },
     whyItMatches: { type: "string", description: "One sentence tying this stop to the traveler's interests." },
-    dwellMinutes: { type: "integer", enum: [10, 15, 20, 30, 45, 60, 90] },
+    dwellMinutes: { type: "integer", enum: [5, 10, 15, 20, 30, 45, 60, 90] },
     priority: { type: "integer", enum: [1, 2, 3, 4, 5], description: "5 = the reason they came; 1 = drop first." },
     isFoodOption: { type: "boolean", description: "True if a lunch stop here is realistic." },
     approxArea: { type: "string", description: "Neighborhood / side of town, e.g. 'Hillcroft & Harwin, SW Houston'." },
@@ -79,7 +79,7 @@ Rules:
 - Match the traveler's interests literally and generously: "Indian" means temples, Indian commercial districts, restaurants; "historic neighborhoods" means named historic districts and their landmarks; "affluent" means the upscale neighborhoods and master-planned communities of the area, including suburbs.
 - Prefer variety: neighborhoods to drive through, one or two places to get out and walk, and at least two realistic food options (isFoodOption=true) so lunch can land between 11:30 and 2:00.
 - Overproduce a little: return 10 to 14 candidates. The server trims to what fits the clock, using priority (5 = must-see, 1 = nice if there's time).
-- Dwell guidance: neighborhood/district drive-through 10-20, park/cemetery 20-30, temple/museum 45-60, meal 60.
+- Dwell guidance: this is a driving tour, so stays are short by default. Something seen from the car or with a quick look (neighborhood or district drive-through, landmark, viewpoint, shopping street): 5-10. A place you get out and walk (park, cemetery, temple): 10-20. Museum 45. Meal 45. Do not pad; the traveler can lengthen a stay later.
 - Keep whyItMatches to one plain sentence. Keep summary to two sentences max.
 - You must call the propose_itinerary tool with your answer.`;
 

@@ -7,6 +7,9 @@ import { createSpeech, VOICE_PRESETS, matchVoice } from "./speech.js";
 import { createSim } from "./sim.js";
 import { createTurnVoice, MODES as TURN_MODES, MODE_LABEL as TURN_LABEL, loadTurnMode, saveTurnMode } from "./turnVoice.js";
 import { lineToPoints, cumulative, project, haversineM, bearingDeg } from "./routeMath.js";
+import { flattenManeuvers } from "./maneuvers.js";
+import * as reroute from "./reroute.js";
+import { reroute as apiReroute } from "./api.js";
 import { fmtMiles, fmtDuration, to12h, escapeHtml, toMinutes as toMin, toHHMM } from "./format.js";
 import { ping } from "./ping.js";
 import * as weather from "./weather.js";
@@ -23,6 +26,10 @@ const state = {
   nextStopIdx: 0, driveState: { fired: {}, visited: [] }, saveTimer: null, turnVoice: createTurnVoice({ mode: loadTurnMode() }),
   map: null, car: null, carLayer: null, stopMarkers: [], poiMarkers: new Map(), follow: true, followTimer: null,
   weather: new Map(), // stopId → { tempF, icon, text, when } from Open-Meteo
+  orient: loadOrient(), rot: 0, // "heading" (driver's view, car in the lower third) or "north"; rot = current CSS rotation, unwrapped
+  // back on course: where we last were on the line, the detour we're following, and request throttling
+  lastOnRouteM: null, detour: null, detourLayer: null, detourVoice: createTurnVoice({ mode: loadTurnMode() }),
+  rerouteBusy: false, rerouteAskMs: 0, rerouteAskAt: null, rerouteSeq: 0,
 };
 
 // ---------- boot ----------
@@ -71,7 +78,7 @@ async function usePackage(pkg) {
   state.cum = cumulative(state.points);
   state.total = state.cum[state.cum.length - 1];
   state.stopAlong = state.it.stops.map((s) => project(state.points, state.cum, s).progressM);
-  state.maneuvers = flattenManeuvers(route, state.points, state.cum, state.it);
+  state.maneuvers = flattenManeuvers(route, state.points, state.cum, { stops: state.it.stops.map((x) => x.name), end: state.it.end.label });
 
   state.driveState = (await storage.getDriveState(pkg.tripId).catch(() => null)) || { fired: {}, visited: [] };
   state.geofence = createGeofence(pkg.narration, { fired: state.driveState.fired, visited: state.driveState.visited });
@@ -96,17 +103,57 @@ async function usePackage(pkg) {
 // ---------- map ----------
 
 function initMap() {
-  state.map = L.map("map", { zoomControl: false, preferCanvas: true, attributionControl: true }).setView([39.5, -98.35], 4);
+  state.map = L.map("map", { zoomControl: false, preferCanvas: true, attributionControl: false }).setView([39.5, -98.35], 4);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, keepBuffer: 4, updateWhenIdle: true, errorTileUrl: "icons/blank-tile.png",
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(state.map);
   state.carLayer = L.layerGroup().addTo(state.map);
-  state.map.on("dragstart zoomstart", () => {
+  // a finger on the map suspends follow for 15 s and gets a north-up map (dragging a rotated map feels
+  // wrong); follow brings the rotation back. Pointer events only: our own setView/fitBounds also fire
+  // Leaflet's zoomstart, which used to switch follow off for the first half minute of every drive.
+  state.map.getContainer().addEventListener("pointerdown", () => {
     state.follow = false;
+    setRotation(0);
     clearTimeout(state.followTimer);
     state.followTimer = setTimeout(() => (state.follow = true), 15000);
-  });
+  }, { passive: true });
+  layoutMap();
+  window.addEventListener("resize", layoutMap);
+}
+
+// ---------- map orientation: driver's view ----------
+
+const ORIENT_KEY = "tourguide.mapOrient";
+function loadOrient() { try { return localStorage.getItem(ORIENT_KEY) === "north" ? "north" : "heading"; } catch { return "heading"; } }
+function setOrient(o) {
+  state.orient = o;
+  try { localStorage.setItem(ORIENT_KEY, o); } catch { /* ignore */ }
+  if (o === "north") setRotation(0);
+  layoutMap();
+  const b = $("orient-btn");
+  if (b) { b.textContent = o === "heading" ? "🧭 Heading up" : "🧭 North up"; b.setAttribute("aria-pressed", String(o === "heading")); }
+  if (state.lastFix) updateCar(state.lastFix.lat, state.lastFix.lon, state.lastFix.heading, state.lastFix.speed);
+}
+/** While the map may rotate it is a square as wide as the screen's diagonal, so no corner ever shows. */
+function layoutMap() {
+  if (!state.map) return;
+  const rot = state.orient === "heading" && state.running;
+  document.body.classList.toggle("rot-map", rot);
+  document.getElementById("map").style.setProperty("--map-side", rot ? `${Math.ceil(Math.hypot(innerWidth, innerHeight))}px` : "");
+  if (!rot) setRotation(0);
+  state.map.invalidateSize({ animate: false });
+}
+/** CSS rotation of the map (−heading for heading-up). Unwrapped so the transition never spins the long way round. */
+function setRotation(deg) {
+  const cur = ((state.rot % 360) + 360) % 360;
+  const target = ((deg % 360) + 360) % 360;
+  let delta = target - cur;
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
+  if (!delta) return;
+  state.rot += delta;
+  document.getElementById("map").style.setProperty("--map-rot", `${state.rot}deg`);
 }
 
 function drawRoute() {
@@ -144,15 +191,29 @@ async function loadWeather() {
   log(`weather: ${wx.size} stops`);
 }
 
-function updateCar(lat, lon, heading) {
+function updateCar(lat, lon, heading, speed = 0) {
   if (!state.car) {
     state.car = L.marker([lat, lon], { icon: L.divIcon({ className: "", html: `<div class="car">▲</div>`, iconSize: [34, 34], iconAnchor: [17, 17] }), zIndexOffset: 1000 }).addTo(state.carLayer);
   } else {
     state.car.setLatLng([lat, lon]);
   }
   const el = state.car.getElement()?.firstElementChild;
-  if (el && Number.isFinite(heading)) el.style.transform = `rotate(${heading}deg)`;
-  if (state.follow) state.map.setView([lat, lon], Math.max(state.map.getZoom(), 15), { animate: false });
+  if (el && Number.isFinite(heading)) el.style.transform = `rotate(${heading}deg)`; // inside the rotated map this comes out pointing up
+  if (!state.follow) return;
+  const z = Math.max(state.map.getZoom(), 15);
+  const headingUp = document.body.classList.contains("rot-map") && Number.isFinite(heading);
+  if (headingUp && speed >= 1.5) setRotation(-heading); // GPS heading is noise when stopped: keep the last rotation
+  // Put the car where the driver can see it: the map strip between the banner and the bottom sheet.
+  // Heading-up: lower third of that strip, so the road ahead fills it. North-up: its middle.
+  // The map's centre is the screen centre, so the car goes dY pixels below it, measured along the
+  // direction the map is currently turned to.
+  const top = $("banner").getBoundingClientRect().bottom;
+  const bottom = Math.min(innerHeight, $("sheet").getBoundingClientRect().top);
+  const visibleH = bottom - top;
+  const dY = visibleH > 120 ? top + visibleH * (headingUp ? 0.7 : 0.5) - innerHeight / 2 : 0;
+  const r = (state.rot * Math.PI) / 180;
+  const c = state.map.project([lat, lon], z);
+  state.map.setView(state.map.unproject(L.point(c.x - dY * Math.sin(r), c.y - dY * Math.cos(r)), z), z, { animate: false });
 }
 
 function refreshMarkers() {
@@ -161,48 +222,6 @@ function refreshMarkers() {
     if (el) el.classList.toggle("visited", state.geofence.visited.has(s.id));
   });
   for (const [id, m] of state.poiMarkers) m.getElement()?.firstElementChild?.classList.toggle("done", Boolean(state.geofence.fired[id]));
-}
-
-// ---------- maneuvers ----------
-
-function flattenManeuvers(route, points, cum, it) {
-  const out = [];
-  route.legs.forEach((leg, legIndex) => {
-    for (const st of leg.steps || []) {
-      const m = st.maneuver;
-      if (!m || m.type === "depart") continue;
-      const loc = { lat: m.location[1], lon: m.location[0] };
-      const p = project(points, cum, loc);
-      // Valhalla gives ready-made instructions; OSRM steps fall back to our own wording
-      const arriveName = legIndex === route.legs.length - 1 ? it.end.label : it.stops[legIndex]?.name;
-      const text = m.type === "arrive" ? `Arrive at ${arriveName || "your stop"}` : (st.instruction || "").replace(/\.$/, "") || maneuverText(m, st, arriveName);
-      // short form, for "turn left now": Valhalla's succinct line, else our wording without the road
-      const short = m.type === "arrive" ? `Arriving at ${arriveName || "your stop"}` : (st.verbalSuccinct || "").replace(/\.$/, "") || maneuverText(m, { ...st, name: "", ref: "" }, arriveName);
-      out.push({ legIndex, type: m.type, modifier: m.modifier, exit: m.exit, name: st.name || st.ref || "", atM: p.progressM, text, short, verbal: st.verbalAlert || "" });
-    }
-  });
-  return out.sort((a, b) => a.atM - b.atM);
-}
-
-const MOD = { uturn: "make a U-turn", "sharp right": "sharp right", right: "right", "slight right": "slightly right", straight: "straight", "slight left": "slightly left", left: "left", "sharp left": "sharp left" };
-
-function maneuverText(m, st, arriveName) {
-  const road = st.name ? ` onto ${st.name}` : st.ref ? ` onto ${st.ref}` : "";
-  const mod = MOD[m.modifier] || m.modifier || "";
-  switch (m.type) {
-    case "arrive": return `Arrive at ${arriveName || "your stop"}`;
-    case "turn": return m.modifier === "uturn" ? "Make a U-turn" : `Turn ${mod}${road}`;
-    case "new name": case "continue": return m.modifier && m.modifier !== "straight" ? `Bear ${mod}${road}` : `Continue${road}`;
-    case "merge": return `Merge ${mod}${road}`;
-    case "on ramp": return `Take the ramp ${mod}${road}`;
-    case "off ramp": return `Take the exit ${mod}${road}`;
-    case "fork": return `Keep ${mod} at the fork${road}`;
-    case "end of road": return `Turn ${mod} at the end of the road${road}`;
-    case "roundabout": case "rotary": return `At the roundabout take exit ${m.exit ?? ""}${road}`.replace("exit  ", "the exit ");
-    case "roundabout turn": return `At the roundabout turn ${mod}${road}`;
-    case "exit roundabout": case "exit rotary": return `Exit the roundabout${road}`;
-    default: return `Continue${road}`;
-  }
 }
 
 // ---------- position pipeline ----------
@@ -236,6 +255,8 @@ function onFix(pos) {
   const progressM = state.offRoute ? null : proj.progressM;
   state.lastProj = proj;
   state.lastFix = fix;
+  if (!state.offRoute) { state.lastOnRouteM = proj.progressM; if (state.detour) clearDetour("rejoined"); }
+  else maybeReroute(here, fix);
 
   // geofence
   const gf = state.geofence.update({
@@ -252,7 +273,7 @@ function onFix(pos) {
     if (!state.geofence.visited.has(s.id)) { state.geofence.markVisited(s.id); onVisited(s.id); toast(`Passed ${s.name}; moving on`); }
   }
 
-  updateCar(here.lat, here.lon, heading);
+  updateCar(here.lat, here.lon, heading, fix.speed);
   updateNav(fix, proj, progressM);
   renderNextStop(fix, progressM);
   persistDriveState();
@@ -382,14 +403,15 @@ function updateNav(fix, proj, progressM) {
   const arrow = $("banner-arrow");
   if (state.offRoute || progressM == null) {
     banner.classList.add("offroute");
+    state.turnVoice.update({ maneuver: null, idx: state.nextManeuverIdx, distM: 0, offRoute: true, nowMs: fix.nowMs });
+    if (state.detour && updateDetourNav(fix)) return;
     const s = state.it.stops[state.nextStopIdx] || state.it.end;
     const d = haversineM(fix, s);
     const b = bearingDeg(fix, s);
     $("banner-primary").textContent = `Off route · ${s.name || s.label} ${fmtMiles(d)}`;
-    $("banner-secondary").textContent = "Follow the car's navigation; narration keeps working.";
+    $("banner-secondary").textContent = state.rerouteBusy ? "Finding a way back to the route…" : navigator.onLine === false ? "Offline: no reroute. Head toward the next stop; narration keeps working." : "Head toward the next stop; narration keeps working.";
     arrow.hidden = false;
     arrow.style.transform = `rotate(${((b - (fix.heading ?? 0)) + 360) % 360 - 90}deg)`;
-    state.turnVoice.update({ maneuver: null, idx: state.nextManeuverIdx, distM: 0, offRoute: true, nowMs: fix.nowMs });
     return;
   }
   banner.classList.remove("offroute");
@@ -410,13 +432,85 @@ function updateNav(fix, proj, progressM) {
   $("banner-secondary").textContent = `✓ On route · in ${fmtMiles(dist)}`;
 
   const prev = state.maneuvers[state.nextManeuverIdx - 1];
-  const say = state.turnVoice.update({ maneuver: m, idx: state.nextManeuverIdx, distM: dist, roadName: prev?.name || "", offRoute: false, nowMs: fix.nowMs });
+  const say = state.turnVoice.update({ maneuver: m, idx: state.nextManeuverIdx, distM: dist, speedMps: fix.speed, roadName: prev?.name || "", offRoute: false, nowMs: fix.nowMs });
   if (say) speakDirection(say);
 }
 
 function speakDirection(say) {
   log(`direction:${say.id}`);
   state.speech.enqueue({ id: say.id, kind: "turn", interrupt: say.interrupt, text: say.text, title: "Directions" });
+}
+
+// ---------- back on course ----------
+// Off the line, we ask the server for a short detour from here to a point on the planned route a
+// little ahead of where we left it (never past the next stop), draw it dashed, and read its turns
+// with the same speed-aware prompts. The moment the car is back on the planned line the detour goes.
+
+async function maybeReroute(here, fix) {
+  if (state.detour) {
+    // still on the detour? nothing to do. Wandered off it too? ask again.
+    const dp = project(state.detour.points, state.detour.cum, here, null, 200);
+    if (dp.offRouteM < 60) { state.detour.offCount = 0; return; }
+    if (++state.detour.offCount < 3) return;
+  }
+  if (navigator.onLine === false) return;
+  if (!reroute.shouldAsk({ nowMs: fix.nowMs, lastAskMs: state.rerouteAskMs, lastAskAt: state.rerouteAskAt, here, busy: state.rerouteBusy })) return;
+  const target = reroute.rejoinTarget({ points: state.points, cum: state.cum, leftAtM: state.lastOnRouteM ?? 0, speedMps: fix.speed, stopAlong: state.stopAlong, nextStopIdx: state.nextStopIdx });
+  if (haversineM(here, target) > reroute.MAX_TARGET_M) return;
+  state.rerouteBusy = true;
+  state.rerouteAskMs = fix.nowMs;
+  state.rerouteAskAt = here;
+  const seq = ++state.rerouteSeq;
+  log("reroute:ask");
+  try {
+    const r = await apiReroute({ from: here, to: { lat: target.lat, lon: target.lon }, routeOptions: state.it.routeOptions });
+    if (seq !== state.rerouteSeq || !state.offRoute || !state.running) return;
+    setDetour(reroute.buildDetour(r));
+  } catch (err) {
+    log(`reroute:fail ${err.message}`);
+  } finally {
+    state.rerouteBusy = false;
+  }
+}
+
+function setDetour(d) {
+  clearDetourLayer();
+  state.detour = { ...d, offCount: 0 };
+  state.detourLayer = L.polyline(d.points.map((p) => [p.lat, p.lon]), { color: "#f2a93b", weight: 5, opacity: 0.95, dashArray: "10 8" }).addTo(state.map);
+  state.detourVoice.reset();
+  speakDirection({ id: `reroute_${Date.now()}`, text: "Rerouting.", interrupt: true });
+  log(`reroute:detour ${Math.round(d.total)} m, ${d.maneuvers.length} steps`);
+}
+function clearDetour(why) {
+  clearDetourLayer();
+  state.detour = null;
+  state.detourVoice.reset();
+  log(`reroute:clear ${why}`);
+}
+function clearDetourLayer() {
+  if (state.detourLayer) { state.map.removeLayer(state.detourLayer); state.detourLayer = null; }
+}
+
+/** Banner + spoken turns along the detour. False when the car isn't on the detour (yet), so the arrow shows instead. */
+function updateDetourNav(fix) {
+  const d = state.detour;
+  const dp = project(d.points, d.cum, fix, null, 200);
+  if (dp.offRouteM > 120) return false;
+  while (d.nextIdx < d.maneuvers.length && d.maneuvers[d.nextIdx].atM < dp.progressM - 15) d.nextIdx++;
+  const m = d.maneuvers[d.nextIdx];
+  const remain = Math.max(0, d.total - dp.progressM);
+  $("banner-arrow").hidden = true;
+  if (!m) {
+    $("banner-primary").textContent = "Rejoining the route";
+    $("banner-secondary").textContent = `Detour · ${fmtMiles(remain)} to go`;
+    return true;
+  }
+  const dist = Math.max(0, m.atM - dp.progressM);
+  $("banner-primary").textContent = m.text;
+  $("banner-secondary").textContent = `Detour · in ${fmtMiles(dist)} · ${fmtMiles(remain)} back to the route`;
+  const say = state.detourVoice.update({ maneuver: m, idx: d.nextIdx, distM: dist, speedMps: fix.speed, roadName: d.maneuvers[d.nextIdx - 1]?.name || "", offRoute: false, nowMs: fix.nowMs });
+  if (say) speakDirection(say);
+  return true;
 }
 
 // ---------- cards ----------
@@ -508,6 +602,7 @@ function startDrive() {
   } else notice("No GPS available in this browser.");
   storage.persist();
   state.running = true;
+  layoutMap();
   $("start-btn").hidden = true;
   $("stop-btn").hidden = false;
   $("banner-primary").textContent = "Waiting for GPS…";
@@ -522,6 +617,8 @@ function stopDrive() {
   state.wakeLock = null;
   state.speech.stop();
   state.running = false;
+  if (state.detour) clearDetour("drive ended");
+  layoutMap();
   $("start-btn").hidden = false;
   $("stop-btn").hidden = true;
   $("banner-primary").textContent = "Drive ended";
@@ -593,7 +690,7 @@ function bindVoicePicker() {
     sel.value = sp.preset.startsWith("voice:") ? sp.preset : (VOICE_PRESETS[sp.preset] ? sp.preset : "auto");
     $("voice-current").textContent = sp.voice ? `${sp.voice.name.replace(/\(.*?\)/g, "").trim()}` : "";
     $("voice-note").textContent = voices.length
-      ? "Voices come from the phone. Missing an accent? iPhone: Settings › Accessibility › Spoken Content › Voices. Android: Settings › Text-to-speech › Google engine › Install voice data."
+      ? "Voices come from the phone, and Deodapper picks the most natural one it finds. For a much better narrator, download a high-quality voice once: iPhone: Settings › Accessibility › Spoken Content › Voices › English › pick a voice and download its Enhanced or Premium version. Android: Settings › Text-to-speech › Google engine › Install voice data."
       : "No voices reported yet. Tap Test once; some phones only list voices after the first use.";
   };
   sp.on("voices", render);
@@ -681,8 +778,11 @@ function bindUi() {
     $("mute-btn").setAttribute("aria-pressed", String(on));
   });
   const slider = $("turn-voice");
+  $("orient-btn").addEventListener("click", () => setOrient(state.orient === "heading" ? "north" : "heading"));
+  setOrient(state.orient);
   const applyTurnMode = (mode, persist) => {
     state.turnVoice.setMode(mode);
+    state.detourVoice.setMode(mode);
     slider.value = String(TURN_MODES.indexOf(mode));
     $("turn-voice-label").textContent = TURN_LABEL[mode];
     for (const t of $("turn-voice-ticks").children) t.classList.toggle("on", t.dataset.mode === mode);

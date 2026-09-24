@@ -229,7 +229,9 @@ No accounts, but each has rules the server follows:
 - **Nominatim:** one request per second, no autocomplete, identifying `User-Agent`. Cached 7 d.
 - **Valhalla** (`valhalla1.openstreetmap.de`) and **OSRM** (`router.project-osrm.org`): public
   demo servers with no uptime guarantee; the app tries Valhalla first (it can avoid tolls and
-  highways and gives spoken-style instructions) and falls back to OSRM.
+  highways and gives spoken-style instructions) and falls back to OSRM. Besides planning, drive
+  mode asks for one short route each time a car leaves its planned line (rerouting), never more
+  than one every 8 seconds per phone and capped at 50 km; a typical wrong turn costs one call.
 - **Photon** and **OSM tiles** are called from the visitor's browser, so those services see the
   visitor's IP, which the privacy page discloses. Tiles must not be bulk-downloaded; the
   service worker only caches tiles the map actually showed.
@@ -382,9 +384,15 @@ Manhattan hop gets a story every few blocks and a highway leg every few miles. T
 projected onto the route; a geofence state machine (`geofence.js`) fires each narration once,
 approaching, with cooldowns; a speech queue (`speech.js`) plays it with the chosen voice, lets
 stops interrupt drive-bys, and lets turn prompts pause and resume stories; `turnVoice.js`
-speaks directions in Talkative / Reserved / Mute modes ("in half a mile", "in 200 feet", "in
-100 feet", "turn now"); the banner shows the next turn or an off-route arrow. A simulator
-(`sim.js`) replays any route at up to 60× for testing.
+speaks directions in Talkative / Reserved / Mute modes, with distances that follow the speed
+(highway: one mile, half a mile, "take the exit in 500 feet"; streets: 500 feet then "turn
+now" at about 100 feet; slower still: 250 feet then 60 feet). Off the planned line the phone
+asks the server for a short detour back to it (`reroute.js`, `POST /api/reroute`, just the
+router, no Claude), draws it dashed and reads its turns until the car is back on the line. The
+map runs in driver's view while driving (turned so the road ahead points up, car in the lower
+third; the 🧭 button switches to north-up). The narration voice is whichever of the phone's
+voices sounds most natural (Enhanced/Premium/Natural builds rank first). A simulator (`sim.js`)
+replays any route at up to 60× for testing.
 
 ### 5.3 Tiers, payments and access
 

@@ -96,8 +96,8 @@ export function placeLunch(it, legMinutes) {
   });
   if (best >= 0) {
     const s = stops[best];
-    // a full hour for lunch, unless the day was already squeezed (then keep at least 45)
-    const dwell = s.dwellCompressed ? Math.max(s.dwellMinutes, MIN_LUNCH) : Math.max(s.dwellMinutes, 60);
+    // 45 minutes for a meal, unless the day was already squeezed (then keep at least 30)
+    const dwell = s.dwellCompressed ? Math.max(s.dwellMinutes, MIN_LUNCH) : Math.max(s.dwellMinutes, 45);
     stops[best] = { ...s, lunch: "auto", dwellMinutes: dwell };
   }
   return stops;
@@ -129,10 +129,10 @@ export function pickStopToTrim(it) {
 
 /** Shortest sensible stay per category, used when the day is still too long at the stop floor. */
 export const MIN_DWELL = {
-  neighborhood: 10, district: 15, landmark: 15, museum: 30, temple: 30, park: 15,
-  cemetery: 15, food: 45, shopping: 15, viewpoint: 10, other: 10,
+  neighborhood: 5, district: 5, landmark: 5, museum: 20, temple: 10, park: 5,
+  cemetery: 5, food: 30, shopping: 5, viewpoint: 5, other: 5,
 };
-export const MIN_LUNCH = 45;
+export const MIN_LUNCH = 30;
 
 /**
  * Shrink dwell times toward their category minimums to recover `deficitMin` minutes.
@@ -141,7 +141,7 @@ export const MIN_LUNCH = 45;
  */
 export function compressDwell(stops, deficitMin) {
   if (deficitMin <= 0) return { stops, saved: 0 };
-  const floors = stops.map((s) => (s.lunch !== "none" ? Math.max(MIN_LUNCH, MIN_DWELL[s.category] || 10) : MIN_DWELL[s.category] || 10));
+  const floors = stops.map((s) => (s.lunch !== "none" ? Math.max(MIN_LUNCH, MIN_DWELL[s.category] || 5) : MIN_DWELL[s.category] || 5));
   let remaining = deficitMin;
   const dwell = stops.map((s) => s.dwellMinutes);
   // walk priorities from lowest to highest, taking everything above the floor at each level

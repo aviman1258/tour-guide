@@ -68,7 +68,7 @@ export function toggleLunch(id) {
   state.set((it) => ({
     ...it,
     stops: it.stops.map((s) => (s.id === id
-      ? { ...s, lunch: s.lunch === "user" ? "none" : "user", dwellMinutes: s.lunch === "user" ? s.dwellMinutes : Math.max(s.dwellMinutes, 60) }
+      ? { ...s, lunch: s.lunch === "user" ? "none" : "user", dwellMinutes: s.lunch === "user" ? s.dwellMinutes : Math.max(s.dwellMinutes, 45) }
       : s)),
   }));
   reschedule();

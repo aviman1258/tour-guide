@@ -23,6 +23,22 @@ body.drive {
 
 #map { position: fixed; inset: 0; background: #1b232c; z-index: 0; }
 #map .leaflet-tile-pane { filter: brightness(.85) saturate(.85); }
+/* driver's view: while driving the map is a square as wide as the screen diagonal, centred, and turned so the
+   direction of travel points up. Labels and popups turn back the other way so they stay readable. */
+body.rot-map #map {
+  inset: auto; left: 50%; top: 50%; width: var(--map-side, 100vw); height: var(--map-side, 100vh);
+  margin: calc(var(--map-side, 100vh) / -2) 0 0 calc(var(--map-side, 100vw) / -2);
+  transform: rotate(var(--map-rot, 0deg)); transition: transform .6s linear; will-change: transform;
+}
+body.rot-map .marker-wrap, body.rot-map .leaflet-popup-content-wrapper, body.rot-map .leaflet-popup-tip-container {
+  transform: rotate(calc(-1 * var(--map-rot, 0deg))); transition: transform .6s linear;
+}
+body.rot-map .leaflet-popup-content-wrapper { transform-origin: 50% calc(100% + 18px); }
+.attrib {
+  position: fixed; right: 6px; top: calc(80px + env(safe-area-inset-top, 0)); z-index: 5;
+  font-size: 10px; color: var(--muted); background: rgba(15,18,22,.6); padding: 2px 6px; border-radius: 6px;
+}
+.attrib a { color: var(--muted); }
 
 .banner {
   position: fixed; left: 0; right: 0; top: 0; z-index: 10;
@@ -120,6 +136,7 @@ body.drive {
 .btn-ghost { background: transparent; }
 .btn-sm { min-height: 44px; padding: 6px 12px; flex: 0 0 auto; font-size: 15px; }
 .btn[aria-pressed="true"] { background: var(--late); color: #fff; }
+.btn-orient[aria-pressed="true"] { background: var(--card); color: var(--text); border-color: var(--accent); }
 .btn:disabled { opacity: .5; }
 #mute-btn { flex: 0 0 64px; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }

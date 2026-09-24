@@ -124,6 +124,7 @@ async function stream(path, body, opts = {}) {
 }
 export const suggest = (itinerary, count = 3) => call("POST", "/api/suggest", { itinerary, count });
 export const schedule = (itinerary, trim = false) => call("POST", "/api/schedule", { itinerary, trim });
+export const reroute = ({ from, to, routeOptions }) => call("POST", "/api/reroute", { from, to, routeOptions });
 export const prepareDrive = (itinerary) => call("POST", "/api/prepare-drive", { itinerary });
 export const whoami = () => call("GET", "/api/whoami");
 

@@ -21,19 +21,36 @@ const VOICE_KEY = "tourguide.voice";
 export function getVoicePreset() { try { return localStorage.getItem(VOICE_KEY) || "auto"; } catch { return "auto"; } }
 export function setVoicePreset(id) { try { localStorage.setItem(VOICE_KEY, id); } catch { /* ignore */ } }
 
+// How natural a voice sounds, judged from its name. Phones ship a robotic default and hide the
+// good ones behind a download ("Samantha (Enhanced)", "Ava (Premium)" on iOS; Google's
+// network voices on Android; "Microsoft Aria Online (Natural)" on Windows). Higher is better.
+const QUALITY = [
+  [/natural|neural|wavenet|studio|journey/i, 4],
+  [/premium|enhanced/i, 3],
+  [/siri/i, 3],
+  [/\bonline\b/i, 1],
+  [/google/i, 1],
+  [/compact|espeak|eloquence|novelty|whisper|zarvox|trinoids|bells|bubbles|cellos|organ|bad news|good news|boing|bahh|jester|wobble|albert|fred\b/i, -3],
+];
+export function voiceQuality(v) {
+  return QUALITY.reduce((q, [re, w]) => q + (re.test(v.name || "") ? w : 0), 0) + (v.localService ? 0.5 : 0) + (v.default ? 0.25 : 0);
+}
+const byQuality = (list) => [...list].sort((a, b) => voiceQuality(b) - voiceQuality(a));
+
 /** Best available voice for a preset; null if none of that accent exists on this device. */
 export function matchVoice(presetId, voices) {
   const p = VOICE_PRESETS[presetId] || VOICE_PRESETS.auto;
   const norm = (s) => String(s || "").toLowerCase().replace("_", "-");
   const inLang = voices.filter((v) => norm(v.lang).startsWith(norm(p.lang)));
-  const pool = inLang.length ? inLang : voices.filter((v) => norm(v.lang).startsWith("en"));
+  const pool = byQuality(inLang.length ? inLang : voices.filter((v) => norm(v.lang).startsWith("en")));
   const notAvoided = pool.filter((v) => !(p.avoid || []).some((re) => re.test(v.name)));
+  // a named favourite wins, the most natural build of it first ("Samantha (Enhanced)" over "Samantha")
   for (const re of p.prefer) {
-    const hit = notAvoided.find((v) => re.test(v.name) && v.localService) || notAvoided.find((v) => re.test(v.name));
+    const hit = notAvoided.find((v) => re.test(v.name));
     if (hit) return hit;
   }
-  if (presetId === "auto") return pool.find((v) => v.default) || pool.find((v) => v.localService) || pool[0] || null;
-  return inLang.length ? (notAvoided.find((v) => v.localService) || notAvoided[0] || inLang[0]) : null;
+  if (presetId === "auto") return pool[0] || null;
+  return inLang.length ? (notAvoided[0] || inLang[0]) : null;
 }
 
 export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false } = {}) {

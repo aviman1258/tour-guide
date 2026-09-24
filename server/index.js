@@ -4,7 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { httpError } from "./lib/http.js";
-import { bbox } from "./lib/geo.js";
+import { bbox, haversineM } from "./lib/geo.js";
+import * as router from "./router.js";
 import * as stops from "./stops.js";
 import * as claude from "./claude.js";
 import * as resolve from "./resolve.js";
@@ -73,7 +74,7 @@ const requireSubscriber = (req, res, next) => {
   res.status(401).json({ error: "This feature is for subscribers. Enter the app passphrase.", needsKey: true });
 };
 const freeLimiter = createLimiter({ max: 90, windowMs: 10 * 60_000 });
-app.use(["/api/place", "/api/reverse", "/api/stop-from-place", "/api/schedule", "/api/routes", "/api/ping", "/api/owner/unlock", "/api/pay/quote", "/api/pay/intent", "/api/pay/confirm", "/api/pay/credit", "/api/pay/release"], limitFree(freeLimiter));
+app.use(["/api/place", "/api/reverse", "/api/stop-from-place", "/api/schedule", "/api/reroute", "/api/routes", "/api/ping", "/api/owner/unlock", "/api/pay/quote", "/api/pay/intent", "/api/pay/confirm", "/api/pay/credit", "/api/pay/release"], limitFree(freeLimiter));
 
 // Paid features: the owner (passphrase) always passes. Otherwise a valid route credit is needed
 // (x-credit header). Without Stripe configured the passphrase is the only door, as before.
@@ -402,6 +403,18 @@ app.post("/api/schedule", h(async (req, res) => {
   const { itinerary, trim } = req.body || {};
   if (!itinerary) throw httpError(400, "itinerary is required");
   res.json(await schedule.computeItinerary(itinerary, { trim: Boolean(trim) }));
+}));
+
+// Drive mode, off the line: one short route from the car back to a point on the planned route.
+// No Claude, no credit; just the router (Valhalla, OSRM fallback) with the trip's toll/highway options.
+app.post("/api/reroute", h(async (req, res) => {
+  const { from, to, routeOptions } = req.body || {};
+  const pt = (p) => (p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon)) ? { lat: Number(p.lat), lon: Number(p.lon) } : null);
+  const a = pt(from), b = pt(to);
+  if (!a || !b) throw httpError(400, "from and to {lat, lon} are required");
+  if (haversineM(a, b) > 50_000) throw httpError(400, "reroute target is too far away");
+  const r = await router.route([a, b], { steps: true, ...(routeOptions || {}) });
+  res.json({ geometry: r.geometry, legs: r.legs, totalSec: r.totalSec, totalM: r.totalM, router: r.router });
 }));
 
 // A few more grounded candidates that aren't already in the itinerary.

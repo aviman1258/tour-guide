@@ -50,7 +50,7 @@ test("placeLunch: picks the food option nearest 12:30 within the window", () => 
   const lunch = stops.filter((s) => s.lunch === "auto");
   assert.equal(lunch.length, 1);
   assert.ok(lunch[0].isFoodOption);
-  assert.ok(lunch[0].dwellMinutes >= 60);
+  assert.ok(lunch[0].dwellMinutes >= 45);
 });
 
 test("placeLunch: a user meal inside the lunch window replaces the automatic pick", () => {
@@ -102,11 +102,13 @@ test("compute with trim: the full Houston list is cut down to fit and drops are 
   assert.notEqual(floor.schedule.status, "late");
   assert.ok(floor.stops.length >= 2, `expected a few quick stops, got ${floor.stops.length}`);
   assert.ok(floor.stops.some((s) => s.dwellCompressed), "dwell should be compressed");
-  assert.ok(floor.stops.every((s) => s.dwellMinutes >= 10));
+  assert.ok(floor.stops.every((s) => s.dwellMinutes >= 5));
   assert.ok(floor.stops.some((s) => s.id === "gandhi"), "the must-see lunch district survives");
   const lunch = floor.stops.find((s) => s.lunch !== "none");
-  assert.ok(lunch && lunch.dwellMinutes >= 45, "lunch keeps at least 45 min");
-  assert.equal(lunch.id, "gandhi", "lunch prefers the highest-priority food option in the window");
+  assert.ok(lunch && lunch.dwellMinutes >= 30, "lunch keeps at least 30 min");
+  assert.ok(lunch.isFoodOption, "lunch lands on a food option");
+  const lunchArrive = floor.schedule.items.find((x) => x.stopId === lunch.id).arrive;
+  assert.ok(lunchArrive >= "11:30" && lunchArrive <= "14:00", `lunch inside the window, got ${lunchArrive}`);
 
   // give the day until 17:00 and it trims down to a set that fits
   it.deadline = "17:00";
