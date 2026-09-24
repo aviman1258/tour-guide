@@ -343,7 +343,9 @@ function renderStops(it) {
       : `<div class="hint" style="padding:0 6px">Pick where you start and where you need to end up, describe what you like, and hit Plan. Works for any city. Or search a place below to add stops by hand.</div>`;
     return;
   }
-  if (it.start) root.appendChild(endpoint("S", `Start: ${it.start.label}`, it.arrivalTime ? `Arrive ${to12h(it.arrivalTime)} · on the road by ${to12h(addMin(it.arrivalTime, it.departBufferMinutes))}` : ""));
+  if (it.start) root.appendChild(endpoint("S", `Start: ${it.start.label}`, !it.arrivalTime ? "" : it.departBufferMinutes > 0
+    ? `Land ${to12h(it.arrivalTime)} · on the road by ${to12h(addMin(it.arrivalTime, it.departBufferMinutes))} (${it.departBufferMinutes} min for bags and the car)`
+    : `Leave ${to12h(it.arrivalTime)}`));
 
   it.stops.forEach((s, i) => {
     const sched = it.schedule?.items?.find((x) => x.stopId === s.id);

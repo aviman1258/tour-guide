@@ -18,7 +18,7 @@ export function emptyItinerary() {
     date: todayLocal(),
     arrivalTime: "09:00",
     deadline: "21:00",
-    departBufferMinutes: 30,
+    departBufferMinutes: 0, // 30 is added when the start is an airport (bags, rental car)
     safetyBufferMinutes: 15,
     interests: "",
     routeOptions: { avoidTolls: false, avoidHighways: false },

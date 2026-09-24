@@ -198,7 +198,11 @@ is what per-route pricing is calibrated against. Calls are labelled `propose_iti
 path the Claude Code CLI adds its own prompt, so a tiny call shows ~9k input tokens.
 
 `/admin.html` shows it: cards, visitors per day, where from, devices, pages, actions, most active
-addresses, recent events. It also lists every **shared route** with a Delete button, for taking
+addresses, recent events. Every section folds (click its heading; only "Visitors per day" is open
+by default, remembered per browser). The Claude cost section has a **Test research** box that
+runs the web-search research step for one place and prints the facts, the call counters and the
+last errors; `GET /api/health` carries the same `research` counters and the last eight Claude
+errors (`claudeErrors`), and failed Claude calls are logged in the usage table with `ok = 0`. It also lists every **shared route** with a Delete button, for taking
 down anything that slipped past the content filter (`GET/DELETE /api/admin/routes`; deletions are
 recorded as `admin_delete` events). It has its own password, `ADMIN_SECRET` (asked once per browser
 session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answers 404.
@@ -218,7 +222,8 @@ session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answer
 3. **Routing** (`server/router.js`): Valhalla's public server routes the day, honouring
    *Avoid tolls* / *Avoid highways* when ticked and flagging when no such route exists; the
    OSRM demo server is the fallback for plain routes. The schedule is walked from your start
-   time plus a 30 min buffer: drive + 3 min parking + dwell per stop. Drive times include
+   time (plus a 30 min buffer for bags and the rental car when the start is an airport, detected
+   from its label; anywhere else you leave at the start time): drive + 3 min parking + dwell per stop. Drive times include
    **typical traffic** (`web/js/traffic.js`): each leg is slowed by a multiplier for the day and
    hour it departs (weekday morning peak ×1.45, evening peak ×1.5, midday ×1.1, night ×1.0;
    weekends ×1.0 to ×1.15; highway-speed legs damped 20%). The status bar shows how many minutes

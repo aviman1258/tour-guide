@@ -14,8 +14,10 @@ export function setField(patch) {
   state.set(patch);
 }
 
+/** Airports get half an hour before the first leg (bags, shuttle, rental car); anywhere else you just leave. */
+export const isAirport = (p) => /\bairport\b|\(([A-Z]{3})\)|\bintl\b|international/i.test(String(p?.label || ""));
 export function setStart(start) {
-  state.set({ start });
+  state.set({ start, departBufferMinutes: isAirport(start) ? 30 : 0 });
   reschedule();
 }
 

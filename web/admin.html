@@ -31,6 +31,14 @@
     .kind-page { color: var(--muted); }
     .kind-plan, .kind-prepare, .kind-publish { color: var(--ok); font-weight: 600; }
     .kind-plan_error, .kind-prepare_error, .kind-admin_delete { color: var(--late); font-weight: 600; }
+    /* every section folds; the heading is the toggle */
+    .card.fold > h2 { cursor: pointer; user-select: none; }
+    .card.fold > h2::before { content: "▾"; display: inline-block; width: 18px; color: var(--muted); font-size: 13px; }
+    .card.fold.closed > h2::before { content: "▸"; }
+    .card.fold.closed > :not(h2) { display: none; }
+    .research-test { margin-top: 10px; gap: 6px; }
+    .research-test input { flex: 1; min-width: 0; }
+    #research-out { white-space: pre-wrap; font-size: 12px; margin: 8px 0 0; }
     td .desc { color: var(--muted); font-size: 12px; max-width: 360px; }
     .btn-danger { color: var(--late); border-color: var(--late); }
   </style>
@@ -76,6 +84,12 @@
       <h2>Claude cost <small id="costs-note"></small></h2>
       <div class="cards" id="cost-cards"></div>
       <div class="scroll"><table id="costs"></table></div>
+      <div class="row research-test">
+        <input id="research-name" type="text" placeholder="Test the web-search research: a place name, e.g. Kali Mandir" />
+        <input id="research-area" type="text" placeholder="area, e.g. Laguna Beach, California" />
+        <button type="button" id="research-btn" class="btn btn-sm">Test research</button>
+      </div>
+      <pre id="research-out" class="hint" hidden></pre>
     </section>
 
     <section class="card">

@@ -203,6 +203,14 @@ app.get("/api/admin/sales", requireAdmin, h(async (req, res) => {
   const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
   res.json(pay.sales(days));
 }));
+// Run the research step for one place, on demand, so the admin can see it working (or why not).
+app.get("/api/admin/research-test", requireAdmin, h(async (req, res) => {
+  const name = String(req.query.name || "").trim().slice(0, 120);
+  if (!name) throw httpError(400, "name is required");
+  const t0 = Date.now();
+  const facts = await claude.researchPlace({ name, area: String(req.query.area || "").slice(0, 120), interests: String(req.query.interests || "").slice(0, 120) });
+  res.json({ name, facts, ms: Date.now() - t0, research: claude.researchStats(), recentErrors: claude.stats().recentErrors });
+}));
 app.get("/api/admin/costs", requireAdmin, h(async (req, res) => {
   const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
   res.json({ ...usage.summary(days), budget: usage.budget() });
@@ -237,6 +245,8 @@ app.get("/api/health", h(async (_req, res) => {
     owner: owner.stats(),
     pay: pay.enabled(),
     budget: usage.budget(),
+    research: claude.researchStats(),
+    claudeErrors: claude.stats().recentErrors,
     indexnow: indexnow.stats(),
     places: places.stats(),
     claude: config.anthropicKey ? "sdk" : "cli",

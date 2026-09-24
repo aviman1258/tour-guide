@@ -22,8 +22,9 @@ export function parsePlanInput(b = {}) {
     version: 1,
     start: b.start, end: b.end, date: b.date || "",
     arrivalTime: b.arrivalTime, deadline: b.deadline,
-    departBufferMinutes: Number(b.departBufferMinutes) || config.departBufferMinutes,
-    safetyBufferMinutes: Number(b.safetyBufferMinutes) || config.safetyBufferMinutes,
+    // 0 is a real value here (a non-airport start leaves at the start time), so no || fallback
+    departBufferMinutes: Number.isFinite(Number(b.departBufferMinutes)) && b.departBufferMinutes !== "" && b.departBufferMinutes != null ? Number(b.departBufferMinutes) : config.departBufferMinutes,
+    safetyBufferMinutes: Number.isFinite(Number(b.safetyBufferMinutes)) && b.safetyBufferMinutes !== "" && b.safetyBufferMinutes != null ? Number(b.safetyBufferMinutes) : config.safetyBufferMinutes,
     interests: String(b.interests || "").trim(),
     routeOptions: b.routeOptions || {},
     stops: [],

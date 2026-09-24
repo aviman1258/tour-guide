@@ -134,15 +134,25 @@ function cliModelAlias(model) {
 async function viaSdk({ model, system, user, tool, maxTokens, signal, webSearch = 0 }) {
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic({ apiKey: config.anthropicKey, timeout: 240_000 });
-  const res = await client.messages.create({
+  const request = (plain) => ({
     model,
     max_tokens: maxTokens,
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: user }],
-    tools: [...(webSearch ? [{ type: "web_search_20250305", name: "web_search", max_uses: webSearch }] : []), { ...tool, strict: true }],
+    tools: [...(webSearch ? [{ type: "web_search_20250305", name: "web_search", max_uses: webSearch }] : []), plain ? tool : { ...tool, strict: true }],
     tool_choice: { type: "auto", disable_parallel_tool_use: true },
-    output_config: { effort: "medium" },
-  }, { signal });
+    ...(plain ? {} : { output_config: { effort: "medium" } }),
+  });
+  let res;
+  try {
+    res = await client.messages.create(request(false), { signal });
+  } catch (err) {
+    // a 400 here is almost always a parameter this model/tool combination doesn't accept
+    // (strict tools, effort, server tools): try once more in the plainest form before giving up
+    if (err.status !== 400) throw err;
+    console.warn(`[claude] ${model}: ${String(err.message).slice(0, 160)} → retrying without strict/effort`);
+    res = await client.messages.create(request(true), { signal });
+  }
   const meta = { usage: res.usage, model: res.model || model, transport: "sdk" };
   const fail = (msg) => Object.assign(httpError(502, msg), { claudeMeta: meta });
   if (res.stop_reason === "refusal") throw fail("Deodap couldn't help with that request");
@@ -206,6 +216,14 @@ function viaCli({ model, system, user, tool, signal, webSearch = 0 }) {
   });
 }
 
+// last few failures, for /api/health (the admin can't read Render logs from a phone)
+const recentErrors = [];
+function noteError(label, err) {
+  recentErrors.unshift({ at: new Date().toISOString(), call: label, status: err.status || null, message: String(err.message || err).slice(0, 200) });
+  if (recentErrors.length > 8) recentErrors.length = 8;
+}
+export const stats = () => ({ recentErrors: [...recentErrors] });
+
 async function structuredWithTool(opts) {
   const started = Date.now();
   const transport = config.anthropicKey ? "sdk" : "cli";
@@ -219,7 +237,8 @@ async function structuredWithTool(opts) {
     return data;
   } catch (err) {
     // a failed or refused call still cost tokens: log it so the average includes it (cancelled calls have no meta)
-    if (err.claudeMeta) usage.record({ tool: label, model: err.claudeMeta.model || opts.model, transport, usage: err.claudeMeta.usage, costUsd: err.claudeMeta.costUsd, ms: Date.now() - started, ok: false });
+    usage.record({ tool: label, model: err.claudeMeta?.model || opts.model, transport, usage: err.claudeMeta?.usage || null, costUsd: err.claudeMeta?.costUsd, ms: Date.now() - started, ok: false });
+    noteError(label, err);
     throw err;
   }
 }
@@ -286,14 +305,21 @@ const FACTS_SYSTEM = `You research a single place for an audio tour guide. Use w
 
 You must call the write_facts tool with your answer.`;
 
+const researchState = { calls: 0, withFacts: 0, empty: 0, failed: 0, lastError: null, lastAt: null };
+export const researchStats = () => ({ enabled: config.researchWebSearch, model: config.modelResearch, maxSearches: config.researchMaxSearches, ...researchState });
+
 /** Web-searched facts about a place (server-side web search tool). [] when off or nothing reliable. */
 export async function researchPlace({ name, area = "", interests = "", signal }) {
   if (!config.researchWebSearch) return [];
   const user = JSON.stringify({ place: name, area, travelerInterests: interests, note: "Call write_facts with the facts and their source URLs." });
+  researchState.calls++; researchState.lastAt = new Date().toISOString();
   try {
     const data = await structuredCall({ model: config.modelResearch, system: FACTS_SYSTEM, user, tool: FACTS_TOOL, maxTokens: 1500, signal, purpose: "research_place", webSearch: config.researchMaxSearches });
-    return Array.isArray(data?.facts) ? data.facts.filter((f) => f && typeof f.fact === "string") : [];
+    const facts = Array.isArray(data?.facts) ? data.facts.filter((f) => f && typeof f.fact === "string") : [];
+    if (facts.length) researchState.withFacts++; else researchState.empty++;
+    return facts;
   } catch (err) {
+    researchState.failed++; researchState.lastError = `${name}: ${String(err.message).slice(0, 200)}`;
     console.warn(`[research] ${name}: ${err.message}`);
     return [];
   }

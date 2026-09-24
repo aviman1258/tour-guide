@@ -281,6 +281,12 @@ the code knows which mode it is in.
 **Refund a route.** Stripe → Payments → the payment → Refund. Check `/admin.html` → Sales: the
 credit flips to `refunded`.
 
+**"Research isn't producing facts."** Admin page → Claude cost → type a place and area into
+**Test research** → the box prints the facts, the counters and the last Claude errors. Health's
+`research` and `claudeErrors` fields say the same. A 400 from the API is retried once in plain
+form (no strict tools, no effort setting) before the step gives up; if the research model can't
+use web search at all, set `MODEL_RESEARCH=claude-sonnet-5` in Render.
+
 **Crawler traffic.** Google and Bing render the pages, so they fire the same "page opened"
 beacon as a person. They show under Devices as `bot/script · crawler`. "Unknown" locations are
 rows from before the proxy fix on 21 September 2026; nothing can recover those.

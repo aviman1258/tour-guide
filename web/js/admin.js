@@ -119,6 +119,26 @@ async function loadRoutes() {
   renderRoutes(r.routes);
 }
 
+// Every section on the page folds; the heading toggles it and the state is remembered per browser.
+function bindFolding() {
+  const OPEN_BY_DEFAULT = new Set(["Visitors per day"]);
+  document.querySelectorAll("main.admin section.card").forEach((sec) => {
+    const h2 = sec.querySelector("h2");
+    if (!h2) return;
+    const key = "tourguide.admin.fold." + h2.firstChild.textContent.trim().toLowerCase().replace(/\s+/g, "-");
+    sec.classList.add("fold");
+    let open;
+    try { open = localStorage.getItem(key); } catch { open = null; }
+    sec.classList.toggle("closed", open == null ? !OPEN_BY_DEFAULT.has(h2.firstChild.textContent.trim()) : open !== "1");
+    h2.addEventListener("click", (e) => {
+      if (e.target.closest("button, a, input")) return; // buttons inside headings keep working
+      sec.classList.toggle("closed");
+      try { localStorage.setItem(key, sec.classList.contains("closed") ? "0" : "1"); } catch { /* ignore */ }
+    });
+  });
+}
+bindFolding();
+
 async function load() {
   $("msg").hidden = true;
   try {
@@ -154,6 +174,15 @@ $("routes").addEventListener("click", async (e) => {
     b.disabled = false;
     $("msg").textContent = err.message; $("msg").hidden = false; $("msg").classList.add("error");
   }
+});
+$("research-btn")?.addEventListener("click", async () => {
+  const name = $("research-name").value.trim(), area = $("research-area").value.trim(), out = $("research-out");
+  if (!name) return;
+  $("research-btn").disabled = true; out.hidden = false; out.textContent = "Searching the web… (20-60 s)";
+  try {
+    const r = await api(`/api/admin/research-test?name=${encodeURIComponent(name)}&area=${encodeURIComponent(area)}`);
+    out.textContent = (r.facts.length ? r.facts.map((f) => `• ${f.fact}\n   ${f.source}`).join("\n") : "No facts came back.") + `\n\n${Math.round(r.ms / 1000)} s · calls ${r.research.calls} · with facts ${r.research.withFacts} · empty ${r.research.empty} · failed ${r.research.failed}` + (r.research.lastError ? `\nlast error: ${r.research.lastError}` : "") + (r.recentErrors.length ? `\nrecent Claude errors:\n${r.recentErrors.map((e) => `  ${e.at.slice(11, 19)} ${e.call} ${e.status || ""} ${e.message}`).join("\n")}` : "");
+  } catch (err) { out.textContent = err.message; } finally { $("research-btn").disabled = false; }
 });
 $("indexnow-btn")?.addEventListener("click", async () => {
   const b = $("indexnow-btn"), m = $("indexnow-msg");
