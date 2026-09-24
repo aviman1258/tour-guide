@@ -164,7 +164,8 @@ export async function searchPlace(q, { viewbox, near, limit = 3 } = {}) {
 
   // Photon knows OSM points of interest Nominatim's free-text search misses
   const center = near || (viewbox ? { lat: (viewbox.minLat + viewbox.maxLat) / 2, lon: (viewbox.minLon + viewbox.maxLon) / 2 } : null);
-  const ph = await photon.search(q, { near: center, limit }).catch(() => []);
+  // only names that resemble the query: Photon happily returns "Laguna Beach" for "Kali Mandir Laguna Beach"
+  const ph = (await photon.search(q, { near: center, limit: 8 }).catch(() => [])).filter((p) => titleSimilarity(q, p.name) >= 0.5 || titleSimilarity(p.name, q) >= 0.8);
   for (const p of ph.slice(0, limit)) stops.push(await stopFromPlace(p));
   if (stops.length) return stops;
 
