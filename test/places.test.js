@@ -13,6 +13,8 @@ test("OSM / Google kinds map to our categories", () => {
   assert.equal(categoryForKind("suburb"), "neighborhood");
   assert.equal(categoryForKind("tourist_attraction point_of_interest"), "landmark");
   assert.equal(categoryForKind("garbage"), "other");
+  assert.equal(categoryForKind("Kali Mandir"), "temple", "names work as a fallback");
+  assert.equal(categoryForKind("Laguna Art Museum"), "museum");
 });
 
 test("Google Places results normalize to our place shape", () => {

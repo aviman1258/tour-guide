@@ -11,7 +11,7 @@ const cache = new TtlCache(3000);
 /** OSM value (from Photon's osm_value / Google types) → our stop category. */
 export function categoryForKind(kind = "") {
   const k = String(kind).toLowerCase();
-  if (/place_of_worship|temple|church|mosque|synagogue|shrine|monastery|gurdwara|hindu_temple/.test(k)) return "temple";
+  if (/place_of_worship|temple|church|mosque|synagogue|shrine|monastery|gurdwara|hindu_temple|mandir|kovil|koil|dargah|cathedral|chapel|ashram/.test(k)) return "temple";
   if (/museum|gallery|art_gallery/.test(k)) return "museum";
   if (/park|garden|nature_reserve|beach|national_park/.test(k)) return "park";
   if (/restaurant|cafe|bakery|fast_food|food_court|ice_cream|bar|pub|coffee/.test(k)) return "food";

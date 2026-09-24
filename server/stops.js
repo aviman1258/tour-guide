@@ -134,7 +134,9 @@ function distanceOk(a, b, maxM) {
  * one sits on top of it, otherwise uses what the source gave us.
  */
 export async function stopFromPlace({ name, lat, lon, kind = "", sub = "", summary = "", source = "photon" }) {
-  const category = categoryForKind(kind);
+  // the source's type first; when that is vague ("association or organization"), the name itself ("Kali Mandir", "X Museum")
+  const byKind = categoryForKind(kind);
+  const category = byKind !== "other" ? byKind : categoryForKind(name);
   const extra = { name, category, source, approxArea: sub };
   try {
     const hits = await wikipedia.search(`${name} ${sub}`.trim(), 3);
