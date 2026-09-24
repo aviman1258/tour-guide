@@ -39,6 +39,7 @@ export async function summary(title) {
       thumbnail: data.thumbnail?.source || null,
       coordinates: data.coordinates ? { lat: data.coordinates.lat, lon: data.coordinates.lon } : null,
       url: data.content_urls?.desktop?.page || wikiUrl(data.title),
+      wikibaseItem: data.wikibase_item || null,
     };
   }, HOUR);
 }
@@ -130,4 +131,16 @@ export async function extractsBatch(pageids) {
     }
   }
   return out;
+}
+
+/** Wikidata "official website" (P856) for an item, or null. Cached a week. */
+export async function officialSite(wikibaseItem) {
+  if (!wikibaseItem) return null;
+  return cache.wrap(`site:${wikibaseItem}`, 7 * DAY, async () => {
+    const { status, data } = await fetchJson(`https://www.wikidata.org/wiki/Special:EntityData/${encodeURIComponent(wikibaseItem)}.json`);
+    if (status !== 200) return null;
+    const claims = data?.entities?.[wikibaseItem]?.claims?.P856 || [];
+    const url = claims.map((c) => c.mainsnak?.datavalue?.value).find((v) => typeof v === "string" && /^https?:\/\//.test(v));
+    return url || null;
+  }, HOUR);
 }

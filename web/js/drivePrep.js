@@ -22,6 +22,7 @@ function msg(text, isError = false) {
 }
 
 const PHASE = {
+  research: "Reading up on each stop",
   route: "Getting the route with turn-by-turn steps",
   scan: "Scanning Wikipedia along the route for things worth a mention",
   claude: "Deodap is writing the narration",

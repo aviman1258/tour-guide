@@ -80,13 +80,16 @@ export function routePage(summary, pkg) {
   const canonical = routeUrl(r);
   const hours = fmtDuration(r.minutes);
   const description = (r.description && r.description.trim()) || `A ${r.stopsCount}-stop self-guided drive from ${r.startLabel} to ${r.endLabel}: ${r.stopNames.slice(0, 4).join(", ")}${r.stopNames.length > 4 ? " and more" : ""}. ${r.miles} miles, about ${hours} of driving, narrated as you go.`;
-  const narrationFor = (s) => (pkg.narration || []).find((n) => n.kind === "stop" && n.targetId === s.id)?.text || "";
+  const narrationItem = (s) => (pkg.narration || []).find((n) => n.kind === "stop" && n.targetId === s.id);
+  const narrationFor = (s) => narrationItem(s)?.text || "";
+  const sourcesFor = (s) => (narrationItem(s)?.sources || []).filter((x) => x?.url).slice(0, 4);
+  const domain = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
   const stops = it.stops.map((s, i) => `
       <li class="route-stop">
         <div class="route-stop-head"><span class="num">${i + 1}</span><h3>${esc(s.name)}</h3>${s.lunch && s.lunch !== "none" ? `<span class="tag">${s.lunch === "auto" ? "lunch" : "meal"}</span>` : ""}</div>
         ${s.blurb ? `<p>${esc(s.blurb)}</p>` : ""}
         ${narrationFor(s) ? `<p class="route-narr">“${esc(firstSentence(narrationFor(s)))}”</p>` : ""}
-        <p class="route-meta">${s.dwellMinutes} min stop${s.wikipediaUrl ? ` · <a href="${esc(s.wikipediaUrl)}" rel="noopener">Wikipedia</a>` : ""}</p>
+        <p class="route-meta">${s.dwellMinutes} min stop${s.wikipediaUrl ? ` · <a href="${esc(s.wikipediaUrl)}" rel="noopener">Wikipedia</a>` : ""}${s.website ? ` · <a href="${esc(s.website)}" rel="noopener nofollow">Website</a>` : ""}${sourcesFor(s).length ? ` · sources: ${sourcesFor(s).map((x) => `<a href="${esc(x.url)}" rel="noopener nofollow">${esc(domain(x.url))}</a>`).join(", ")}` : ""}</p>
       </li>`).join("");
   const drivebys = (pkg.narration || []).filter((n) => n.kind === "driveby").length;
   const body = `

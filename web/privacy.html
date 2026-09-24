@@ -39,7 +39,8 @@
     <p>Building a route involves other companies, each seeing only what it needs:</p>
     <ul>
       <li><b>Stripe</b> processes payments and holds whatever you enter on the payment form. See <a href="https://stripe.com/privacy" rel="noopener">Stripe's privacy policy</a>.</li>
-      <li><b>Anthropic (Claude)</b> receives your start, end, times and interests, and the names and Wikipedia summaries of candidate stops, to propose stops and write narration. It receives no payment or contact details.</li>
+      <li><b>Anthropic (Claude)</b> receives your start, end, times and interests, and the names and Wikipedia summaries of candidate stops, to propose stops and write narration. For stops with little written about them it may also run a web search for the place's name. It receives no payment or contact details.</li>
+      <li><b>The places' own websites</b> are fetched by our server (not your browser) to gather facts for narration; those sites see our server, not you.</li>
       <li><b>Wikipedia / Wikimedia</b> and <b>OpenStreetMap's Nominatim</b> are queried by our server for place information. <b>Photon (komoot)</b> and OpenStreetMap map tiles are fetched by your browser directly for the search box and the map, so those services see your IP address.</li>
       <li><b>Valhalla (FOSSGIS) and OSRM</b> compute the driving route from the coordinates involved.</li>
       <li><b>ipwho.is</b> turns IP addresses into an approximate city for our statistics.</li>

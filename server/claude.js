@@ -108,7 +108,7 @@ const NARRATION_SYSTEM = `You write short spoken scripts for an audio tour guide
 
 Voice: warm, knowledgeable local friend riding along. Use "we" and "you". Plain sentences. No headings, lists, parentheses, URLs, or markdown. Spell out numbers under a hundred and abbreviations (Street not St, Boulevard not Blvd). No emojis.
 
-Grounding: use only facts present in the extract supplied for that place. If the extract is thin, keep the script short and general rather than inventing dates, names or numbers. Put the specific phrases you relied on into factsUsed.
+Grounding: use only facts present in the extract supplied for that place. The extract may have several labelled sections (From Wikipedia, From the place's own website, From the web, each with a URL); all are usable, and you may say "according to the temple's own website" when it fits. If the extract is thin, keep the script short and general rather than inventing dates, names or numbers. Put the specific phrases you relied on into factsUsed.
 
 Do not say "on your left" or "on your right"; you don't know which side. Use "coming up", "just off the road here", "as we pass", "up ahead".
 
@@ -131,7 +131,7 @@ function cliModelAlias(model) {
   return "opus";
 }
 
-async function viaSdk({ model, system, user, tool, maxTokens, signal }) {
+async function viaSdk({ model, system, user, tool, maxTokens, signal, webSearch = 0 }) {
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic({ apiKey: config.anthropicKey, timeout: 240_000 });
   const res = await client.messages.create({
@@ -139,7 +139,7 @@ async function viaSdk({ model, system, user, tool, maxTokens, signal }) {
     max_tokens: maxTokens,
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: user }],
-    tools: [{ ...tool, strict: true }],
+    tools: [...(webSearch ? [{ type: "web_search_20250305", name: "web_search", max_uses: webSearch }] : []), { ...tool, strict: true }],
     tool_choice: { type: "auto", disable_parallel_tool_use: true },
     output_config: { effort: "medium" },
   }, { signal });
@@ -170,7 +170,7 @@ function cliBinary() {
   return "claude";
 }
 
-function viaCli({ model, system, user, tool, signal }) {
+function viaCli({ model, system, user, tool, signal, webSearch = 0 }) {
   // The user message goes over stdin: no shell quoting, no argv length limits.
   const args = [
     "-p",
@@ -182,7 +182,9 @@ function viaCli({ model, system, user, tool, signal }) {
     "--model", cliModelAlias(model),
     "--max-budget-usd", "1.50",
     "--no-session-persistence",
-    "--disallowedTools", "Write", "Edit", "NotebookEdit", "Bash", "WebFetch", "WebSearch", "Read", "Glob", "Grep", "Agent",
+    "--disallowedTools", "Write", "Edit", "NotebookEdit", "Bash", "Read", "Glob", "Grep", "Agent", ...(webSearch ? [] : ["WebFetch", "WebSearch"]),
+    // dontAsk denies tools that would prompt; the research call needs the CLI's search tools pre-allowed
+    ...(webSearch ? ["--allowedTools", "WebSearch", "WebFetch"] : []),
   ];
   return new Promise((resolve, reject) => {
     // `signal` (an AbortSignal) kills the CLI process if the caller cancels, so a cancelled plan stops costing money.
@@ -270,6 +272,31 @@ export async function describeRoute({ itinerary, region = "", signal }) {
   }, null, 1);
   const data = await structuredCall({ model: config.modelFast, system: LISTING_SYSTEM, user, tool: LISTING_TOOL, maxTokens: 400, signal, purpose: "describe_route" });
   return { title: data?.title || "", description: data?.description || "" };
+}
+
+const FACTS_TOOL = {
+  name: "write_facts",
+  description: "Return verified facts about the place, each with the URL it came from.",
+  input_schema: {
+    type: "object", additionalProperties: false, required: ["facts"],
+    properties: { facts: { type: "array", items: { type: "object", additionalProperties: false, required: ["fact", "source"], properties: { fact: { type: "string", description: "One concrete fact, at most 30 words, in your own words." }, source: { type: "string", description: "The URL the fact came from." } } } } },
+  },
+};
+const FACTS_SYSTEM = `You research a single place for an audio tour guide. Use web search (a few searches at most) to find what a good local guide would say: what the place is, when and by whom it was founded, what is notable or unusual about it, festivals or events, visiting tips (hours, etiquette, what to look for). Prefer the place's own website, local news, museum or city pages and established guides; skip review sites' opinions and anything you cannot attribute to a page you actually read. Return four to eight facts, each under thirty words, each with the URL it came from. If you find little, return the few facts you can stand behind, or none. Never invent, never guess dates or names.
+
+You must call the write_facts tool with your answer.`;
+
+/** Web-searched facts about a place (server-side web search tool). [] when off or nothing reliable. */
+export async function researchPlace({ name, area = "", interests = "", signal }) {
+  if (!config.researchWebSearch) return [];
+  const user = JSON.stringify({ place: name, area, travelerInterests: interests, note: "Call write_facts with the facts and their source URLs." });
+  try {
+    const data = await structuredCall({ model: config.modelResearch, system: FACTS_SYSTEM, user, tool: FACTS_TOOL, maxTokens: 1500, signal, purpose: "research_place", webSearch: config.researchMaxSearches });
+    return Array.isArray(data?.facts) ? data.facts.filter((f) => f && typeof f.fact === "string") : [];
+  } catch (err) {
+    console.warn(`[research] ${name}: ${err.message}`);
+    return [];
+  }
 }
 
 export async function writeNarration({ interests, stops, legs, signal }) {

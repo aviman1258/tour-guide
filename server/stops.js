@@ -1,6 +1,7 @@
 // Builders for the shared Stop shape (see README "Shapes").
 
 import { randomUUID } from "node:crypto";
+import { fetchPageText } from "./lib/webpage.js";
 import * as photon from "./photon.js";
 import * as places from "./places.js";
 import { categoryForKind } from "./photon.js";
@@ -46,6 +47,7 @@ export function makeStop(fields) {
     isFoodOption: Boolean(fields.isFoodOption) || category === "food",
     lunch: fields.lunch || "none",
     approxArea: fields.approxArea || "",
+    website: fields.website || null,
   };
 }
 
@@ -133,11 +135,11 @@ function distanceOk(a, b, maxM) {
  * Google place). Keeps the picked coordinates, borrows a matching Wikipedia article's text when
  * one sits on top of it, otherwise uses what the source gave us.
  */
-export async function stopFromPlace({ name, lat, lon, kind = "", sub = "", summary = "", source = "photon" }) {
+export async function stopFromPlace({ name, lat, lon, kind = "", sub = "", summary = "", source = "photon", website = null }) {
   // the source's type first; when that is vague ("association or organization"), the name itself ("Kali Mandir", "X Museum")
   const byKind = categoryForKind(kind);
   const category = byKind !== "other" ? byKind : categoryForKind(name);
-  const extra = { name, category, source, approxArea: sub };
+  const extra = { name, category, source, approxArea: sub, website };
   try {
     const hits = await wikipedia.search(`${name} ${sub}`.trim(), 3);
     for (const h of hits) {
@@ -154,7 +156,13 @@ export async function stopFromPlace({ name, lat, lon, kind = "", sub = "", summa
       if (sum?.coordinates) return makeStop({ ...extra, lat, lon, blurb: sum.extract, thumbnail: sum.thumbnail, wikipediaTitle: sum.title, wikipediaUrl: sum.url });
     }
   } catch { /* Wikipedia being busy must not block adding the stop */ }
-  return makeStop({ ...extra, lat, lon, blurb: summary || [kind.replace(/_/g, " "), sub].filter(Boolean).join(" · ") });
+  // no article: the place's own website often has a one-line description worth showing on the card
+  let blurb = summary;
+  if (!blurb && website) {
+    const page = await fetchPageText(website, { maxChars: 600, timeoutMs: 4000 });
+    blurb = page?.description || page?.text?.split("\n")[0] || "";
+  }
+  return makeStop({ ...extra, lat, lon, blurb: blurb || [kind.replace(/_/g, " "), sub].filter(Boolean).join(" · ") });
 }
 
 /** Does the place's name cover the query, ignoring the query words that are just its city/state? */

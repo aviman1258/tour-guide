@@ -373,7 +373,7 @@ function stopCard(it, s, i, sched, { readOnly = false } = {}) {
         ${s.whyItMatches ? `<div class="why">${escapeHtml(s.whyItMatches)}</div>` : ""}
         ${s.blurb ? `<p class="blurb">${escapeHtml(s.blurb)}</p>` : ""}
         <div class="times">
-          ${sched ? `<span>🚗 ${fmtDuration(sched.legMinutes)}</span><span>arrive <b>${to12h(sched.arrive)}</b></span><span>leave <b>${to12h(sched.depart)}</b></span>` : `<span>${s.dwellMinutes} min stop</span>`}${s.source === "google" ? `<span class="attrib">place data: Google</span>` : ""}
+          ${sched ? `<span>🚗 ${fmtDuration(sched.legMinutes)}</span><span>arrive <b>${to12h(sched.arrive)}</b></span><span>leave <b>${to12h(sched.depart)}</b></span>` : `<span>${s.dwellMinutes} min stop</span>`}${s.website ? `<a class="attrib" href="${escapeHtml(s.website)}" target="_blank" rel="noopener nofollow">website</a>` : ""}${s.source === "google" ? `<span class="attrib">place data: Google</span>` : ""}
         </div>
         ${readOnly ? "" : `<div class="controls">
           <button type="button" class="btn btn-sm btn-icon" data-act="up" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>

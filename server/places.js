@@ -9,7 +9,7 @@ import { TtlCache, DAY } from "./lib/cache.js";
 import { categoryForKind } from "./photon.js";
 
 const ENDPOINT = "https://places.googleapis.com/v1/places:searchText";
-const FIELDS = "places.id,places.displayName,places.location,places.types,places.primaryType,places.formattedAddress"; // Pro SKU fields only; ratings/summary would bill every call at the Enterprise rate
+const FIELDS = "places.id,places.displayName,places.location,places.types,places.primaryType,places.formattedAddress,places.websiteUri"; // websiteUri puts the call in the Enterprise SKU (1,000 free/month, then $35/1k): the place's own site is our best text source. No ratings/summaries (Atmosphere tier, and Google forbids deriving content from them).
 const cache = new TtlCache(2000);
 const state = { calls: 0, lastStatus: null, lastError: null };
 export const stats = () => ({ enabled: Boolean(config.googlePlacesKey), ...state });
@@ -19,7 +19,7 @@ export function normalize(p) {
   const types = p.types || [];
   return {
     id: p.id, name: p.displayName?.text || "", lat: p.location?.latitude, lon: p.location?.longitude,
-    address: p.formattedAddress || "", summary: "",
+    address: p.formattedAddress || "", summary: "", website: p.websiteUri || null, website: p.websiteUri || null,
     kind: p.primaryType || types[0] || "", types,
     category: categoryForKind([p.primaryType, ...types].filter(Boolean).join(" ")),
 

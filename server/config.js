@@ -28,6 +28,16 @@ export const config = {
   // usage log for the admin cost panel. Defaults are placeholders: verify in the Anthropic console.
   claudeRates: parseRates(process.env.CLAUDE_RATES) || { "claude-opus-5": { in: 5, out: 25 }, "claude-haiku-4-5": { in: 1, out: 5 } },
   claudeRatesFromEnv: Boolean(parseRates(process.env.CLAUDE_RATES)),
+  // Research before narration: web search (Anthropic's server tool, ~1¢ a search) for stops whose
+  // Wikipedia + website material is thin. Off with RESEARCH_WEB_SEARCH=0. Model for that call:
+  modelResearch: process.env.MODEL_RESEARCH || process.env.MODEL_FAST || "claude-haiku-4-5",
+  researchWebSearch: (process.env.RESEARCH_WEB_SEARCH ?? "1") !== "0",
+  researchMaxSearches: Number(process.env.RESEARCH_MAX_SEARCHES ?? "3"),
+  // Research before narration: web search (Anthropic's server tool, ~1¢ a search) for stops whose
+  // Wikipedia + website material is thin. Off with RESEARCH_WEB_SEARCH=0. Model for that call:
+  modelResearch: process.env.MODEL_RESEARCH || process.env.MODEL_FAST || "claude-haiku-4-5",
+  researchWebSearch: (process.env.RESEARCH_WEB_SEARCH ?? "1") !== "0",
+  researchMaxSearches: Number(process.env.RESEARCH_MAX_SEARCHES ?? "3"),
   // Optional Google Places API (New) key: last-resort search for small local places the free
   // sources don't know. Empty = off.
   googlePlacesKey: process.env.GOOGLE_PLACES_KEY || "",

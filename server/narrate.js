@@ -8,7 +8,9 @@
 //   narration {item}                               (each script, in route order)
 //   done      {package}
 
-import { httpError } from "./lib/http.js";
+import { httpError, mapLimit } from "./lib/http.js";
+import * as researchLib from "./lib/research.js";
+import { fetchPageText } from "./lib/webpage.js";
 import { legAllowance } from "./lib/legAllowance.js";
 import * as wikipedia from "./wikipedia.js";
 import * as claude from "./claude.js";
@@ -69,13 +71,16 @@ export async function prepareDrive(itinerary, { emit = () => {}, signal } = {}) 
     places: list.map((c) => ({ title: c.title, offRouteM: c.offRouteM })),
   })));
 
-  // 4. fuller text for each stop (REST summary extract; blurb as fallback)
-  const stopExtracts = await Promise.all(stops.map(async (s) => {
-    if (s.wikipediaTitle) {
-      try { const sum = await wikipedia.summary(s.wikipediaTitle); if (sum?.extract) return sum.extract; } catch { /* fall through */ }
-    }
-    return s.blurb || s.whyItMatches || s.name;
-  }));
+  // 4. research each stop: Wikipedia + the place's own website + web-searched facts when thin
+  emit("phase", { phase: "research", status: "start" });
+  t = Date.now();
+  const research = await mapLimit(stops, 2, (s) => researchLib.forStop(s, {
+    interests: itinerary.interests, region: "",
+    deps: { wikiSummary: wikipedia.summary, officialSite: wikipedia.officialSite, fetchPage: fetchPageText, webFacts: (p) => claude.researchPlace({ ...p, signal }) },
+  }).catch(() => ({ extract: s.blurb || s.whyItMatches || s.name, sources: [], thin: true, from: [] })));
+  const stopExtracts = research.map((r) => r.extract);
+  emit("phase", { phase: "research", status: "end", ms: Date.now() - t, thin: research.filter((r) => r.thin).length, web: research.filter((r) => r.from?.includes("web")).length });
+  log(`research: ${research.map((r) => r.from?.join("+") || "blurb").join(", ")}`);
   if (gone()) return null;
 
   // 5. Claude writes everything in one call
@@ -130,7 +135,7 @@ export async function prepareDrive(itinerary, { emit = () => {}, signal } = {}) 
         id: `n_${s.id}`, kind: "stop", targetId: s.id, title: s.name, text: finalText,
         lat: s.lat, lon: s.lon, radiusM: STOP_RADIUS[s.category] || DEFAULT_STOP_RADIUS,
         alongM: stopAlong[stops.indexOf(s)], legIndex: stops.indexOf(s), wikipediaUrl: s.wikipediaUrl || null,
-        factsUsed: sc.factsUsed || [],
+        factsUsed: sc.factsUsed || [], sources: research[stops.indexOf(s)]?.sources || [],
       });
     } else {
       const c = candidateById.get(String(sc.targetId));

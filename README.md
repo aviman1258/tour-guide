@@ -326,6 +326,30 @@ test/     node --test
 `web/drive.html`. Everything the car needs is prepared beforehand and stored on the phone, so
 the drive itself needs no server and no Claude, only cell data for map tiles.
 
+### Research before narration (`server/lib/research.js`)
+
+A narration is only as good as the facts behind it, and Wikipedia is thin or silent on small
+local places. Before Claude writes, each stop is researched from up to three sources, each
+labelled in the extract it receives:
+
+1. **Wikipedia** extract, as before.
+2. **The place's own website**: from Google Places (`websiteUri`, which puts that call in the
+   Enterprise tier, 1,000 free a month then $35/1k) or from Wikidata's "official website" for
+   Wikipedia stops. `server/lib/webpage.js` fetches it (public http(s) only, private hosts
+   refused, 8 s, 1.5 MB), strips it to text, keeps the description and main paragraphs.
+3. **Web search**, when there is no Wikipedia article or the first two give under ~700
+   characters (a place's own site is one-sided; a second source keeps the guide honest): a Haiku call with
+   Anthropic's server-side web search tool (`research_place`, at most `RESEARCH_MAX_SEARCHES`
+   searches, ~1¢ each plus tokens) returns four to eight facts, each with the URL it came from.
+   The narration prompt still forbids anything not in the extract. `RESEARCH_WEB_SEARCH=0` turns
+   this step off; `MODEL_RESEARCH` picks the model.
+
+Results are cached for 30 days per place (`research` table), so re-preparing or other travellers
+don't pay again. Each stop narration carries `sources` (Wikipedia, website, web URLs), which the
+public route page lists under the stop. Google stops also get a card blurb from their website's
+description. Nothing from Google's own descriptions or reviews is used: their terms forbid
+deriving content from them.
+
 ### Prepare drive (`POST /api/prepare-drive`, `server/narrate.js`)
 
 1. Route with turn steps from OSRM (reused from the plan when present).
@@ -417,6 +441,8 @@ pick this repo, then set the secrets it asks for:
 - `DAILY_CLAUDE_BUDGET_USD` — daily Claude spend breaker (default `25`, `0` = off); see "Keeping
   the Claude bill bounded".
 - `AI_CALLS_PER_HOUR` — per-IP cap on plan/suggest/prepare for non-owners (default `20`).
+- `RESEARCH_WEB_SEARCH` — `0` turns off the web-search step of stop research (default on);
+  `RESEARCH_MAX_SEARCHES` (default 3) and `MODEL_RESEARCH` (default the fast model) tune it.
 - `GOOGLE_PLACES_KEY` — optional; Google Places API (New) key used as the last fallback when
   grounding stops and in place search (see "How planning works"). Restrict it to the Places API
   in the Google Cloud console.

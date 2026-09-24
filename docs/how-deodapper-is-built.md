@@ -211,7 +211,9 @@ Create API key → restrict the key to "Places API (New)" (Application restricti
 server-side) → paste into Render as `GOOGLE_PLACES_KEY`. Billing must be enabled on the project,
 but Google gives each Places SKU a free monthly allowance; the app requests only "Pro" tier
 fields (name, location, type, address), which has thousands of free Text Search calls a month, and
-deliberately not ratings or summaries, which would bill every call at the Enterprise rate. At
+deliberately not ratings or summaries. The app does request `websiteUri`, which puts the call in
+the **Enterprise** tier: 1,000 free calls a month, then $35 per 1,000 (3.5 cents). The place's
+own website is the best text source for narration, and that is worth 3.5 cents. At
 Deodapper's volume this should cost nothing. Set a budget alert in Cloud Billing anyway.
 When set, Google is the last fallback in grounding and in place search; stops it supplies show a
 small "place data: Google" note, which Google's terms require. Leave it empty to run on free
@@ -249,6 +251,7 @@ No accounts, but each has rules the server follows:
 | `CONTACT` | yes | Email in the User-Agent sent to Wikipedia/OSM. Use `support@deodapper.com` |
 | `INDEXNOW_KEY` | optional | Self-chosen key for IndexNow pings to Bing and friends (section 2.6a) |
 | `GOOGLE_PLACES_KEY` | optional | Google Places API (New) key, last-resort place search (section 2.6b) |
+| `RESEARCH_WEB_SEARCH`, `RESEARCH_MAX_SEARCHES`, `MODEL_RESEARCH` | defaults on / 3 / fast model | The web-search step of stop research |
 | `CLAUDE_RATES` | optional | Per-million token prices for the cost panel and the budget breaker |
 | `DAILY_CLAUDE_BUDGET_USD` | `25` default | Daily Claude spend after which planning, Suggest more and narration refuse until midnight UTC. `0` = off |
 | `AI_CALLS_PER_HOUR` | `20` default | Per-IP hourly cap on those three routes for non-owners |
@@ -352,6 +355,14 @@ Wikipedia summary → title search → coordinates → Nominatim, dropping anyth
 stay; a lunch stop lands between 11:30 and 2:00; low-priority stops are trimmed until the day
 fits. Progress streams to the browser as each stop is confirmed. The visitor can reorder, remove,
 add (search, map tap, Suggest more), mark meal stops and re-time; every edit re-routes.
+
+**Research** (`server/lib/research.js`): before narration, every stop is read up on from three
+labelled sources: Wikipedia, the place's own website (via Google's `websiteUri` or Wikidata's
+official-site link, fetched and stripped to text), and, when those are thin, a Haiku call with
+Anthropic's web search tool that returns facts with their source URLs. Cached 30 days per place.
+Cost: about a cent per web search plus tokens, so roughly 3 to 5 cents for a stop nobody has
+written about; nothing extra for a stop with a good article. Sources are listed under each stop on
+its public route page. Google's own descriptions and reviews are never used (their terms).
 
 **Prepare drive** (`server/narrate.js`, `server/lib/wikiGeo.js`): the route is scanned in 5 km
 circles for Wikipedia articles within 300 m of the road, filtered for quality and interest,

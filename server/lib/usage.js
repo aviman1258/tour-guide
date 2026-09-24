@@ -55,7 +55,8 @@ export function costOf(model, usage, rates = config.claudeRates) {
   if (!r || !usage) return null;
   const inTok = usage.input_tokens || 0, outTok = usage.output_tokens || 0;
   const cw = usage.cache_creation_input_tokens || 0, cr = usage.cache_read_input_tokens || 0;
-  return (inTok * r.in + cw * r.in * 1.25 + cr * r.in * 0.1 + outTok * r.out) / 1e6;
+  const searches = usage.server_tool_use?.web_search_requests || 0; // Anthropic web search: $10 per 1,000 searches
+  return (inTok * r.in + cw * r.in * 1.25 + cr * r.in * 0.1 + outTok * r.out) / 1e6 + searches * 0.01;
 }
 
 /** Record one call. Never throws. */
