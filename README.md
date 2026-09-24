@@ -305,6 +305,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |
+| `GET /api/audio/:hash.mp3` | | a narration clip (immutable, range requests honoured) |
 | `POST /api/reroute` | `{from:{lat,lon}, to:{lat,lon}, routeOptions?}` | one routed leg with steps (drive mode's way back to the planned line; 50 km cap, rate-limited with the free endpoints) |
 | `POST /api/suggest` | `{itinerary, count}` | `{candidates: Stop[]}` not already in the plan |
 | `GET /api/place?q=&near=lat,lon` | explicit submit only | `{results: Stop[]}` |
@@ -377,8 +378,17 @@ deriving content from them.
    one, under 15 min two, else three; spaced about 75 s of driving apart, 400 m to 2.5 km), only facts from the supplied extract, no
    "left/right". The server validates word counts and drops scripts that name unknown places.
    A stop Claude skipped gets a plain fallback so it is never silent.
+5. **Deodap's voice** (`server/lib/tts.js`, when a Google key is set): every script is turned
+   into an MP3 with Google Cloud Text-to-Speech, Chirp 3 HD "Aoede" by default (`TTS_VOICE`), and
+   the narration item gets `audio: {url: "/api/audio/<hash>.mp3", hash, bytes, voice}`. Clips are
+   cached in SQLite by (voice, text), so a story is paid for once however often the route is
+   re-prepared, published or driven; a package's `voice` field records what was recorded. Any clip
+   that fails simply stays on the phone's voice. Spend is bounded by `DAILY_TTS_BUDGET_USD`
+   (default 5) and a 15-minute pause after an auth/permission error (health shows `voice.lastError`,
+   usually "API not enabled"). About 900 words per route at $30 per million characters is 15-20¢
+   the first time and free afterwards.
    With `Accept: text/event-stream` the endpoint streams progress (`estimate`, `phase`, `scan`,
-   `candidates`, `narration`, `done`), so the page shows the scan advancing, what was found on
+   `candidates`, `narration`, `voice`, `done`), so the page shows the scan advancing, what was found on
    each leg, and each script as it lands; Cancel aborts the Claude call. Estimates come from
    the recorded durations of earlier runs (`data/timings.json`).
 5. The result is a *drive package*: `{ tripId, preparedAt, itinerary (with route.steps),
@@ -420,15 +430,20 @@ deriving content from them.
   or inside 1.5× a stop radius, and are dropped if you have already passed them by the time
   they reach the front of the queue.
 - **Speech** (`web/js/speech.js`): one voice at a time; a stop interrupts a drive-by, drive-bys
-  wait. Text is spoken sentence by sentence so Skip is instant and Chrome's long-utterance
-  cutoff never hits. Watchdog timers cover the iOS `onend` bug.
-- **Voice choice**: the phone's own text-to-speech voices, ranked by how natural they sound
+  wait. A story with a recorded clip plays through one `<audio>` element (primed inside the Start
+  tap, like the speech engine); everything else, and every turn prompt, uses the phone's
+  text-to-speech, sentence by sentence so Skip is instant and Chrome's long-utterance cutoff never
+  hits. A turn prompt pauses a clip and it resumes from the same second. Watchdog timers cover the
+  iOS `onend` bug. Clips come through `web/js/audioCache.js`: downloaded into the Cache API
+  (`tg-audio`) right after prepare or import and again when the drive screen opens, so the drive
+  needs no signal; the service worker also serves `/api/audio/*` cache-first. A clip that will not
+  load falls back to the phone voice for that story. Mute keeps the story's timing silently.
+- **Voice choice** for what the phone still reads: its own text-to-speech voices, ranked by how natural they sound
   (`voiceQuality`: "Natural"/"Neural"/"Premium"/"Enhanced"/Siri builds first, novelty and compact
   voices last), so "Samantha (Enhanced)" beats plain "Samantha" without the user doing anything.
   The Voice panel explains how to download a high-quality voice once (iPhone: Settings ›
   Accessibility › Spoken Content › Voices; Android: Google text-to-speech › Install voice data).
-  The next step up would be a cloud neural voice (Google Cloud Text-to-Speech, roughly 2-3¢ of
-  audio per route, generated at prepare time and stored with the package); not built.
+  The Voice panel says which is which: "stories: Deodap · directions: Samantha".
 - A stop counts as **visited** after 20 s stopped inside its radius, when you leave it again,
   when route progress passes it by 1.2 km, or when you tap *Visited*. Fired/visited state is
   persisted so a page reload mid-drive does not replay anything.
@@ -486,8 +501,13 @@ pick this repo, then set the secrets it asks for:
 - `RESEARCH_WEB_SEARCH` — `0` turns off the web-search step of stop research (default on);
   `RESEARCH_MAX_SEARCHES` (default 3) and `MODEL_RESEARCH` (default the fast model) tune it.
 - `GOOGLE_PLACES_KEY` — optional; Google Places API (New) key used as the last fallback when
-  grounding stops and in place search (see "How planning works"). Restrict it to the Places API
-  in the Google Cloud console.
+  grounding stops and in place search (see "How planning works").
+- `GOOGLE_TTS_KEY` — optional; Google Cloud key allowed to call the Cloud Text-to-Speech API, for
+  Deodap's recorded voice (see "Prepare drive"). Falls back to `GOOGLE_PLACES_KEY` when that key
+  may call Text-to-Speech too; leave both unable and the phone's voice reads everything.
+  `TTS_VOICE` (default `en-US-Chirp3-HD-Aoede`), `TTS_SPEAKING_RATE` (default 1), `TTS_ENABLED=0`
+  to switch off with a key present, `DAILY_TTS_BUDGET_USD` (default 5), `TTS_RATE_PER_M_CHARS`
+  (default 30, the Chirp 3 HD list price, for the cost panel and the budget).
 - `INDEXNOW_KEY` — optional; enables IndexNow pings to Bing and friends (see "Search engines").
 - `CLAUDE_RATES` — optional; USD per million tokens per model for the cost panel (see the
   analytics section). Production has it set to the September 2026 list prices; without it the

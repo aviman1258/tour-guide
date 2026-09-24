@@ -10,6 +10,7 @@ import * as busy from "./busy.js";
 import * as timings from "./timings.js";
 import { toast } from "./itinerary.js";
 import { escapeHtml } from "./format.js";
+import * as audioCache from "./audioCache.js";
 
 const $ = (id) => document.getElementById(id);
 let controller = null;
@@ -27,6 +28,7 @@ const PHASE = {
   scan: "Scanning Wikipedia along the route for things worth a mention",
   claude: "Deodap is writing the narration",
   assemble: "Assembling the drive package",
+  voice: "Recording the narration in Deodap's voice",
 };
 
 function renderProgress(p) {
@@ -46,6 +48,7 @@ function renderProgress(p) {
     }
     html += `</ul>`;
   }
+  if (p.voice) html += `<div class="more">Recorded ${p.voice.done} of ${p.voice.total} clips</div>`;
   if (p.narration.length) {
     html += `<div class="more">Narration written:</div><ul>`;
     for (const n of p.narration) {
@@ -77,6 +80,7 @@ export async function prepare() {
         else if (event === "scan") { progress.scan = data; task.update({ label: data.stage === "extracts" ? `Reading ${data.total} nearby articles…` : `Scanning the road: ${data.done}/${data.total}, ${data.found} places…` }); }
         else if (event === "candidates") progress.legs = data;
         else if (event === "narration") progress.narration.push(data.item);
+        else if (event === "voice") { progress.voice = data; task.update({ label: `Recording clip ${data.done} of ${data.total}…` }); }
         renderProgress(progress);
       },
     });
@@ -84,6 +88,11 @@ export async function prepare() {
     pkg.tripId = state.tripId(it);
     pkg.preparedAt = pkg.preparedAt || new Date().toISOString();
     await storage.saveTrip(pkg);
+    // pull the clips onto this device now, so the drive works with no signal
+    if (audioCache.clipsOf(pkg).length) {
+      task.update({ label: "Downloading the audio for offline use…" });
+      await audioCache.warm(pkg, { onProgress: (a) => task.update({ label: `Downloading audio ${a.done}/${a.total}…` }) });
+    }
     // keep the plan screen in sync with the route (steps) the server used
     state.set({ route: pkg.itinerary.route, schedule: pkg.itinerary.schedule });
     return pkg;
@@ -123,6 +132,7 @@ export async function importPackage(file) {
   pkg.tripId = pkg.tripId || state.tripId(pkg.itinerary);
   await storage.saveTrip(pkg);
   state.replace(pkg.itinerary);
+  audioCache.warm(pkg).catch(() => {});
   return pkg;
 }
 
@@ -136,7 +146,8 @@ export function bind() {
       if (pkg) {
         const stops = pkg.narration.filter((n) => n.kind === "stop").length;
         const drivebys = pkg.narration.filter((n) => n.kind === "driveby").length;
-        msg(`Ready: ${stops} stop narrations, ${drivebys} drive-by facts. Open Drive mode, or export to your phone.`);
+        const clips = audioCache.clipsOf(pkg).length;
+        msg(`Ready: ${stops} stop narrations, ${drivebys} drive-by facts${clips ? `, ${clips === pkg.narration.length ? "all" : clips} recorded in Deodap's voice` : ""}. Open Drive mode, or export to your phone.`);
         $("drive-link").href = `drive.html?trip=${encodeURIComponent(pkg.tripId)}`;
       }
     } catch (err) {

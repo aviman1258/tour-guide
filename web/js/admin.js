@@ -89,6 +89,7 @@ function renderCosts(c) {
     [b.tripped ? "Today · BUDGET HIT" : "Today", b.limit ? `${usd(b.today)} / $${b.limit}` : usd(b.today)],
     ["Claude calls", fmt(c.totals.calls)], ["Failed calls", fmt(c.totals.failed)], ["Total cost", usd(c.totals.costUsd)],
     ["Per route (median)", pr ? usd(pr.total) : "–"], ["…of which plan", pr ? usd(pr.plan) : "–"], ["…of which narration", pr ? usd(pr.narration) : "–"],
+    ...(c.voice ? [["Voice clips (Google TTS)", c.voice.enabled ? `${usd(c.voice.costUsd)} · ${fmt(c.voice.calls)} calls` : "off"], ["Clips stored", `${fmt(c.voice.clips)} · ${Math.round((c.voice.clipBytes || 0) / 1048576)} MB`]] : []),
   ].map(([l, n]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("")
     + (c.totals.unpriced ? `<div class="hint">${fmt(c.totals.unpriced)} calls have no rate for their model; set CLAUDE_RATES.</div>` : "");
   table("costs", [

@@ -13,6 +13,7 @@ import { reroute as apiReroute } from "./api.js";
 import { fmtMiles, fmtDuration, to12h, escapeHtml, toMinutes as toMin, toHHMM } from "./format.js";
 import { ping } from "./ping.js";
 import * as weather from "./weather.js";
+import * as audioCache from "./audioCache.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -82,7 +83,8 @@ async function usePackage(pkg) {
 
   state.driveState = (await storage.getDriveState(pkg.tripId).catch(() => null)) || { fired: {}, visited: [] };
   state.geofence = createGeofence(pkg.narration, { fired: state.driveState.fired, visited: state.driveState.visited });
-  state.speech = createSpeech({ isStale: isStaleNarration });
+  state.speech = createSpeech({ isStale: isStaleNarration, resolveAudio: audioCache.blobUrlFor });
+  audioCache.warm(pkg).then((r) => { if (r.total) log(`audio: ${r.cached}/${r.total} clips on this phone${r.failed ? `, ${r.failed} missing` : ""}`); }).catch(() => {});
   bindSpeech();
   bindVoicePicker();
 
@@ -688,7 +690,11 @@ function bindVoicePicker() {
       sel.appendChild(grp);
     }
     sel.value = sp.preset.startsWith("voice:") ? sp.preset : (VOICE_PRESETS[sp.preset] ? sp.preset : "auto");
-    $("voice-current").textContent = sp.voice ? `${sp.voice.name.replace(/\(.*?\)/g, "").trim()}` : "";
+    const clips = audioCache.clipsOf(state.pkg).length;
+    const phone = sp.voice ? sp.voice.name.replace(/\(.*?\)/g, "").trim() : "";
+    $("voice-current").textContent = clips && sp.canPlayClips ? `stories: Deodap · directions: ${phone || "phone"}` : phone;
+    $("voice-clips").hidden = !clips;
+    $("voice-clips").textContent = clips ? `${clips === state.pkg.narration.length ? "All" : clips} of the stories on this trip were recorded in Deodap's own voice and play as audio. The voice below is the phone's, used for directions${clips === state.pkg.narration.length ? "" : " and the stories without a recording"}.` : "";
     $("voice-note").textContent = voices.length
       ? "Voices come from the phone, and Deodapper picks the most natural one it finds. For a much better narrator, download a high-quality voice once: iPhone: Settings › Accessibility › Spoken Content › Voices › English › pick a voice and download its Enhanced or Premium version. Android: Settings › Text-to-speech › Google engine › Install voice data."
       : "No voices reported yet. Tap Test once; some phones only list voices after the first use.";
@@ -709,7 +715,7 @@ function bindVoicePicker() {
   $("voice-test").addEventListener("click", () => {
     if (!sp.unlocked) sp.unlock(" ");
     if (sp.current) sp.skip();
-    sp.enqueue({ id: `voicetest_${Date.now()}`, kind: "preview", title: "Voice test", text: "Hi, I'm Deodap. Coming up on this stretch is a place worth a look. I'll tell you about it as we get closer." });
+    sp.enqueue({ id: `voicetest_${Date.now()}`, kind: "preview", title: "Voice test (phone voice)", text: "Hi, I'm Deodap. Coming up on this stretch is a place worth a look. I'll tell you about it as we get closer." });
   });
 }
 
@@ -840,6 +846,7 @@ function setupSim() {
     if (document.activeElement !== $("sim-scrub")) $("sim-scrub").value = Math.round(st.progress * 1000);
   });
   window.__sim = state.sim;
+  window.__speech = state.speech;
   window.__state = state;
 }
 

@@ -42,6 +42,7 @@ the phone's own GPS and text-to-speech. There are no user accounts and no card d
 | **OpenStreetMap tiles** | The map images | none | none | free, fair use |
 | **ipwho.is** | IP → approximate city for usage stats | none | none (`GEO_LOOKUP=0` disables) | free tier |
 | **Open-Meteo** | Weather and temperature at each stop in drive mode | none | none | free, non-commercial tier (< 10k calls/day) |
+| **Google Cloud Text-to-Speech** | Deodap's recorded narration voice (section 2.6c) | same Google Cloud project as Places | API key | $30 per million characters; 15-20¢ per new route, cached after |
 
 The sections below say, for each one, what you did to set it up and what to do when something
 changes.
@@ -219,6 +220,26 @@ When set, Google is the last fallback in grounding and in place search; stops it
 small "place data: Google" note, which Google's terms require. Leave it empty to run on free
 sources only.
 
+### 2.6c Google Cloud Text-to-Speech (Deodap's voice)
+
+The stories are read by a Google neural voice (Chirp 3 HD, "Aoede") rather than the phone's
+robotic one. Same Google Cloud project as Places: APIs & Services → Library → enable **Cloud
+Text-to-Speech API**. Then either allow the existing key to call it (Credentials → the key →
+API restrictions → add Cloud Text-to-Speech API) or make a second key restricted to
+Text-to-Speech and paste it into Render as `GOOGLE_TTS_KEY`. The server tries `GOOGLE_TTS_KEY`
+first and falls back to the Places key; if neither may call the API, health shows
+`voice.lastError` ("API has not been used in project…" or "permission denied") and prepare
+simply skips the recording for 15 minutes before trying again. Nothing else breaks.
+
+How it is used: at prepare time each script (about 900 words per route) becomes an MP3, cached
+in the database by text, so a story is paid for once no matter how often the route is
+re-prepared, published or driven. Chirp 3 HD costs $30 per million characters: 15 to 20 cents
+for a new route, nothing for a cached one. `DAILY_TTS_BUDGET_USD` (default 5) caps a day; the
+admin cost panel shows the spend and how many clips are stored. Other voices: set `TTS_VOICE`
+to any name from Google's voice list (Chirp 3 HD names look like `en-US-Chirp3-HD-Charon`,
+`en-GB-Chirp3-HD-Aoede`); a changed voice re-records on the next prepare. Set a budget alert in
+Cloud Billing for the project.
+
 ### 2.7 The free data services
 
 No accounts, but each has rules the server follows:
@@ -253,6 +274,7 @@ No accounts, but each has rules the server follows:
 | `CONTACT` | yes | Email in the User-Agent sent to Wikipedia/OSM. Use `support@deodapper.com` |
 | `INDEXNOW_KEY` | optional | Self-chosen key for IndexNow pings to Bing and friends (section 2.6a) |
 | `GOOGLE_PLACES_KEY` | optional | Google Places API (New) key, last-resort place search (section 2.6b) |
+| `GOOGLE_TTS_KEY`, `TTS_VOICE`, `TTS_ENABLED`, `DAILY_TTS_BUDGET_USD` | optional | Deodap's recorded voice (section 2.6c). Key falls back to the Places key; voice default `en-US-Chirp3-HD-Aoede`; budget default `5` a day |
 | `RESEARCH_WEB_SEARCH`, `RESEARCH_MAX_SEARCHES`, `MODEL_RESEARCH` | defaults on / 3 / fast model | The web-search step of stop research |
 | `CLAUDE_RATES` | optional | Per-million token prices for the cost panel and the budget breaker |
 | `DAILY_CLAUDE_BUDGET_USD` | `25` default | Daily Claude spend after which planning, Suggest more and narration refuse until midnight UTC. `0` = off |
@@ -390,9 +412,11 @@ now" at about 100 feet; slower still: 250 feet then 60 feet). Off the planned li
 asks the server for a short detour back to it (`reroute.js`, `POST /api/reroute`, just the
 router, no Claude), draws it dashed and reads its turns until the car is back on the line. The
 map runs in driver's view while driving (turned so the road ahead points up, car in the lower
-third; the 🧭 button switches to north-up). The narration voice is whichever of the phone's
-voices sounds most natural (Enhanced/Premium/Natural builds rank first). A simulator (`sim.js`)
-replays any route at up to 60× for testing.
+third; the 🧭 button switches to north-up). Stories play as recorded clips in Deodap's voice
+when the package has them (`audioCache.js` keeps them on the phone for offline use); directions
+and any story without a clip use whichever of the phone's voices sounds most natural
+(Enhanced/Premium/Natural builds rank first). A simulator (`sim.js`) replays any route at up to
+60× for testing.
 
 ### 5.3 Tiers, payments and access
 
@@ -428,6 +452,7 @@ time window: Short outing ≤3 h $1.99, Half day ≤6 h $2.99, Full day $4.49.
 | Render Starter | about $7/month |
 | Domain (Cloudflare Registrar) | about $10/year |
 | Anthropic | per route, roughly $0.30 to $0.60 (check the admin cost panel for the real median); capped at `DAILY_CLAUDE_BUDGET_USD` a day and by the prepaid balance |
+| Google Text-to-Speech | 15 to 20 cents per newly prepared route (Chirp 3 HD, $30 per million characters); cached clips are free; capped at `DAILY_TTS_BUDGET_USD` a day |
 | Stripe | 2.9% + 30¢ of each captured payment; $15 per dispute |
 | Everything else | free |
 

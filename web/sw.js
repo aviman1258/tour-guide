@@ -1,10 +1,11 @@
 // Service worker: offline app shell, polite tile cache (only tiles the map asked for),
 // network-only API. Bump SHELL_VERSION when shipping changes so clients refresh.
 
-const SHELL_VERSION = "v48"; // bump on every deploy that changes web/ — the shell is cache-first
+const SHELL_VERSION = "v49"; // bump on every deploy that changes web/ — the shell is cache-first
 const SHELL = `tg-shell-${SHELL_VERSION}`;
 const TILES = "tg-tiles";
 const IMAGES = "tg-images";
+const AUDIO = "tg-audio"; // narration clips; the page fills it at prepare/import time (audioCache.js)
 const TILE_CAP = 600;
 const IMAGE_CAP = 100;
 
@@ -22,7 +23,7 @@ const SHELL_FILES = [
   "./js/library.js",
   "./js/main.js", "./js/state.js", "./js/api.js", "./js/actions.js", "./js/itinerary.js", "./js/map.js",
   "./js/share.js", "./js/format.js", "./js/config.js", "./js/schedule-core.js", "./js/routeMath.js", "./js/planMatch.js",
-  "./js/storage.js", "./js/drivePrep.js", "./js/drive.js", "./js/geofence.js", "./js/speech.js", "./js/sim.js", "./js/busy.js", "./js/typeahead.js", "./js/timings.js", "./js/ping.js", "./js/secretPrompt.js", "./js/turnVoice.js", "./js/maneuvers.js", "./js/reroute.js", "./js/pricing.js", "./js/pay.js", "./js/ownerGesture.js", "./js/traffic.js", "./js/weather.js",
+  "./js/storage.js", "./js/drivePrep.js", "./js/drive.js", "./js/geofence.js", "./js/speech.js", "./js/sim.js", "./js/busy.js", "./js/typeahead.js", "./js/timings.js", "./js/ping.js", "./js/secretPrompt.js", "./js/turnVoice.js", "./js/maneuvers.js", "./js/reroute.js", "./js/audioCache.js", "./js/pricing.js", "./js/pay.js", "./js/ownerGesture.js", "./js/traffic.js", "./js/weather.js",
   "./data/airports.json", "./img/deodap.svg",
   "./vendor/leaflet/leaflet.js", "./vendor/leaflet/leaflet.css",
   "./vendor/leaflet/images/marker-icon.png", "./vendor/leaflet/images/marker-icon-2x.png", "./vendor/leaflet/images/marker-shadow.png",
@@ -46,6 +47,10 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET") return;
 
+  if (url.pathname.includes("/api/audio/")) { // clips are immutable: cache first, forever
+    event.respondWith(caches.open(AUDIO).then(async (c) => (await c.match(event.request)) || fetch(event.request).then((res) => { if (res.ok && res.status === 200) c.put(event.request, res.clone()); return res; })));
+    return;
+  }
   if (url.origin === location.origin && (url.pathname.includes("/api/") || url.pathname.includes("/admin"))) return; // network only
 
   if (url.hostname === "tile.openstreetmap.org") {

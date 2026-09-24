@@ -33,14 +33,21 @@ export const config = {
   modelResearch: process.env.MODEL_RESEARCH || process.env.MODEL_FAST || "claude-haiku-4-5",
   researchWebSearch: (process.env.RESEARCH_WEB_SEARCH ?? "1") !== "0",
   researchMaxSearches: Number(process.env.RESEARCH_MAX_SEARCHES ?? "3"),
-  // Research before narration: web search (Anthropic's server tool, ~1¢ a search) for stops whose
-  // Wikipedia + website material is thin. Off with RESEARCH_WEB_SEARCH=0. Model for that call:
-  modelResearch: process.env.MODEL_RESEARCH || process.env.MODEL_FAST || "claude-haiku-4-5",
-  researchWebSearch: (process.env.RESEARCH_WEB_SEARCH ?? "1") !== "0",
-  researchMaxSearches: Number(process.env.RESEARCH_MAX_SEARCHES ?? "3"),
   // Optional Google Places API (New) key: last-resort search for small local places the free
   // sources don't know. Empty = off.
   googlePlacesKey: process.env.GOOGLE_PLACES_KEY || "",
+  // Deodap's voice: Google Cloud Text-to-Speech clips for the narration, made at prepare time.
+  // Uses GOOGLE_TTS_KEY, or the Places key when that one is allowed to call the Text-to-Speech API.
+  // No key = the phone's own voice reads everything. TTS_ENABLED=0 turns it off with a key present.
+  tts: {
+    key: process.env.GOOGLE_TTS_KEY || process.env.GOOGLE_PLACES_KEY || "",
+    keySource: process.env.GOOGLE_TTS_KEY ? "GOOGLE_TTS_KEY" : process.env.GOOGLE_PLACES_KEY ? "GOOGLE_PLACES_KEY" : "",
+    enabled: (process.env.TTS_ENABLED ?? "1") !== "0",
+    voice: process.env.TTS_VOICE || "en-US-Chirp3-HD-Aoede",
+    speakingRate: Number(process.env.TTS_SPEAKING_RATE ?? "1") || 1,
+    ratePerMChars: Number(process.env.TTS_RATE_PER_M_CHARS ?? "30"), // USD per million characters (Chirp 3 HD list price)
+    dailyBudgetUsd: Number(process.env.DAILY_TTS_BUDGET_USD ?? "5"),
+  },
   // IndexNow key (any 8-128 hex/letters; served at /<key>.txt). Empty = no search-engine pings.
   indexNowKey: String(process.env.INDEXNOW_KEY || "").replace(/[^A-Za-z0-9-]/g, "").slice(0, 128),
   // Daily Claude spend (USD, by the rates above) after which AI routes refuse until midnight UTC. 0 = off.

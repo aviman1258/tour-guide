@@ -22,6 +22,7 @@ import * as routePages from "./routePages.js";
 import { shapeListing, fallbackListing } from "./lib/describe.js";
 import * as indexnow from "./lib/indexnow.js";
 import * as places from "./places.js";
+import * as tts from "./lib/tts.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -214,7 +215,7 @@ app.get("/api/admin/research-test", requireAdmin, h(async (req, res) => {
 }));
 app.get("/api/admin/costs", requireAdmin, h(async (req, res) => {
   const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
-  res.json({ ...usage.summary(days), budget: usage.budget() });
+  res.json({ ...usage.summary(days), budget: usage.budget(), voice: tts.summary(days) });
 }));
 // Shared-route moderation: list everything, delete anything.
 app.get("/api/admin/routes", requireAdmin, h(async (_req, res) => {
@@ -250,6 +251,7 @@ app.get("/api/health", h(async (_req, res) => {
     claudeErrors: claude.stats().recentErrors,
     indexnow: indexnow.stats(),
     places: places.stats(),
+    voice: tts.stats(),
     claude: config.anthropicKey ? "sdk" : "cli",
     data,
     models: { strong: config.modelStrong, fast: config.modelFast },
@@ -403,6 +405,27 @@ app.post("/api/schedule", h(async (req, res) => {
   const { itinerary, trim } = req.body || {};
   if (!itinerary) throw httpError(400, "itinerary is required");
   res.json(await schedule.computeItinerary(itinerary, { trim: Boolean(trim) }));
+}));
+
+// Narration clips (Deodap's voice), by content hash. Immutable, so browsers and the service
+// worker may cache them forever. Range requests are honoured for the media loaders that insist.
+app.get("/api/audio/:file", h(async (req, res) => {
+  const hash = String(req.params.file || "").replace(/\.mp3$/i, "");
+  if (!/^[0-9a-f]{32}$/.test(hash)) throw httpError(404, "no such clip");
+  const clip = tts.get(hash);
+  if (!clip) throw httpError(404, "no such clip");
+  const total = clip.bytes.length;
+  const type = clip.bytes.subarray(0, 4).toString("latin1") === "RIFF" ? "audio/wav" : "audio/mpeg"; // WAV only ever comes from local tests
+  res.set({ "content-type": type, "accept-ranges": "bytes", "cache-control": "public, max-age=31536000, immutable" });
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
+  if (m && (m[1] || m[2])) {
+    const start = m[1] ? Number(m[1]) : Math.max(0, total - Number(m[2]));
+    const end = m[1] && m[2] ? Math.min(Number(m[2]), total - 1) : total - 1;
+    if (start >= total || start > end) { res.status(416).set("content-range", `bytes */${total}`).end(); return; }
+    res.status(206).set({ "content-range": `bytes ${start}-${end}/${total}`, "content-length": end - start + 1 }).end(clip.bytes.subarray(start, end + 1));
+    return;
+  }
+  res.set("content-length", total).end(clip.bytes);
 }));
 
 // Drive mode, off the line: one short route from the car back to a point on the planned route.

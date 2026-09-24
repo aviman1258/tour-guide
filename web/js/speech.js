@@ -1,10 +1,14 @@
-// iOS-safe text-to-speech queue on top of the Web Speech API.
-// - unlock() must be called synchronously inside a user tap (primes iOS).
+// iOS-safe narration queue: recorded clips (Deodap's voice, MP3s made at prepare time) when a
+// story has one, the phone's own text-to-speech otherwise and for every turn prompt.
+// - unlock() must be called synchronously inside a user tap (primes iOS for both TTS and audio).
 // - One speaker at a time. A stop narration interrupts a drive-by; drive-bys wait.
-// - Sentences are spoken as separate utterances so Skip is instant and Chrome's
+// - TTS sentences are spoken as separate utterances so Skip is instant and Chrome's
 //   long-utterance cutoff never hits. Strong refs are kept so onend fires.
+// - A recorded clip plays in one <audio> element; turn prompts pause it and it resumes where it was.
 
 const MAX_CHUNK = 200;
+// a valid, empty WAV: played inside the Start tap so iOS lets the element play later without a gesture
+const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 
 // Voice presets: accent + gender, matched against whatever voices this device has.
 // Names are what iOS / Android / Windows ship; gender words appear in Android voice names.
@@ -53,13 +57,20 @@ export function matchVoice(presetId, voices) {
   return inLang.length ? (notAvoided[0] || inLang[0]) : null;
 }
 
-export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false } = {}) {
+/**
+ * createSpeech({ lang, rate, isStale, resolveAudio })
+ *   resolveAudio(url) → Promise<objectUrl|null>: how a clip's URL becomes something <audio> can
+ *   play (the cache-aware loader in audioCache.js). Without it, everything uses the phone voice.
+ */
+export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false, resolveAudio = null } = {}) {
   const synth = globalThis.speechSynthesis;
+  const player = resolveAudio && globalThis.Audio ? new globalThis.Audio() : null;
+  if (player) { player.preload = "auto"; player.setAttribute?.("playsinline", ""); }
   const listeners = { start: new Set(), chunk: new Set(), end: new Set(), voices: new Set(), pause: new Set(), resume: new Set() };
   const keep = []; // strong references to utterances
   let queue = [];
-  let current = null;   // { item, chunks, index }
-  let paused = null;    // narration a turn prompt cut into; resumes (from that sentence) when the prompt ends
+  let current = null;   // { item, chunks, index, utter, audio: null | { url, pending }, audioTime }
+  let paused = null;    // narration a turn prompt cut into; resumes (from that sentence / second) when the prompt ends
   let muted = false;
   let unlocked = false;
   let voice = null;
@@ -121,8 +132,11 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
     return u;
   }
 
-  /** Call synchronously from a tap handler. Speaks a short line to prime the engine. */
+  /** Call synchronously from a tap handler. Speaks a short line to prime the engine and primes the audio element. */
   function unlock(text = "Starting tour.") {
+    if (player) {
+      try { player.src = SILENT_WAV; player.play().then(() => player.pause()).catch(() => {}); } catch { /* ignore */ }
+    }
     if (!synth) return false;
     try {
       synth.cancel();
@@ -134,6 +148,8 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
     }
     return unlocked;
   }
+
+  // ---------- phone voice ----------
 
   function speakChunk() {
     if (!current) return;
@@ -161,8 +177,61 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
     synth.speak(u);
   }
 
+  // ---------- recorded clip ----------
+
+  function detachPlayer() {
+    if (!player) return;
+    player.onended = player.onerror = player.ontimeupdate = player.onloadedmetadata = null;
+    try { player.pause(); } catch { /* ignore */ }
+  }
+  function attachPlayer(cur) {
+    player.onended = () => { if (current === cur) finish(false); };
+    player.onerror = () => { if (current === cur) fallbackToPhone(cur); };
+    player.ontimeupdate = () => {
+      if (current !== cur || !Number.isFinite(player.duration) || !player.duration) return;
+      const idx = Math.min(cur.chunks.length - 1, Math.floor((player.currentTime / player.duration) * cur.chunks.length));
+      if (idx !== cur.index) { cur.index = idx; emit("chunk", { item: cur.item, index: idx, total: cur.chunks.length, text: cur.chunks[idx] }); }
+    };
+  }
+  function fallbackToPhone(cur) {
+    detachPlayer();
+    cur.audio = null;
+    speakChunk();
+  }
+  /** Load and play the clip for `cur` (from a fraction of its length, for un-mute). Falls back to the phone voice on any failure. */
+  async function playAudio(cur, fromFrac = 0) {
+    let obj = null;
+    try { obj = await resolveAudio(cur.audio.url); } catch { obj = null; }
+    if (current !== cur) return; // superseded while loading
+    if (!obj) return fallbackToPhone(cur);
+    cur.audio.pending = false;
+    attachPlayer(cur);
+    emit("chunk", { item: cur.item, index: cur.index, total: cur.chunks.length, text: cur.chunks[cur.index] });
+    try {
+      if (player.src !== obj) player.src = obj;
+      const seek = () => { if (fromFrac > 0 && Number.isFinite(player.duration) && player.duration > 0) { try { player.currentTime = fromFrac * player.duration; } catch { /* ignore */ } } };
+      if (Number.isFinite(player.duration) && player.duration > 0) seek(); else player.onloadedmetadata = seek;
+      await player.play();
+    } catch {
+      if (current === cur) fallbackToPhone(cur);
+    }
+  }
+  async function resumeAudio(cur) {
+    attachPlayer(cur);
+    try { await player.play(); } catch { if (current === cur) fallbackToPhone(cur); }
+  }
+  /** Stop whatever is sounding right now (both engines). */
+  function halt() {
+    synth?.cancel();
+    clearTimeout(watchdog);
+    detachPlayer();
+  }
+
+  // ---------- queue ----------
+
   function finish(interrupted) {
     clearTimeout(watchdog);
+    detachPlayer();
     const done = current;
     current = null;
     if (done) {
@@ -179,7 +248,9 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
       if (!outranked && !isStale(p.item)) {
         current = p;
         emit("resume", { item: p.item, index: p.index });
-        speakChunk();
+        if (p.audio && !p.audio.pending) resumeAudio(p);
+        else if (p.audio) playAudio(p);
+        else speakChunk();
         return;
       }
       emit("end", { item: p.item, interrupted: true, stale: !outranked });
@@ -198,18 +269,21 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
   }
 
   function start(item) {
-    current = { item, chunks: chunkText(item.text), index: 0, utter: null };
+    current = { item, chunks: chunkText(item.text), index: 0, utter: null, audio: null };
     emit("start", { item });
-    speakChunk();
+    if (item.audio?.url && player && !muted) {
+      current.audio = { url: item.audio.url, pending: true };
+      playAudio(current);
+    } else speakChunk();
   }
 
   /**
    * Queue narration. Stops interrupt drive-bys and previews; everything else waits its turn.
    * Turn prompts are special. A newer one replaces any pending or playing one (a stale
    * "in 200 feet" is worse than silence). One flagged `interrupt` (the turn prompts themselves)
-   * pauses whatever narration is playing, speaks, and the narration resumes from the sentence it
-   * was on. One without the flag (reassurance, "back on the route") is dropped while narration
-   * plays: the banner still shows the turn.
+   * pauses whatever narration is playing, speaks, and the narration resumes from the sentence
+   * (or second) it was on. One without the flag (reassurance, "back on the route") is dropped
+   * while narration plays: the banner still shows the turn.
    */
   function enqueue(item) {
     if (!item?.text) return;
@@ -226,9 +300,8 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
           return;
         }
         if (!item.interrupt) return;
-        // pause the story mid-sentence boundary: remember it, speak the prompt, resume in finish()
-        synth?.cancel();
-        clearTimeout(watchdog);
+        // pause the story (clip: where it is; phone voice: at this sentence), speak the prompt, resume in finish()
+        halt();
         paused = current;
         current = null;
         emit("pause", { item: paused.item });
@@ -240,10 +313,9 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
       return;
     }
     if (current && item.kind === "stop" && (current.item.kind === "driveby" || current.item.kind === "preview")) {
-      synth?.cancel();
+      halt();
       const dropped = current;
       current = null;
-      clearTimeout(watchdog);
       emit("end", { item: dropped.item, interrupted: true });
       queue = queue.filter((q) => q.kind !== "driveby"); // stale drive-bys go too
       queue.unshift(item);
@@ -258,15 +330,14 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
 
   function skip() {
     if (!current) return;
-    synth?.cancel();
+    halt();
     finish(true);
   }
 
   function replay() {
     const item = current?.item || lastItem;
     if (!item) return;
-    synth?.cancel();
-    clearTimeout(watchdog);
+    halt();
     current = null;
     queue.unshift(item);
     next();
@@ -274,12 +345,21 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
 
   function setMuted(on) {
     muted = on;
-    if (on && synth) { synth.cancel(); clearTimeout(watchdog); if (current) speakChunk(); }
-    else if (current && synth) { synth.cancel(); speakChunk(); }
+    if (!current) return;
+    halt();
+    if (on) {
+      current.audio = null; // the silent timer keeps the story's timing from this sentence on
+      speakChunk();
+    } else if (current.item.audio?.url && player) {
+      const frac = current.chunks.length ? current.index / current.chunks.length : 0;
+      current.audio = { url: current.item.audio.url, pending: true };
+      playAudio(current, frac);
+    } else speakChunk();
   }
 
   /** After the page comes back to the foreground the synth may be wedged: restart current item. */
   function recoverAfterResume() {
+    if (current?.audio && !current.audio.pending) { resumeAudio(current); return; }
     if (!synth) return;
     synth.cancel();
     clearTimeout(watchdog);
@@ -288,8 +368,7 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
   }
 
   function stop() {
-    synth?.cancel();
-    clearTimeout(watchdog);
+    halt();
     queue = [];
     current = null;
     paused = null;
@@ -301,8 +380,11 @@ export function createSpeech({ lang = "en-US", rate = 1.0, isStale = () => false
     get preset() { return presetId; },
     get voice() { return voice; },
     get current() { return current?.item || null; },
+    /** "clip" while a recorded story is playing, "phone" otherwise. */
+    get narrator() { return current?.audio && !current.audio.pending ? "clip" : "phone"; },
+    get canPlayClips() { return Boolean(player); },
     get muted() { return muted; },
-    get supported() { return Boolean(synth); },
+    get supported() { return Boolean(synth) || Boolean(player); },
     get unlocked() { return unlocked; },
     get queueLength() { return queue.length; },
     chunkText,

@@ -6,6 +6,7 @@
 //   scan      {done, total, found}                 (geosearch / extract progress)
 //   candidates [{legIndex, from, to, places:[{title, offRouteM}]}]
 //   narration {item}                               (each script, in route order)
+//   voice     {done, total, failed}                (clips recorded in Deodap's voice, when enabled)
 //   done      {package}
 
 import { httpError, mapLimit } from "./lib/http.js";
@@ -16,6 +17,7 @@ import * as wikipedia from "./wikipedia.js";
 import * as claude from "./claude.js";
 import { routeFor } from "./schedule.js";
 import * as timings from "./lib/timings.js";
+import * as tts from "./lib/tts.js";
 import { findDriveBys, SAMPLE_STEP_M } from "./lib/wikiGeo.js";
 import { lineToPoints, cumulative, project, sampleAlong } from "../web/js/routeMath.js";
 
@@ -166,6 +168,19 @@ export async function prepareDrive(itinerary, { emit = () => {}, signal } = {}) 
   for (const item of narration) emit("narration", { item });
   emit("phase", { phase: "assemble", status: "end" });
 
+  // 8. Deodap's voice: one MP3 per script (cached by text, so re-preps are free). Anything that
+  //    fails just keeps no `audio` and the phone reads it with its own voice.
+  let voice = null;
+  if (tts.enabled() && !gone()) {
+    emit("phase", { phase: "voice", status: "start" });
+    t = Date.now();
+    let n = 0;
+    const r = await tts.forNarration(narration, { signal, onItem: () => emit("voice", { done: ++n, total: narration.length }) });
+    emit("phase", { phase: "voice", status: "end", ms: Date.now() - t, ...r });
+    voice = { provider: "google", name: r.done ? narration.find((x) => x.audio)?.audio.voice : null, clips: r.done, failed: r.failed, bytes: r.bytes };
+    log(`voice: ${r.done} clips (${r.cached} cached, ${r.failed} failed, ${Math.round(r.bytes / 1024)} KB, $${r.costUsd.toFixed(3)} new)`);
+  }
+
   const drivebys = narration.filter((n) => n.kind === "driveby").length;
   log(`done in ${Math.round((Date.now() - t0) / 1000)} s: ${narration.length - drivebys} stop scripts, ${drivebys} drive-bys`);
 
@@ -174,6 +189,7 @@ export async function prepareDrive(itinerary, { emit = () => {}, signal } = {}) 
     preparedAt: new Date().toISOString(),
     itinerary: { ...itinerary, route },
     narration,
+    voice,
     stats: { ...stats, scripts: scripts.length, seconds: Math.round((Date.now() - t0) / 1000) },
   };
   emit("done", { package: pkg });
