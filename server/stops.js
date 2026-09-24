@@ -163,7 +163,9 @@ export function resembles(q, p) {
   const name = tokens(p.name);
   let hit = 0;
   for (const w of core) if (name.has(w)) hit++;
-  return hit / core.length >= 0.5;
+  // a settlement (city, suburb, county…) only counts when the query is essentially its name
+  const settlement = /^(city|town|village|hamlet|suburb|neighbourhood|quarter|county|state|administrative|locality|municipality|borough|district|region|island)$/i.test(p.kind || "");
+  return settlement ? hit === core.length : hit / core.length >= 0.5;
 }
 
 /** Search a place by name: Nominatim, then Photon, then Wikipedia, then Google Places if configured. */
