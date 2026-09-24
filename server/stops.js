@@ -155,6 +155,17 @@ export async function stopFromPlace({ name, lat, lon, kind = "", sub = "", summa
   return makeStop({ ...extra, lat, lon, blurb: summary || [kind.replace(/_/g, " "), sub].filter(Boolean).join(" · ") });
 }
 
+/** Does the place's name cover the query, ignoring the query words that are just its city/state? */
+export function resembles(q, p) {
+  const locale = tokens([p.city, p.county, p.state, p.country, p.sub, p.address].filter(Boolean).join(" "));
+  const core = [...tokens(q)].filter((w) => !locale.has(w));
+  if (!core.length) return false;
+  const name = tokens(p.name);
+  let hit = 0;
+  for (const w of core) if (name.has(w)) hit++;
+  return hit / core.length >= 0.5;
+}
+
 /** Search a place by name: Nominatim, then Photon, then Wikipedia, then Google Places if configured. */
 export async function searchPlace(q, { viewbox, near, limit = 3 } = {}) {
   const results = await nominatim.search(q, { viewbox, limit });
@@ -164,8 +175,9 @@ export async function searchPlace(q, { viewbox, near, limit = 3 } = {}) {
 
   // Photon knows OSM points of interest Nominatim's free-text search misses
   const center = near || (viewbox ? { lat: (viewbox.minLat + viewbox.maxLat) / 2, lon: (viewbox.minLon + viewbox.maxLon) / 2 } : null);
-  // only names that resemble the query: Photon happily returns "Laguna Beach" for "Kali Mandir Laguna Beach"
-  const ph = (await photon.search(q, { near: center, limit: 8 }).catch(() => [])).filter((p) => titleSimilarity(q, p.name) >= 0.5 || titleSimilarity(p.name, q) >= 0.8);
+  // only names that resemble the query once the place's own city/state words are set aside:
+  // Photon happily returns "Laguna Beach" for "Kali Mandir Laguna Beach"
+  const ph = (await photon.search(q, { near: center, limit: 8 }).catch(() => [])).filter((p) => resembles(q, p));
   for (const p of ph.slice(0, limit)) stops.push(await stopFromPlace(p));
   if (stops.length) return stops;
 
