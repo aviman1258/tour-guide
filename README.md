@@ -33,9 +33,14 @@ planner; on a hosted server it asks once per device for the passphrase (`APP_SEC
 server treats as the subscriber tier. Passphrase and admin-password prompts are a masked
 `<dialog>` with a Show/Hide toggle (`web/js/secretPrompt.js`), never a plain `window.prompt`. **Free** (`plan.html?tier=free`) hides every AI control and
 shows "Find a saved route" instead: routes that subscribers published, searchable by text or
-"near me". A free driver picks one, sets their own date and start time (re-timing only; stops are
-fixed because the narration is tied to them), saves it to the phone and drives it exactly like a
-subscriber would.
+"near me". The list starts empty and only shows what a search (or "near me") matched; pressing
+Find with nothing typed just asks for a city or word. Each result is a card with a banner picture
+on top: the Wikipedia photo of the route's most landmark-like, highest-priority stop (chosen at
+publish time by `pickImage` in `server/lib/library.js`, stored in the `image` column and
+back-filled for older routes; requested at 800 px with a fallback to the original size), or a
+plain coloured banner naming the region when no stop has a photo. A free driver picks one, sets
+their own date and start time (re-timing only; stops are fixed because the narration is tied to
+them), saves it to the phone and drives it exactly like a subscriber would.
 
 Server side (`server/index.js`): every `/api` request is stamped `subscriber` or `free`. Plan,
 suggest, prepare-drive and publish require subscriber; place search, re-timing and the library are

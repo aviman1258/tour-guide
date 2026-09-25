@@ -6,7 +6,6 @@ import * as api from "./api.js";
 import * as storage from "./storage.js";
 import * as busy from "./busy.js";
 import * as map from "./map.js";
-import { isFree } from "./config.js";
 import { toast } from "./itinerary.js";
 import { escapeHtml, fmtDuration } from "./format.js";
 import { samePlan, matchingPackage } from "./planMatch.js";
@@ -24,21 +23,35 @@ function msg(id, text, isError = false) {
 
 // ---------- search & use ----------
 
+/** Wikipedia thumbnails come at ~330 px; ask for a wider one for the banner, fall back to the original. */
+const wide = (url, w = 800) => String(url || "").replace(/\/(\d{2,4})px-/, `/${w}px-`);
+
 function renderResults(routes) {
   const box = $("library-results");
   box.innerHTML = "";
   for (const r of routes) {
-    const el = document.createElement("div");
+    const el = document.createElement("article");
     el.className = "result route";
     el.innerHTML = `
-      <span>🗺️</span>
-      <div class="grow">
-        <div class="name">${escapeHtml(r.title)}</div>
-        <div class="sub">${escapeHtml(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi · ${fmtDuration(r.minutes)} driving · ${r.narrationCount} narrations${r.uses ? ` · used ${r.uses}×` : ""}</div>
-        ${r.description ? `<div class="sub desc">${escapeHtml(r.description)}</div>` : ""}
-        <div class="sub">${escapeHtml(r.startLabel)} → ${escapeHtml(r.endLabel)}</div>
-      </div>
-      <button type="button" class="btn btn-sm btn-primary">Use</button>`;
+      <div class="banner ${r.image ? "" : "banner-blank"}">${r.image ? "" : `<span>${escapeHtml((r.region || r.endLabel || "").split(",")[0])}</span>`}</div>
+      <div class="body">
+        <div class="grow">
+          <div class="name">${escapeHtml(r.title)}</div>
+          <div class="sub">${escapeHtml(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi · ${fmtDuration(r.minutes)} driving · ${r.narrationCount} narrations${r.uses ? ` · used ${r.uses}×` : ""}</div>
+          ${r.description ? `<div class="sub desc">${escapeHtml(r.description)}</div>` : ""}
+          <div class="sub">${escapeHtml(r.startLabel)} → ${escapeHtml(r.endLabel)}</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary">Use</button>
+      </div>`;
+    if (r.image) {
+      const img = document.createElement("img");
+      img.alt = "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.onerror = () => { img.onerror = null; img.src = r.image; }; // the source was smaller than 800 px
+      img.src = wide(r.image);
+      el.querySelector(".banner").appendChild(img);
+    }
     el.querySelector("button").addEventListener("click", () => useRoute(r.id));
     el.addEventListener("click", (e) => { if (e.target.tagName !== "BUTTON") map.focus(r.start.lat, r.start.lon, 9); });
     box.appendChild(el);
@@ -46,10 +59,16 @@ function renderResults(routes) {
 }
 
 async function search({ near, q } = {}) {
+  if (!near && !q) { // nothing to search for: the list stays empty rather than showing everything
+    renderResults([]);
+    $("library-msg").textContent = "Type a city, an airport or a word from the route, or tap the location button for routes near you.";
+    $("library-query").focus();
+    return;
+  }
   const { routes, total } = await busy.run("Looking for saved routes…", () => api.searchRoutes({ near, q }));
   renderResults(routes);
   if (!routes.length) $("library-msg").textContent = total ? `No saved routes match. ${total} route${total === 1 ? "" : "s"} exist so far; try a different city or word.` : "No routes have been published yet.";
-  else $("library-msg").textContent = "";
+  else $("library-msg").textContent = `${routes.length} route${routes.length === 1 ? "" : "s"} found.`;
 }
 
 export async function useRoute(id) {
@@ -202,8 +221,7 @@ export function bind() {
     }
   });
 
-  // free tier opens with the library front and centre; show what's nearby if allowed later
-  if (isFree()) search({}).catch(() => {});
+  // the list starts empty: routes appear only for a search or "near me"
 }
 
 function defaultTitle() {

@@ -43,8 +43,32 @@ function open() {
     CREATE INDEX IF NOT EXISTS routes_start ON routes(start_lat, start_lon);
     CREATE INDEX IF NOT EXISTS routes_created ON routes(created_at);
   `);
+  // banner picture (a landmark on the route), added later: create the column and fill it for old rows
+  if (!db.prepare(`PRAGMA table_info(routes)`).all().some((c) => c.name === "image")) {
+    db.exec(`ALTER TABLE routes ADD COLUMN image TEXT NOT NULL DEFAULT ''`);
+    for (const r of db.prepare(`SELECT id, package_json FROM routes`).all()) {
+      try { db.prepare(`UPDATE routes SET image = ? WHERE id = ?`).run(pickImage(JSON.parse(r.package_json)?.itinerary?.stops || []), r.id); } catch { /* leave blank */ }
+    }
+  }
   return db;
 }
+
+// Stop categories that make a good banner, best first: a recognisable landmark over a street scene.
+const IMAGE_PREF = ["landmark", "temple", "museum", "viewpoint", "park", "cemetery", "district", "neighborhood", "shopping", "food", "other"];
+
+/**
+ * The picture for a route's card: the Wikipedia thumbnail of its most landmark-like, highest-
+ * priority stop, asked for at 800 px wide (the card's `<img>` falls back to the original size if
+ * that is bigger than the source). Empty string when no stop has a picture.
+ */
+export function pickImage(stops = []) {
+  const withPic = stops.filter((s) => typeof s?.thumbnail === "string" && /^https:\/\//.test(s.thumbnail));
+  if (!withPic.length) return "";
+  const rank = (s) => { const i = IMAGE_PREF.indexOf(s.category); return (i < 0 ? IMAGE_PREF.length : i) - (s.priority || 3) * 0.1; };
+  withPic.sort((a, b) => rank(a) - rank(b));
+  return withPic[0].thumbnail.replace(/\?.*$/, "");
+}
+export const bannerUrl = (thumb, width = 800) => String(thumb || "").replace(/\/(\d{2,4})px-/, `/${width}px-`);
 
 // "27 Larkmead", "1150 Brand Ln", "Current location (…)" → not a publishable label
 const ADDRESS_RE = /^\s*\d{1,6}[a-z]?\s+\S|\bcurrent location\b|\b(apt|suite|unit|#)\s*\d/i;
@@ -60,6 +84,7 @@ function summarize(row) {
     interests: row.interests, stopNames: row.stop_names.split(" · ").filter(Boolean),
     stopsCount: row.stops_count, miles: row.miles, minutes: row.minutes, narrationCount: row.narration_count,
     createdAt: row.created_at, uses: row.uses,
+    image: row.image || "", // a landmark on the route (Wikipedia thumbnail), "" when none
   };
 }
 
@@ -100,6 +125,7 @@ export function publish({ pkg, title, description = "", region = "", author = ""
     minutes: Math.round((it.route.totalSec || 0) / 60),
     narration_count: pkg.narration.length,
     author, created_at: new Date().toISOString(), uses: 0,
+    image: pickImage(it.stops),
     package_json: JSON.stringify(clean),
   };
   open().prepare(`INSERT INTO routes (${Object.keys(row).join(",")}) VALUES (${Object.keys(row).map((k) => "@" + k).join(",")})`).run(row);

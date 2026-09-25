@@ -280,8 +280,14 @@ body.free .subscriber-only { display: none !important; }
 body.subscriber .free-only { display: none !important; }
 body.free .stop .controls { display: none; }           /* saved routes are driven as published */
 body.free #library-card { border-color: var(--ok); }
-.library .results { margin-top: 8px; }
-.result.route { align-items: flex-start; }
+.library .results { margin-top: 8px; gap: 10px; }
+/* a saved route: landmark picture as a banner, details underneath */
+.result.route { display: block; padding: 0; overflow: hidden; border-radius: 12px; }
+.result.route .banner { position: relative; height: 128px; background: linear-gradient(135deg, #274060, #5aa5dc); }
+.result.route .banner img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.result.route .banner-blank { display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 20px; text-shadow: 0 1px 3px rgba(0,0,0,.4); letter-spacing: .02em; }
+.result.route .body { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px 12px; }
+.result.route .body .btn { flex: 0 0 auto; margin-top: 2px; }
 .result.route .sub.desc { white-space: normal; }
 .publish { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .publish[hidden] { display: none !important; }
