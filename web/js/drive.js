@@ -27,7 +27,7 @@ const state = {
   nextStopIdx: 0, driveState: { fired: {}, visited: [] }, saveTimer: null, turnVoice: createTurnVoice({ mode: loadTurnMode() }),
   map: null, car: null, carLayer: null, stopMarkers: [], poiMarkers: new Map(), follow: true, followTimer: null,
   weather: new Map(), // stopId → { tempF, icon, text, when } from Open-Meteo
-  orient: loadOrient(), rot: 0, // "heading" (driver's view, car in the lower third) or "north"; rot = current CSS rotation, unwrapped
+  orient: loadOrient(), rot: 0, rotEver: false, // "heading" (driver's view, car in the lower third) or "north"; rot = current CSS rotation, unwrapped
   // back on course: where we last were on the line, the detour we're following, and request throttling
   lastOnRouteM: null, detour: null, detourLayer: null, detourVoice: createTurnVoice({ mode: loadTurnMode() }),
   rerouteBusy: false, rerouteAskMs: 0, rerouteAskAt: null, rerouteSeq: 0,
@@ -128,13 +128,22 @@ function initMap() {
 
 const ORIENT_KEY = "tourguide.mapOrient";
 function loadOrient() { try { return localStorage.getItem(ORIENT_KEY) === "north" ? "north" : "heading"; } catch { return "heading"; } }
-function setOrient(o) {
+function setOrient(o, { announce = false } = {}) {
   state.orient = o;
   try { localStorage.setItem(ORIENT_KEY, o); } catch { /* ignore */ }
   if (o === "north") setRotation(0);
   layoutMap();
   const b = $("orient-btn");
   if (b) { b.textContent = o === "heading" ? "🧭 Heading up" : "🧭 North up"; b.setAttribute("aria-pressed", String(o === "heading")); }
+  if (announce) {
+    // the user asked for a view: follow the car again right away, even if the map was touched a moment ago
+    state.follow = true;
+    clearTimeout(state.followTimer);
+    if (o === "north") toast("North up: the map stays still and the car turns.");
+    else if (!state.running) toast("Heading up: the map turns with the road once you tap Start drive and get moving.", 4000);
+    else if (!Number.isFinite(state.lastFix?.heading)) toast("Heading up: the map turns with the road as soon as you're moving.", 4000);
+    else toast("Heading up: the road ahead points up.");
+  }
   if (state.lastFix) updateCar(state.lastFix.lat, state.lastFix.lon, state.lastFix.heading, state.lastFix.speed);
 }
 /** While the map may rotate it is a square as wide as the screen's diagonal, so no corner ever shows. */
@@ -204,7 +213,9 @@ function updateCar(lat, lon, heading, speed = 0) {
   if (!state.follow) return;
   const z = Math.max(state.map.getZoom(), 15);
   const headingUp = document.body.classList.contains("rot-map") && Number.isFinite(heading);
-  if (headingUp && speed >= 1.5) setRotation(-heading); // GPS heading is noise when stopped: keep the last rotation
+  // GPS heading is noise when stopped, so keep the last rotation then; but the very first heading we
+  // get is applied regardless, so the map turns as soon as the phone knows which way the car points
+  if (headingUp && (speed >= 1.5 || !state.rotEver)) { setRotation(-heading); state.rotEver = true; }
   // Put the car where the driver can see it: the map strip between the banner and the bottom sheet.
   // Heading-up: lower third of that strip, so the road ahead fills it. North-up: its middle.
   // The map's centre is the screen centre, so the car goes dY pixels below it, measured along the
@@ -620,6 +631,7 @@ function stopDrive() {
   state.speech.stop();
   state.running = false;
   if (state.detour) clearDetour("drive ended");
+  state.rotEver = false;
   layoutMap();
   $("start-btn").hidden = false;
   $("stop-btn").hidden = true;
@@ -784,7 +796,7 @@ function bindUi() {
     $("mute-btn").setAttribute("aria-pressed", String(on));
   });
   const slider = $("turn-voice");
-  $("orient-btn").addEventListener("click", () => setOrient(state.orient === "heading" ? "north" : "heading"));
+  $("orient-btn").addEventListener("click", () => setOrient(state.orient === "heading" ? "north" : "heading", { announce: true }));
   setOrient(state.orient);
   const applyTurnMode = (mode, persist) => {
     state.turnVoice.setMode(mode);

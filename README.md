@@ -424,7 +424,9 @@ deriving content from them.
   the visible map, like a car navigation screen. The map element is oversized to the screen
   diagonal and rotated with CSS; stop markers, weather badges and popups counter-rotate so they stay
   readable. GPS heading is ignored below 1.5 m/s (it is noise when stopped), so the map holds its
-  last rotation at lights. Touching the map returns it to north-up and pauses following for 15 s,
+  last rotation at lights; the first heading of a drive is applied regardless. The button only has a
+  visible effect while driving and moving (before that there is no heading), so pressing it also
+  shows a toast saying when the map will turn, and it re-enables following at once. Touching the map returns it to north-up and pauses following for 15 s,
   as before; "North up" keeps the classic map with the car centred. Only real touches pause following
   now: the app's own zooms used to trip the same handler and stop the map following for the first
   half minute of a drive.
