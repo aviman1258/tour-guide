@@ -60,6 +60,11 @@ export const config = {
     publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || "",
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   },
+  // Sign-in emails (Resend). Without a key a production server can't sign people in; a dev server
+  // hands the link back to the page instead. MAIL_FROM must be on a domain verified in Resend.
+  mail: { resendKey: process.env.RESEND_API_KEY || "", from: process.env.MAIL_FROM || "Deodapper <no-reply@deodapper.com>" },
+  publicBase: (process.env.PUBLIC_BASE_URL || "https://deodapper.com").replace(/\/$/, ""),
+  production: process.env.NODE_ENV === "production",
   modelStrong: process.env.MODEL_STRONG || "claude-opus-5",
   modelFast: process.env.MODEL_FAST || "claude-haiku-4-5",
 

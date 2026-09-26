@@ -10,6 +10,8 @@ import { ping } from "./ping.js";
 import { runtime, tier, isFree } from "./config.js";
 import * as pay from "./pay.js";
 import { bindOwnerGesture } from "./ownerGesture.js";
+import * as account from "./account.js";
+import * as myRoutes from "./myRoutes.js";
 
 async function boot() {
   // tier decides which controls exist on this screen (CSS hides the other tier's)
@@ -18,7 +20,7 @@ async function boot() {
   const badge = document.getElementById("tier-badge");
   if (badge) badge.textContent = isFree() ? "Free · saved routes" : "Create your own route";
   // tidy ?tier= out of the address bar, but keep params later steps still need (?trip=, ?route=)
-  const keepQuery = ["trip", "route"].some((k) => new URLSearchParams(location.search).get(k));
+  const keepQuery = ["trip", "route", "login"].some((k) => new URLSearchParams(location.search).get(k));
   history.replaceState(null, "", location.pathname + (keepQuery ? location.search : "") + location.hash);
 
   map.init(document.getElementById("map"));
@@ -26,6 +28,13 @@ async function boot() {
   share.bind();
   drivePrep.bind();
   library.bind();
+  account.bind();
+  myRoutes.bind();
+
+  // an emailed sign-in link lands here as ?login=<token>
+  const login = await account.consumeFromUrl();
+  if (login?.error) itinerary.toast(login.error, 7000);
+  else if (login?.ok) itinerary.toast("Signed in. Your routes now follow you to any device you sign in on.", 6000);
 
   // a shared link (#i=…) or ?trip=<id> (back from drive mode) restores a trip;
   // otherwise the form starts clean, with an offer to reopen the last prepared trip.
@@ -57,6 +66,7 @@ async function boot() {
   });
 
   const ok = await api.probe();
+  if (ok) account.sync().catch(() => {});
   // a public route page's "Drive this route free" button lands here with ?route=<id>
   const routeParam = new URLSearchParams(location.search).get("route");
   if (ok && routeParam) {

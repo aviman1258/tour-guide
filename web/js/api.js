@@ -1,7 +1,7 @@
-import { apiBase, runtime, getAppKey, setAppKey, getCreditToken, deviceId } from "./config.js";
+import { apiBase, runtime, getAppKey, setAppKey, getCreditToken, deviceId, getSession } from "./config.js";
 import { askSecret } from "./secretPrompt.js";
 
-const authHeaders = () => ({ ...(deviceId() ? { "x-device": deviceId() } : {}), ...(getAppKey() ? { "x-app-key": getAppKey() } : {}), ...(getCreditToken() ? { "x-credit": getCreditToken() } : {}) });
+const authHeaders = () => ({ ...(deviceId() ? { "x-device": deviceId() } : {}), ...(getAppKey() ? { "x-app-key": getAppKey() } : {}), ...(getCreditToken() ? { "x-credit": getCreditToken() } : {}), ...(getSession() ? { "x-session": getSession() } : {}) });
 
 /**
  * Owner sign-in: exchange the passphrase for a token (POST /api/owner/unlock) and keep the token,
@@ -125,6 +125,16 @@ async function stream(path, body, opts = {}) {
 export const suggest = (itinerary, count = 3) => call("POST", "/api/suggest", { itinerary, count });
 export const schedule = (itinerary, trim = false) => call("POST", "/api/schedule", { itinerary, trim });
 export const reroute = ({ from, to, routeOptions }) => call("POST", "/api/reroute", { from, to, routeOptions });
+
+// accounts: sign in with an email link, keep routes on the server
+export const authRequest = (email, purchase = false) => call("POST", "/api/auth/request", { email, purchase });
+export const authConsume = (token) => call("POST", "/api/auth/consume", { token });
+export const authMe = () => call("GET", "/api/auth/me");
+export const authLogout = () => call("POST", "/api/auth/logout", {});
+export const myRoutes = () => call("GET", "/api/me/routes");
+export const myRoute = (tripId) => call("GET", `/api/me/routes/${encodeURIComponent(tripId)}`);
+export const putMyRoute = (tripId, title, pkg) => call("PUT", `/api/me/routes/${encodeURIComponent(tripId)}`, { title, package: pkg });
+export const deleteMyRoute = (tripId) => call("DELETE", `/api/me/routes/${encodeURIComponent(tripId)}`);
 export const prepareDrive = (itinerary) => call("POST", "/api/prepare-drive", { itinerary });
 export const whoami = () => call("GET", "/api/whoami");
 

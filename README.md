@@ -42,6 +42,28 @@ plain coloured banner naming the region when no stop has a photo. A free driver 
 their own date and start time (re-timing only; stops are fixed because the narration is tied to
 them), saves it to the phone and drives it exactly like a subscriber would.
 
+**My routes** (`web/js/myRoutes.js`, both tiers) lists every drive package on the device: planned
+and prepared, paid for, saved from the library, imported. Each row shows date, stops, narrations
+and tags (paid, from the library, Deodap's voice, in your account) with Open / Drive / Delete
+(two taps to delete, no dialog). Packages live in IndexedDB, so closing the browser loses nothing;
+clearing site data, private windows and iOS Safari's 7-day eviction for uninstalled sites do.
+
+**Accounts** (`server/lib/accounts.js`, `web/js/account.js`) are optional and are nothing but an
+email. Sign in by typing an address: `POST /api/auth/request` mints a single-use token (20 min)
+and emails a link `plan.html?login=<token>` via Resend (`server/lib/mail.js`); opening it calls
+`POST /api/auth/consume`, which returns a 180-day session token kept in localStorage and sent as
+`x-session`. The address is never stored: the account is keyed by an HMAC of the lower-cased
+address (`APP_SECRET`-keyed), which is enough to find the same account again and nothing else. Three
+links per address per 15 minutes, ten auth calls per IP per hour. Paying with a receipt email
+sends one such link automatically ("your route, and a link to keep it") when the payer isn't
+signed in. Signed in, `account.sync()` runs at page load and after every save: local packages not
+in the account are pushed (`PUT /api/me/routes/:tripId`, up to 100 routes and 2.5 MB each; the
+server derives the summary, including "paid", from the package itself), account routes missing
+here are pulled, and a route deleted on another device (soft-deleted on the server for 30 days) is
+deleted here. Sessions and links are swept hourly. Without `RESEND_API_KEY` a production server
+answers 503 to sign-in requests; a dev server returns the link in the response (`devLink`) and
+logs it, so the flow can be tested with no mail at all.
+
 Server side (`server/index.js`): every `/api` request is stamped `subscriber` or `free`. Plan,
 suggest, prepare-drive and publish require subscriber; place search, re-timing and the library are
 open but rate-limited per IP for free traffic (`server/lib/ratelimit.js`, 90 requests / 10 min).
@@ -307,6 +329,10 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `POST /api/routes/describe[?again=1]` | `{itinerary}` (owner or credit) | `{title, description, source}` drafted listing for the publish form |
 | `GET /routes`, `GET /routes/:id/:slug`, `GET /sitemap.xml` | | server-rendered public pages for published routes, and the sitemap listing them |
 | `POST /api/stop-from-place` | `{name, lat, lon, kind, sub}` | a `Stop` for a type-ahead pick, with Wikipedia text when an article sits on it |
+| `POST /api/auth/request` | `{email, purchase?}` | `{ok}` after emailing a sign-in link (`{ok, devLink}` on a dev server with no mail); 400 bad address, 429 too many, 503 no mail in production |
+| `POST /api/auth/consume` | `{token}` + `x-device` | `{sessionToken, expiresAt}`; 401 invalid / used / expired |
+| `POST /api/auth/logout`, `GET /api/auth/me` | `x-session` | revoke the session; `{signedIn, routes}` |
+| `GET /api/me/routes`, `GET/PUT/DELETE /api/me/routes/:tripId` | `x-session`; PUT `{title, package}` | the account's private drive packages: list (with `deleted` markers), fetch, store (413 over 2.5 MB, 429 over 100 routes), soft-delete |
 | `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
 | `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |
@@ -515,6 +541,10 @@ pick this repo, then set the secrets it asks for:
   `TTS_VOICE` (default `en-US-Chirp3-HD-Aoede`), `TTS_SPEAKING_RATE` (default 1), `TTS_ENABLED=0`
   to switch off with a key present, `DAILY_TTS_BUDGET_USD` (default 5), `TTS_RATE_PER_M_CHARS`
   (default 30, the Chirp 3 HD list price, for the cost panel and the budget).
+- `RESEND_API_KEY`, `MAIL_FROM` — sign-in emails through Resend (see "Accounts"). `MAIL_FROM`
+  defaults to `Deodapper <no-reply@deodapper.com>` and must be on a domain verified in Resend.
+  Without the key, sign-in is off in production (503) and a dev server hands the link back to the
+  page. `PUBLIC_BASE_URL` (default `https://deodapper.com`) is the origin the emailed links use.
 - `INDEXNOW_KEY` — optional; enables IndexNow pings to Bing and friends (see "Search engines").
 - `CLAUDE_RATES` — optional; USD per million tokens per model for the cost panel (see the
   analytics section). Production has it set to the September 2026 list prices; without it the

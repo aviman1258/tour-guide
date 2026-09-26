@@ -261,6 +261,26 @@ No accounts, but each has rules the server follows:
   stops in a single call. Free for non-commercial use up to 10,000 calls a day; if Deodapper
   ever grows past that, their paid API is $29/month.
 
+### 2.8 Resend (sign-in emails)
+
+Accounts are optional and are nothing but an email: a visitor types their address, we email a
+one-tap link, and their routes then follow them to any device. The email goes out through
+Resend. Setting it up: resend.com → sign up (the free plan, 3,000 emails a month, is far more
+than enough) → **Domains → Add domain** → `deodapper.com` → Resend shows three DNS records (a
+DKIM TXT record, an SPF TXT record and an MX record for bounces). Add them in Cloudflare →
+DNS for deodapper.com exactly as shown (leave the proxy off for these), then press Verify in
+Resend. Then **API Keys → Create** ("Deodapper production", sending access only) → paste into
+Render as `RESEND_API_KEY`. `MAIL_FROM` defaults to `Deodapper <no-reply@deodapper.com>`; change
+it only if you use a different verified domain.
+
+What is stored: never the address. The account is keyed by a one-way hash of the lower-cased
+address (keyed with `APP_SECRET`), plus the sign-in links for 20 minutes, sessions for 180 days
+and the routes the person keeps in the account. The privacy page says exactly this. Someone who
+pays and gives a receipt email gets one sign-in link automatically so the route they paid for
+stays theirs; that is the one email we ever send unasked. Without `RESEND_API_KEY` the sign-in
+box on the site answers "Sign-in email isn't set up on this server yet" and everything else
+works as before; routes then live only on the device that made them.
+
 ---
 
 ## 3. Environment variables (Render → Environment)
@@ -274,6 +294,8 @@ No accounts, but each has rules the server follows:
 | `CONTACT` | yes | Email in the User-Agent sent to Wikipedia/OSM. Use `support@deodapper.com` |
 | `INDEXNOW_KEY` | optional | Self-chosen key for IndexNow pings to Bing and friends (section 2.6a) |
 | `GOOGLE_PLACES_KEY` | optional | Google Places API (New) key, last-resort place search (section 2.6b) |
+| `RESEND_API_KEY`, `MAIL_FROM` | yes, for sign-in | Sign-in emails (section 2.8). No key = no accounts, everything else works |
+| `PUBLIC_BASE_URL` | default `https://deodapper.com` | The address the emailed sign-in links open |
 | `GOOGLE_TTS_KEY`, `TTS_VOICE`, `TTS_ENABLED`, `DAILY_TTS_BUDGET_USD` | optional | Deodap's recorded voice (section 2.6c). Key falls back to the Places key; voice default `en-US-Chirp3-HD-Aoede`; budget default `5` a day |
 | `RESEARCH_WEB_SEARCH`, `RESEARCH_MAX_SEARCHES`, `MODEL_RESEARCH` | defaults on / 3 / fast model | The web-search step of stop research |
 | `CLAUDE_RATES` | optional | Per-million token prices for the cost panel and the budget breaker |
@@ -341,6 +363,13 @@ but health is fine, it is usually Wikipedia rate limiting (`429`) or the routing
 recover on their own. Payments failing: Stripe dashboard → Developers → Webhooks/Logs.
 
 ---
+
+**Someone can't sign in.** Check `/api/health` → `mail.enabled` (false = `RESEND_API_KEY` missing) and
+`mail.lastError` (Resend's own message: an unverified domain or a bad key). Links last 20 minutes
+and work once; "already used" means they tapped it twice, so they should ask for a new one. Three
+links per address per 15 minutes; a fourth returns "try again in 15 minutes". Spam folders catch
+the first email from a new domain now and then; verified DKIM (section 2.8) is what prevents it.
+`accounts` in health shows how many accounts, live sessions and stored routes exist.
 
 ## 5. How the app is built
 
@@ -422,6 +451,14 @@ and any story without a clip use whichever of the phone's voices sounds most nat
 
 Every API request is stamped `subscriber` (the owner, via passphrase or owner token) or `free`.
 Free visitors can search, load, re-time, save and drive published routes, rate-limited per IP.
+
+**Where a visitor's routes live.** Every route a device plans, pays for, saves from the library or
+imports is stored in that browser's own database and listed under "My routes" on the plan screen;
+closing the browser loses nothing, clearing site data does. Signing in (section 2.8) adds a copy
+on the server: `server/lib/accounts.js` keeps each account's route packages (100 per account, 2.5
+MB each), and `web/js/account.js` syncs both ways at page load and after every save, so a route
+made on a laptop is on the phone after signing in there, and a route deleted on one device goes on
+the others. Paying with a receipt email sends one sign-in link automatically.
 Planning, Suggest more, narration and publishing need either the owner or a **route credit**:
 a Stripe hold bound to the start/end pair, good for three plans, three narration preparations,
 ten Suggest-more calls, edits and publishing for 30 days. The hold is captured the moment the first plan succeeds; failed or cancelled plans
@@ -454,6 +491,7 @@ time window: Short outing ≤3 h $1.99, Half day ≤6 h $2.99, Full day $4.49.
 | Anthropic | per route, roughly $0.30 to $0.60 (check the admin cost panel for the real median); capped at `DAILY_CLAUDE_BUDGET_USD` a day and by the prepaid balance |
 | Google Text-to-Speech | 15 to 20 cents per newly prepared route (Chirp 3 HD, $30 per million characters); cached clips are free; capped at `DAILY_TTS_BUDGET_USD` a day |
 | Stripe | 2.9% + 30¢ of each captured payment; $15 per dispute |
+| Resend | free up to 3,000 sign-in emails a month |
 | Everything else | free |
 
 At the current prices a route nets roughly $1.35 (short) to $3.45 (full day) after Stripe and

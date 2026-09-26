@@ -52,6 +52,15 @@ export function deviceId() {
   } catch { return ""; }
 }
 
+// Sign-in session (email link): an opaque token, sent as x-session. Empty = not signed in.
+const SESSION_KEY = "tourguide.session";
+export function getSession() {
+  try { return localStorage.getItem(SESSION_KEY) || ""; } catch { return ""; }
+}
+export function setSession(v) {
+  try { if (v) localStorage.setItem(SESSION_KEY, v); else localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+}
+
 // Route credit (pay-per-route): an opaque token the server issued after a payment hold.
 const CREDIT_TOKEN_KEY = "tourguide.creditToken";
 export function getCreditToken() {

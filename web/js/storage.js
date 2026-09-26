@@ -41,10 +41,23 @@ export const del = (store, key) => tx(store, "readwrite", (s) => s.delete(key));
 export const keys = (store) => tx(store, "readonly", (s) => s.getAllKeys());
 export const all = (store) => tx(store, "readonly", (s) => s.getAll());
 
+/** Tell the page (My routes list, account sync) that the trips changed. */
+export function announce(name, detail = {}) {
+  try { globalThis.dispatchEvent?.(new CustomEvent(name, { detail })); } catch { /* not in a browser */ }
+}
+
 export async function saveTrip(pkg) {
   await put("trips", pkg.tripId, pkg);
   setActiveTripId(pkg.tripId);
+  announce("tg:trips-changed", { tripId: pkg.tripId });
   return pkg;
+}
+/** Remove a trip and its drive state from this device. `quiet` = a sync-driven deletion, not to be mirrored back. */
+export async function deleteTrip(tripId, { quiet = false } = {}) {
+  await del("trips", tripId);
+  await del("driveState", tripId).catch(() => {});
+  if (getActiveTripId() === tripId) { try { localStorage.removeItem(ACTIVE_KEY); } catch { /* ignore */ } }
+  announce("tg:trip-deleted", { tripId, quiet });
 }
 export const getTrip = (tripId) => get("trips", tripId);
 export const listTrips = () => all("trips");

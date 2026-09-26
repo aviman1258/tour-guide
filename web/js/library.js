@@ -103,6 +103,7 @@ export async function saveToPhone() {
     savedAt: new Date().toISOString(),
     itinerary: { ...loaded.package.itinerary, date: it.date, arrivalTime: it.arrivalTime, deadline: it.deadline, schedule: it.schedule || loaded.package.itinerary.schedule },
     libraryId: loaded.summary?.id || loaded.package.libraryId || null,
+    title: loaded.summary?.title || loaded.package.title || undefined,
   };
   await storage.saveTrip(pkg);
   $("drive-link").href = `drive.html?trip=${encodeURIComponent(pkg.tripId)}`;

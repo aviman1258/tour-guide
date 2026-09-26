@@ -23,6 +23,8 @@ import { shapeListing, fallbackListing } from "./lib/describe.js";
 import * as indexnow from "./lib/indexnow.js";
 import * as places from "./places.js";
 import * as tts from "./lib/tts.js";
+import * as accounts from "./lib/accounts.js";
+import * as mail from "./lib/mail.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -68,6 +70,7 @@ const num = (v, name) => {
 // x-app-key. Wrong keys count as guesses; 3 from one IP or device = 24 h lockout (lib/owner.js).
 app.use("/api", (req, _res, next) => {
   req.tier = owner.tierFor({ key: req.get("x-app-key") || req.query.key || "", ip: req.ip, device: req.get("x-device") || "" });
+  req.account = accounts.sessionFor(req.get("x-session") || ""); // { accountId } when signed in with an email link
   next();
 });
 const requireSubscriber = (req, res, next) => {
@@ -115,6 +118,53 @@ async function settleCredit(req) {
   return v;
 }
 setInterval(() => { pay.sweep().then((n) => { if (n) console.log(`[pay] released ${n} expiring hold(s)`); }).catch(() => {}); }, 3600_000).unref();
+setInterval(() => { try { accounts.sweep(); } catch { /* ignore */ } }, 3600_000).unref();
+
+// ---------- accounts: sign in with an email link, keep routes on the server ----------
+// The address is never stored (only a keyed hash); the link is emailed to whatever was typed.
+const authLimiter = createLimiter({ max: 10, windowMs: 3600_000 });
+// production links point at the public domain; a dev server links back to itself
+const signInLink = (token, req) => `${config.production ? config.publicBase : `${req.protocol}://${req.get("host")}`}/plan.html?login=${encodeURIComponent(token)}`;
+/** Mint a link for this address and email it. Resolves false when mail isn't set up. */
+async function sendSignInLink(email, req, { purchase = false } = {}) {
+  if (!mail.enabled()) return false;
+  const { token } = accounts.requestLink({ email, ip: req.ip });
+  await mail.send({ to: String(email).trim(), ...mail.loginEmail({ link: signInLink(token, req), purchase }) });
+  return true;
+}
+app.post("/api/auth/request", limitFree(authLimiter), h(async (req, res) => {
+  const email = String(req.body?.email || "").trim();
+  if (!accounts.validEmail(email)) throw httpError(400, "That doesn't look like an email address.");
+  analytics.track(req, "auth_request", "");
+  if (!mail.enabled()) {
+    if (config.production) throw httpError(503, "Sign-in email isn't set up on this server yet.");
+    const { token } = accounts.requestLink({ email, ip: req.ip });
+    console.log(`[auth] dev sign-in link: ${signInLink(token, req)}`);
+    return res.json({ ok: true, devLink: signInLink(token, req) });
+  }
+  await sendSignInLink(email, req, { purchase: Boolean(req.body?.purchase) });
+  res.json({ ok: true });
+}));
+app.post("/api/auth/consume", limitFree(authLimiter), h(async (req, res) => {
+  const s = accounts.consumeLink({ token: String(req.body?.token || ""), device: req.get("x-device") || "" });
+  analytics.track(req, "auth_signin", "");
+  res.json({ sessionToken: s.sessionToken, expiresAt: s.expiresAt });
+}));
+app.post("/api/auth/logout", h(async (req, res) => { accounts.logout(req.get("x-session") || ""); res.status(204).end(); }));
+app.get("/api/auth/me", h(async (req, res) => {
+  res.json({ signedIn: Boolean(req.account), routes: req.account ? accounts.listRoutes(req.account.accountId).filter((r) => !r.deleted).length : 0 });
+}));
+const requireSession = (req, res, next) => (req.account ? next() : res.status(401).json({ error: "Sign in first.", needsSignIn: true }));
+app.get("/api/me/routes", requireSession, h(async (req, res) => { res.json({ routes: accounts.listRoutes(req.account.accountId) }); }));
+app.get("/api/me/routes/:tripId", requireSession, h(async (req, res) => {
+  const r = accounts.getRoute(req.account.accountId, req.params.tripId);
+  if (!r) throw httpError(404, "no such route in your account");
+  res.json(r);
+}));
+app.put("/api/me/routes/:tripId", requireSession, h(async (req, res) => {
+  res.json(accounts.putRoute(req.account.accountId, req.params.tripId, { title: String(req.body?.title || ""), pkg: req.body?.package }));
+}));
+app.delete("/api/me/routes/:tripId", requireSession, h(async (req, res) => { accounts.deleteRoute(req.account.accountId, req.params.tripId); res.status(204).end(); }));
 
 // ---------- pay-per-route ----------
 app.get("/api/pay/quote", h(async (req, res) => {
@@ -128,6 +178,11 @@ app.post("/api/pay/intent", h(async (req, res) => {
 }));
 app.post("/api/pay/confirm", h(async (req, res) => {
   const v = await pay.confirm(req.body?.token || req.get("x-credit") || "", { receiptEmail: req.body?.receiptEmail || "" });
+  // paid and gave an email, not signed in: one sign-in link so the route stays theirs on any device
+  const email = String(req.body?.receiptEmail || "").trim();
+  if (email && !req.account && accounts.validEmail(email) && (v.status === "authorized" || v.status === "captured")) {
+    try { v.signInSent = await sendSignInLink(email, req, { purchase: true }); } catch (err) { console.warn(`[auth] purchase sign-in link failed: ${err.message}`); }
+  }
   analytics.track(req, `pay_${v.status}`, `${v.id} ${v.label} ${v.price}`);
   res.json(v);
 }));
@@ -252,6 +307,8 @@ app.get("/api/health", h(async (_req, res) => {
     indexnow: indexnow.stats(),
     places: places.stats(),
     voice: tts.stats(),
+    accounts: accounts.stats(),
+    mail: mail.stats(),
     claude: config.anthropicKey ? "sdk" : "cli",
     data,
     models: { strong: config.modelStrong, fast: config.modelFast },

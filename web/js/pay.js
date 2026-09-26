@@ -207,7 +207,7 @@ function payDialog(it, reason = "") {
         try { localStorage.removeItem(PENDING_KEY); } catch { /* ignore */ }
         if (c.status !== "authorized" && c.status !== "captured") throw new Error("Your bank hasn't confirmed the payment yet. Give it a moment and press Plan again.");
         saveCredit({ token, sig: c.routeSig, tierId: c.tierId, label: c.label, plansLeft: c.plansLeft, status: c.status });
-        note(`Payment of ${q.price} accepted${receiptEmail ? `; receipt to ${receiptEmail}` : ""}. Planning your route…`, 6000);
+        note(`Payment of ${q.price} accepted${receiptEmail ? `; receipt to ${receiptEmail}` : ""}.${c.signInSent ? " We also emailed you a sign-in link so this route stays in your account on any device." : ""} Planning your route…`, 8000);
         finish(() => resolve(token));
       } catch (err) {
         showErr(err.message);

@@ -53,6 +53,25 @@
         <div id="library-msg" class="hint"></div>
       </section>
 
+      <!-- Everything made, paid for, saved or imported on this device; signed in, in the account too -->
+      <section id="my-routes" class="card my-routes">
+        <h2>My routes</h2>
+        <div id="my-routes-list" class="results"></div>
+        <p id="my-routes-empty" class="hint">Nothing here yet. Routes you plan, pay for, save from the library or import show up here.</p>
+        <div id="my-routes-signed-in" class="signin-row" hidden>
+          <span class="hint grow" id="my-routes-sync"></span>
+          <button type="button" id="signout-btn" class="btn btn-sm btn-ghost">Sign out</button>
+        </div>
+        <form id="my-routes-signin" class="signin" hidden>
+          <div class="hint">Keep your routes on every device: sign in with your email. We send a link, there's no password, and we store only a one-way hash of the address.</div>
+          <div class="signin-row">
+            <input id="signin-email" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for a sign-in link" required />
+            <button type="submit" id="signin-send" class="btn btn-sm">Send sign-in link</button>
+          </div>
+          <div id="signin-msg" class="hint"></div>
+        </form>
+      </section>
+
       <form id="plan-form" class="card" autocomplete="off">
         <div class="subscriber-only">
           <div class="field">

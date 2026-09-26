@@ -16,13 +16,14 @@
     <h1>Privacy</h1>
     <p class="doc-date">Effective 21 September 2026</p>
 
-    <p>The short version: Deodapper has no accounts, never sees your card, and never stores your name or email. It keeps rough usage statistics for 90 days and a reference number for each payment. Your location while driving stays on your phone.</p>
+    <p>The short version: Deodapper never sees your card and never stores your name. The only account is an optional sign-in by email, and even then we keep a one-way hash of the address rather than the address itself, plus the routes you choose to keep in it. It keeps rough usage statistics for 90 days and a reference number for each payment. Your location while driving stays on your phone.</p>
 
     <h2>What we keep</h2>
     <ul>
       <li><b>Usage statistics.</b> For each page view and action: the time, your IP address, the approximate city derived from it, your device type and browser family, and what you did (planned, prepared, published, searched). Nothing you type into forms. Kept for 90 days, then deleted.</li>
       <li><b>Payment references.</b> When you pay for a route: a Stripe payment id, the price tier, the amount, its status (held, charged, released), timestamps, the start and end area of the route (rounded to about a kilometre), the IP address that paid, and a random id your browser generated. This lets us honour your purchase. It is kept for 30 days after the credit expires, and longer only in Stripe's own records.</li>
       <li><b>Your route while it's being made.</b> The start, end, times and interests you enter are processed on our server to plan and narrate the route, then returned to your phone. We don't store your route on the server unless you publish it.</li>
+      <li><b>Your account, if you sign in.</b> Signing in is optional and works by email link, no password. We store a one-way hash of your email address (enough to recognise the address when you type it again, not enough to read it back), sign-in links for 20 minutes, sessions for up to 180 days with the random device id, and the routes you keep in the account: start, end, stops, times, narration, and whether the route was paid for. Deleting a route removes it from the server within 30 days. Email support to delete the account itself.</li>
       <li><b>Published routes.</b> If you choose to publish, the route (title, description, stops, narration, start and end places) is stored and shown to other users. Don't include personal details; we screen for street addresses.</li>
       <li><b>Your Claude and payment usage in aggregate</b>, for our own costs and accounting, without anything that identifies you.</li>
     </ul>
@@ -30,9 +31,9 @@
     <h2>What we don't keep</h2>
     <ul>
       <li>Card numbers, expiry dates or security codes. They go from your browser straight to Stripe.</li>
-      <li>Names, email addresses or phone numbers. If you enter them on the payment form, including the optional receipt email, they go to Stripe; we pass the receipt address straight through and don't store it.</li>
+      <li>Names or phone numbers. Email addresses are not stored either: sign-in keeps only the one-way hash described above. The optional receipt email on the payment form goes to Stripe; we pass it straight through, and use it once to send you a sign-in link so your paid route stays yours, without keeping the address.</li>
       <li>Your GPS position while driving. Drive mode runs on your phone and works offline; your location is never sent to us.</li>
-      <li>Cookies. We use your browser's local storage for settings, your saved routes, your route credit and the random device id, and nothing follows you across sites.</li>
+      <li>Cookies. We use your browser's local storage for settings, your saved routes, your route credit, your sign-in session and the random device id, and nothing follows you across sites.</li>
     </ul>
 
     <h2>Services we rely on</h2>
@@ -46,6 +47,7 @@
       <li><b>ipwho.is</b> turns IP addresses into an approximate city for our statistics.</li>
       <li><b>Google Places</b>, when the operator has enabled it, is asked about a place name and a route area only after Wikipedia and OpenStreetMap have nothing; it learns the search text, not who you are.</li>
       <li><b>Open-Meteo</b> supplies the weather shown at each stop in drive mode; your browser asks it directly for the stops' coordinates, so it sees your IP address but not who you are.</li>
+      <li><b>Resend</b> delivers the sign-in emails, so it sees the address an email is sent to. See <a href="https://resend.com/legal/privacy-policy" rel="noopener">Resend's privacy policy</a>.</li>
       <li><b>Render</b> hosts the server and <b>Cloudflare</b> serves the domain. Data is stored in the United States.</li>
     </ul>
 
