@@ -2,6 +2,8 @@
 // Nominatim's policy forbids autocomplete, so it is only used for explicit searches).
 // attach(input, { near, onPick }) → { setValue, destroy }
 
+import { distanceM } from "./here.js";
+
 const PHOTON = "https://photon.komoot.io/api/";
 const MIN_CHARS = 3;
 const DEBOUNCE_MS = 250;
@@ -21,7 +23,7 @@ async function query(q, near, signal) {
   u.searchParams.set("q", q);
   u.searchParams.set("limit", "8");
   u.searchParams.set("lang", "en");
-  if (near) { u.searchParams.set("lat", near.lat); u.searchParams.set("lon", near.lon); }
+  if (near) { u.searchParams.set("lat", near.lat); u.searchParams.set("lon", near.lon); u.searchParams.set("location_bias_scale", "0.5"); }
   const res = await fetch(u, { signal });
   if (!res.ok) throw new Error(`search failed (${res.status})`);
   const data = await res.json();
@@ -36,10 +38,21 @@ async function query(q, near, signal) {
     if (seen.has(dupe)) continue;
     seen.add(dupe);
     items.push({ label: name, sub, kind, lat, lon });
-    if (items.length >= 6) break;
+    if (items.length >= 8) break;
   }
   cache.set(key, items);
   return items;
+}
+
+/**
+ * Closest first. A place whose name is exactly what was typed stays ahead of a mere prefix match
+ * ("Long Beach" the city before "Long Beach Boulevard"), then by distance to `near`.
+ */
+export function rankByDistance(items, near, q) {
+  if (!near) return items;
+  const typed = String(q || "").trim().toLowerCase();
+  const exact = (it) => (String(it.label || "").toLowerCase() === typed ? 0 : 1);
+  return [...items].sort((a, b) => exact(a) - exact(b) || distanceM(near, a) - distanceM(near, b));
 }
 
 // ---------- airports (bundled, so IATA codes like SNA work, offline too) ----------
@@ -161,13 +174,17 @@ export function attach(input, { near = () => null, onPick }) {
     items = []; // never leave the previous query's rows pickable while the new one is in flight
     render("Searching…");
     try {
+      const at = near();
       const [fromAirports, fromPhoton] = await Promise.all([
-        airportMatches(q, near()),
-        query(q, near(), ctrl.signal).catch((err) => { if (err.name === "AbortError") throw err; return []; }),
+        airportMatches(q, at),
+        query(q, at, ctrl.signal).catch((err) => { if (err.name === "AbortError") throw err; return []; }),
       ]);
-      // airports first (a code like SNA should win), then Photon minus its own copy of the same airfield
+      // a code like SNA wins outright; otherwise airports rank with everything else, nearest first
+      // (typing "Long Beach" should give the city before airports of that name), minus the Photon copy of the same airfield
       const sameAirport = (p) => p.kind === "aerodrome" && fromAirports.some((a) => Math.hypot(a.lat - p.lat, (a.lon - p.lon) * Math.cos((a.lat * Math.PI) / 180)) < 0.04);
-      items = [...fromAirports, ...fromPhoton.filter((p) => !sameAirport(p))].slice(0, 7);
+      const isCode = /^[a-z]{3}$/i.test(q.replace(/\b(airport|intl|international)\b/gi, "").trim());
+      const photon = fromPhoton.filter((p) => !sameAirport(p));
+      items = (isCode ? [...fromAirports, ...rankByDistance(photon, at, q)] : rankByDistance([...fromAirports, ...photon], at, q)).slice(0, 7);
       active = -1;
       if (pickWhenReady && items.length) { pickWhenReady = false; pick(0); return; }
       pickWhenReady = false;

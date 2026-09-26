@@ -14,6 +14,7 @@ import { fmtMiles, fmtDuration, to12h, escapeHtml, toMinutes as toMin, toHHMM } 
 import { ping } from "./ping.js";
 import * as weather from "./weather.js";
 import * as audioCache from "./audioCache.js";
+import { remember as rememberHere } from "./here.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -258,6 +259,7 @@ function onFix(pos) {
   }
   if (heading == null && state.lastFix) heading = state.lastFix.heading;
   const fix = { ...here, speed: speed ?? 0, heading, nowMs };
+  if (!pos.sim && (!state.lastFix || nowMs - state.lastFix.nowMs > 60_000 || !state.lastFix.remembered)) { rememberHere(here.lat, here.lon); fix.remembered = true; } // the plan screen ranks searches by this
 
   // project onto the route
   const hint = state.offRoute || !state.lastProj ? null : state.lastProj.segIndex;

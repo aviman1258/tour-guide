@@ -293,6 +293,14 @@ of the trip); picking a suggestion calls `POST /api/stop-from-place`, which keep
 coordinates and borrows a matching Wikipedia article's text when one sits on top of it. The Find
 button still runs the deeper `/api/place` search (Nominatim → Photon → Wikipedia → Google).
 
+The type-ahead for start, end and "add a stop" (`web/js/typeahead.js`, Komoot's Photon plus the
+bundled airport list) ranks by distance: the device's best-known position (`web/js/here.js`:
+the last fix any part of the app got, kept a week in localStorage and quietly refreshed when the
+site already has location permission, never prompting) biases Photon and sorts its results
+nearest first, with a place named exactly what was typed kept on top and airports above
+everything. Without any fix it falls back to the other end of the trip. Interests start
+pre-filled with "Tourist attractions, iconic landmarks, historic neighborhoods".
+
 Edits (reorder, remove, add by search, tap the map, "Suggest more", "Stop here to eat", dwell) all
 re-route and re-schedule but never trim on their own.
 

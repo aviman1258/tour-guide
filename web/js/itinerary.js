@@ -6,6 +6,7 @@ import * as api from "./api.js";
 import * as map from "./map.js";
 import * as busy from "./busy.js";
 import * as typeahead from "./typeahead.js";
+import { here, remember as rememberHere } from "./here.js";
 import { runtime } from "./config.js";
 import { escapeHtml, to12h, fmtDuration, fmtMiles } from "./format.js";
 import { haversineM } from "./routeMath.js";
@@ -43,7 +44,7 @@ function bindEndpoint(which) {
   const set = which === "start" ? actions.setStart : actions.setEnd;
 
   boxes[which] = typeahead.attach(input, {
-    near: other,
+    near: () => here() || other(), // closest to the device first; the other end of the trip when we have no fix
     onPick: (it) => set({ label: it.label, lat: it.lat, lon: it.lon }),
   });
 
@@ -54,6 +55,7 @@ function bindEndpoint(which) {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude: lat, longitude: lon } = pos.coords;
+        rememberHere(lat, lon);
         set({ label: "Current location", lat, lon });
         input.value = "Current location";
         const nice = await typeahead.reverseLabel(lat, lon);

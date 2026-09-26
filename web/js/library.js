@@ -9,6 +9,7 @@ import * as map from "./map.js";
 import { toast } from "./itinerary.js";
 import { escapeHtml, fmtDuration } from "./format.js";
 import { samePlan, matchingPackage } from "./planMatch.js";
+import { remember as rememberHere } from "./here.js";
 
 const $ = (id) => document.getElementById(id);
 let loaded = null; // { summary, package } of the library route currently in the itinerary
@@ -163,7 +164,7 @@ export function bind() {
     if (!navigator.geolocation) return toast("Location isn't available in this browser");
     $("library-near").classList.add("locating");
     navigator.geolocation.getCurrentPosition(
-      async (pos) => { $("library-near").classList.remove("locating"); try { await search({ near: { lat: pos.coords.latitude, lon: pos.coords.longitude }, q: $("library-query").value.trim() }); } catch (err) { toast(err.message, 4000); } },
+      async (pos) => { $("library-near").classList.remove("locating"); rememberHere(pos.coords.latitude, pos.coords.longitude); try { await search({ near: { lat: pos.coords.latitude, lon: pos.coords.longitude }, q: $("library-query").value.trim() }); } catch (err) { toast(err.message, 4000); } },
       (err) => { $("library-near").classList.remove("locating"); toast(`Location failed: ${err.message}`, 4000); },
       { enableHighAccuracy: false, timeout: 10000 }
     );

@@ -20,7 +20,7 @@ export function emptyItinerary() {
     deadline: "21:00",
     departBufferMinutes: 0, // 30 is added when the start is an airport (bags, rental car)
     safetyBufferMinutes: 15,
-    interests: "",
+    interests: "Tourist attractions, iconic landmarks, historic neighborhoods", // a sensible default; people edit it
     routeOptions: { avoidTolls: false, avoidHighways: false },
     stops: [],
     route: null,
