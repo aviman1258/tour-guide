@@ -280,6 +280,12 @@ body.free .subscriber-only { display: none !important; }
 body.subscriber .free-only { display: none !important; }
 body.free .stop .controls { display: none; }           /* saved routes are driven as published */
 body.free #library-card { border-color: var(--ok); }
+details.card > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; list-style: none; min-height: 32px; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary h2 { margin: 0; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+details.card > summary .chevron { color: var(--muted); font-size: 18px; transition: transform .15s; }
+details.card[open] > summary .chevron { transform: rotate(90deg); }
+details.card[open] > summary { margin-bottom: 8px; }
 .my-routes .results { margin-top: 4px; }
 .result.mine { align-items: flex-start; flex-wrap: wrap; }
 .result.mine .acts { display: flex; gap: 6px; flex-wrap: wrap; }

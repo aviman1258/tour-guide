@@ -38,11 +38,14 @@ Find with nothing typed just asks for a city or word. Each result is a card with
 on top: the Wikipedia photo of the route's most landmark-like, highest-priority stop (chosen at
 publish time by `pickImage` in `server/lib/library.js`, stored in the `image` column and
 back-filled for older routes; requested at 800 px with a fallback to the original size), or a
-plain coloured banner naming the region when no stop has a photo. A free driver picks one, sets
+plain coloured banner naming the region when no stop has a photo. The public `/routes` index and
+each route's own page (`server/routePages.js`) show the same picture, as a card banner and as a
+hero under the title, and it becomes the page's social preview image. A free driver picks one, sets
 their own date and start time (re-timing only; stops are fixed because the narration is tied to
 them), saves it to the phone and drives it exactly like a subscriber would.
 
-**My routes** (`web/js/myRoutes.js`, both tiers) lists every drive package on the device: planned
+**My routes** (`web/js/myRoutes.js`, both tiers, a collapsed card that opens on tap and shows the
+count in its title) lists every drive package on the device: planned
 and prepared, paid for, saved from the library, imported. Each row shows date, stops, narrations
 and tags (paid, from the library, Deodap's voice, in your account) with Open / Drive / Delete
 (two taps to delete, no dialog). Packages live in IndexedDB, so closing the browser loses nothing;

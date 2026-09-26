@@ -54,8 +54,8 @@
       </section>
 
       <!-- Everything made, paid for, saved or imported on this device; signed in, in the account too -->
-      <section id="my-routes" class="card my-routes">
-        <h2>My routes</h2>
+      <details id="my-routes" class="card my-routes">
+        <summary><h2>My routes <span id="my-routes-count" class="hint"></span></h2><span class="chevron">▸</span></summary>
         <div id="my-routes-list" class="results"></div>
         <p id="my-routes-empty" class="hint">Nothing here yet. Routes you plan, pay for, save from the library or import show up here.</p>
         <div id="my-routes-signed-in" class="signin-row" hidden>
@@ -70,7 +70,7 @@
           </div>
           <div id="signin-msg" class="hint"></div>
         </form>
-      </section>
+      </details>
 
       <form id="plan-form" class="card" autocomplete="off">
         <div class="subscriber-only">

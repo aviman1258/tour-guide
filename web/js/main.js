@@ -34,7 +34,7 @@ async function boot() {
   // an emailed sign-in link lands here as ?login=<token>
   const login = await account.consumeFromUrl();
   if (login?.error) itinerary.toast(login.error, 7000);
-  else if (login?.ok) itinerary.toast("Signed in. Your routes now follow you to any device you sign in on.", 6000);
+  else if (login?.ok) { myRoutes.open(); itinerary.toast("Signed in. Your routes now follow you to any device you sign in on.", 6000); }
 
   // a shared link (#i=…) or ?trip=<id> (back from drive mode) restores a trip;
   // otherwise the form starts clean, with an offer to reopen the last prepared trip.

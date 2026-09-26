@@ -74,6 +74,13 @@ ${body}
 }
 
 /** One published route. `summary` from library.get().summary, `pkg` the drive package. */
+/** A route's landmark picture: the Wikipedia thumbnail asked for wider, falling back to the stored size if that doesn't exist. */
+function banner(r, cls) {
+  if (!r.image) return "";
+  const big = String(r.image).replace(/\/(\d{2,4})px-/, "/800px-");
+  return `<img class="${cls}" src="${esc(big)}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${esc(r.image)}'" />`;
+}
+
 export function routePage(summary, pkg) {
   const it = pkg.itinerary;
   const r = summary;
@@ -96,6 +103,7 @@ export function routePage(summary, pkg) {
     <h1>${esc(r.title)}</h1>
     <p class="doc-date">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi · about ${esc(hours)} driving · ${r.narrationCount} spoken stories${r.uses ? ` · driven ${r.uses}×` : ""}</p>
     ${r.description ? `<p class="lede-left">${esc(r.description)}</p>` : ""}
+    ${banner(r, "route-hero")}
     <div class="route-cta">
       <a class="btn-cta" href="/plan.html?tier=free&route=${encodeURIComponent(r.id)}">Drive this route free</a>
       <a class="btn-cta ghost" href="/plan.html?tier=create">Create your own route</a>
@@ -114,17 +122,20 @@ export function routePage(summary, pkg) {
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Drive this saved route free with narration" },
     itinerary: { "@type": "ItemList", numberOfItems: it.stops.length, itemListElement: it.stops.map((s, i) => ({ "@type": "ListItem", position: i + 1, item: { "@type": "TouristAttraction", name: s.name, ...(s.wikipediaUrl ? { sameAs: s.wikipediaUrl } : {}), geo: { "@type": "GeoCoordinates", latitude: s.lat, longitude: s.lon } } })) },
   };
-  return shell({ title: `${r.title} · a self-guided driving route`, description, canonical, body, jsonLd });
+  return shell({ title: `${r.title} · a self-guided driving route`, description, canonical, body, jsonLd, ...(r.image ? { image: r.image } : {}) });
 }
 
 /** The index of all published routes. */
 export function indexPage(routes) {
   const cards = routes.map((r) => `
-      <li class="route-card">
-        <a href="${esc(routeUrl(r))}"><b>${esc(r.title)}</b></a>
-        <div class="route-meta">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi · about ${esc(fmtDuration(r.minutes))}${r.uses ? ` · driven ${r.uses}×` : ""}</div>
-        ${r.description ? `<p>${esc(r.description)}</p>` : ""}
-        <div class="route-meta">${esc(r.startLabel)} → ${esc(r.endLabel)}</div>
+      <li class="route-card${r.image ? "" : " no-image"}">
+        <a class="route-card-banner" href="${esc(routeUrl(r))}" tabindex="-1" aria-hidden="true">${banner(r, "")}${r.image ? "" : `<span>${esc((r.region || r.endLabel || "").split(",")[0])}</span>`}</a>
+        <div class="route-card-body">
+          <a href="${esc(routeUrl(r))}"><b>${esc(r.title)}</b></a>
+          <div class="route-meta">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi · about ${esc(fmtDuration(r.minutes))}${r.uses ? ` · driven ${r.uses}×` : ""}</div>
+          ${r.description ? `<p>${esc(r.description)}</p>` : ""}
+          <div class="route-meta">${esc(r.startLabel)} → ${esc(r.endLabel)}</div>
+        </div>
       </li>`).join("");
   const description = `${routes.length} self-guided driving routes with spoken narration, free to drive: ${routes.slice(0, 3).map((r) => r.title).join("; ")}${routes.length > 3 ? " and more" : ""}.`;
   const body = `

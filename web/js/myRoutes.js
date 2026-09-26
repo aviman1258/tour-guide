@@ -19,6 +19,7 @@ export async function render() {
   trips.sort((a, b) => (when(b) > when(a) ? 1 : when(b) < when(a) ? -1 : 0));
   box.innerHTML = "";
   $("my-routes-empty").hidden = trips.length > 0;
+  $("my-routes-count").textContent = `· ${trips.length ? `${trips.length} route${trips.length === 1 ? "" : "s"}` : "none yet"}${account.isSignedIn() ? " · signed in" : ""}`;
   for (const pkg of trips) {
     const it = pkg.itinerary || {};
     const el = document.createElement("div");
@@ -56,6 +57,9 @@ export async function render() {
     box.appendChild(el);
   }
 }
+
+/** Expand the card (after a sign-in link, so the "Signed in" state is visible). */
+export function open() { const d = $("my-routes"); if (d) d.open = true; }
 
 function renderSignIn() {
   const st = account.status();
