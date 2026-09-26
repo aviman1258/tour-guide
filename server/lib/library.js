@@ -9,6 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 import { httpError } from "./http.js";
 import { haversineM } from "./geo.js";
 import { assertClean } from "./moderation.js";
+import { lineToPoints, cumulative, sampleAlong } from "../../web/js/routeMath.js";
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "data");
 const FILE = path.join(DIR, "deodapper.db");
@@ -43,14 +44,60 @@ function open() {
     CREATE INDEX IF NOT EXISTS routes_start ON routes(start_lat, start_lon);
     CREATE INDEX IF NOT EXISTS routes_created ON routes(created_at);
   `);
-  // banner picture (a landmark on the route), added later: create the column and fill it for old rows
-  if (!db.prepare(`PRAGMA table_info(routes)`).all().some((c) => c.name === "image")) {
+  // columns added later get created and back-filled from the stored package
+  const cols = new Set(db.prepare(`PRAGMA table_info(routes)`).all().map((c) => c.name));
+  if (!cols.has("image")) { // banner picture (a landmark on the route)
     db.exec(`ALTER TABLE routes ADD COLUMN image TEXT NOT NULL DEFAULT ''`);
     for (const r of db.prepare(`SELECT id, package_json FROM routes`).all()) {
       try { db.prepare(`UPDATE routes SET image = ? WHERE id = ?`).run(pickImage(JSON.parse(r.package_json)?.itinerary?.stops || []), r.id); } catch { /* leave blank */ }
     }
   }
+  if (!cols.has("points_json")) { // where the route goes, for "routes near <place>" searches
+    db.exec(`ALTER TABLE routes ADD COLUMN points_json TEXT NOT NULL DEFAULT '[]'`);
+    for (const r of db.prepare(`SELECT id, package_json FROM routes`).all()) {
+      try { db.prepare(`UPDATE routes SET points_json = ? WHERE id = ?`).run(JSON.stringify(routePoints(JSON.parse(r.package_json))), r.id); } catch { /* leave empty */ }
+    }
+  }
   return db;
+}
+
+/**
+ * Every place a route touches, for geographic search: start, end, each stop, and the road itself
+ * sampled every 3 km (capped). [[lat, lon], …] rounded to ~10 m.
+ */
+export function routePoints(pkg, stepM = 3000, cap = 240) {
+  const it = pkg?.itinerary || {};
+  const pts = [];
+  const push = (p) => { if (p && Number.isFinite(p.lat) && Number.isFinite(p.lon)) pts.push([Math.round(p.lat * 1e4) / 1e4, Math.round(p.lon * 1e4) / 1e4]); };
+  push(it.start); push(it.end);
+  for (const s of it.stops || []) push(s);
+  try {
+    const line = lineToPoints(it.route?.geometry);
+    if (line.length > 1) {
+      const cum = cumulative(line);
+      const total = cum[cum.length - 1];
+      const step = Math.max(stepM, total / cap);
+      for (const p of sampleAlong(line, cum, step)) push(p);
+    }
+  } catch { /* no usable geometry */ }
+  return pts;
+}
+
+/** Does the route touch a point within `radiusKm`? `points` = the stored [[lat, lon], …]. */
+export function passesNear(points, at, radiusKm) {
+  const r = radiusKm * 1000;
+  return (points || []).some(([lat, lon]) => haversineM(at, { lat, lon }) <= r);
+}
+
+/**
+ * Is a geocoder hit a place people search routes by (a city, a neighbourhood, a county, an
+ * airport), rather than a shop or a street? Keeps "temple" from meaning Temple, Texas.
+ */
+const PLACE_TYPES = new Set(["city", "town", "village", "hamlet", "suburb", "neighbourhood", "quarter", "borough", "county", "state", "region", "province", "municipality", "administrative", "island", "aerodrome", "airport"]);
+export function isPlaceLike(hit) {
+  if (!hit || !Number.isFinite(hit.lat) || !Number.isFinite(hit.lon)) return false;
+  const placeish = hit.category === "place" || hit.category === "boundary" || hit.category === "aeroway";
+  return placeish && PLACE_TYPES.has(String(hit.type || "").toLowerCase()) && (hit.importance || 0) >= 0.35;
 }
 
 // Stop categories that make a good banner, best first: a recognisable landmark over a street scene.
@@ -126,6 +173,7 @@ export function publish({ pkg, title, description = "", region = "", author = ""
     narration_count: pkg.narration.length,
     author, created_at: new Date().toISOString(), uses: 0,
     image: pickImage(it.stops),
+    points_json: JSON.stringify(routePoints(clean)),
     package_json: JSON.stringify(clean),
   };
   open().prepare(`INSERT INTO routes (${Object.keys(row).join(",")}) VALUES (${Object.keys(row).map((k) => "@" + k).join(",")})`).run(row);
@@ -133,10 +181,13 @@ export function publish({ pkg, title, description = "", region = "", author = ""
 }
 
 /**
- * Search. `near` = {lat, lon} keeps routes whose start OR end is within `radiusKm`;
- * `q` matches title / description / region / interests / stop names. Newest + most used first.
+ * Search. `near` = {lat, lon} (the visitor's position) keeps routes whose start OR end is within
+ * `radiusKm`. `q` matches title / description / region / interests / stop names; when the words
+ * also name a place (`at` = its coordinates, geocoded by the caller), routes that pass within
+ * `radiusKm` of it count as matches too, so "Los Angeles" finds a Burbank → Long Beach drive.
+ * Most used, then newest, first.
  */
-export function search({ near, radiusKm = 50, q = "", limit = 20 } = {}) {
+export function search({ near, at, radiusKm = 50, q = "", limit = 20 } = {}) {
   const d = open();
   let rows;
   if (near) {
@@ -149,10 +200,13 @@ export function search({ near, radiusKm = 50, q = "", limit = 20 } = {}) {
   }
   const words = String(q || "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1);
   if (words.length) {
-    rows = rows.filter((r) => {
+    const byText = rows.filter((r) => {
       const hay = `${r.title} ${r.description} ${r.region} ${r.interests} ${r.stop_names} ${r.start_label} ${r.end_label}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     });
+    const byPlace = at ? rows.filter((r) => { try { return passesNear(JSON.parse(r.points_json || "[]"), at, radiusKm); } catch { return false; } }) : [];
+    const seen = new Set();
+    rows = [...byText, ...byPlace].filter((r) => !seen.has(r.id) && seen.add(r.id));
   }
   rows.sort((a, b) => b.uses - a.uses || (b.created_at > a.created_at ? 1 : b.created_at < a.created_at ? -1 : 0));
   return rows.slice(0, Math.min(50, limit)).map(summarize);

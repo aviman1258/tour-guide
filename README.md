@@ -71,7 +71,12 @@ Server side (`server/index.js`): every `/api` request is stamped `subscriber` or
 suggest, prepare-drive and publish require subscriber; place search, re-timing and the library are
 open but rate-limited per IP for free traffic (`server/lib/ratelimit.js`, 90 requests / 10 min).
 The library (`server/lib/library.js`) is SQLite via Node's built-in `node:sqlite` at
-`data/deodapper.db` on the persistent disk: `GET /api/routes?near=lat,lon&q=` searches,
+`data/deodapper.db` on the persistent disk: `GET /api/routes?near=lat,lon&q=` searches (words
+match title, description, region, interests, stop names and the start/end labels; when the words
+also name a place per Nominatim, a city, neighbourhood, county or airport, routes passing within
+50 km of it match too, judged against the stored `points_json`: start, end, every stop and the
+road sampled every 3 km, so "Los Angeles" finds a Burbank → Long Beach drive; the response says
+which `place` it used),
 `GET /api/routes/:id` returns the full drive package (and counts a use), `POST /api/routes`
 publishes `{package, title, description}` (start/end labels that look like street addresses are
 refused so nobody publishes their home), `DELETE /api/routes/:id` removes one.

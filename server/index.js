@@ -399,9 +399,18 @@ app.get("/api/routes", h(async (req, res) => {
     if (Number.isFinite(lat) && Number.isFinite(lon)) near = { lat, lon };
   }
   const radiusKm = Math.min(300, Math.max(5, Number(req.query.radiusKm) || 50));
-  const routes = library.search({ near, radiusKm, q: String(req.query.q || ""), limit: Number(req.query.limit) || 20 });
-  analytics.track(req, "route_search", `${near ? "near" : ""}${req.query.q ? ` q=${String(req.query.q).slice(0, 40)}` : ""} → ${routes.length}`);
-  res.json({ routes, total: library.count() });
+  const q = String(req.query.q || "").trim().slice(0, 120);
+  // words that name a place ("Los Angeles", "Orange County", "LAX") also match routes passing near it
+  let at = null, place = null;
+  if (q && !near) {
+    try {
+      const hit = (await nominatim.search(q, { limit: 1 }))[0];
+      if (library.isPlaceLike(hit)) { at = { lat: hit.lat, lon: hit.lon }; place = { name: hit.name || q, displayName: hit.displayName }; }
+    } catch { /* geocoder down: text search still works */ }
+  }
+  const routes = library.search({ near, at, radiusKm, q, limit: Number(req.query.limit) || 20 });
+  analytics.track(req, "route_search", `${near ? "near" : ""}${q ? ` q=${q.slice(0, 40)}` : ""}${place ? ` @${place.name}` : ""} → ${routes.length}`);
+  res.json({ routes, total: library.count(), place });
 }));
 
 // Full package for one route (counts a use).

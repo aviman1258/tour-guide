@@ -65,10 +65,10 @@ async function search({ near, q } = {}) {
     $("library-query").focus();
     return;
   }
-  const { routes, total } = await busy.run("Looking for saved routes…", () => api.searchRoutes({ near, q }));
+  const { routes, total, place } = await busy.run("Looking for saved routes…", () => api.searchRoutes({ near, q }));
   renderResults(routes);
   if (!routes.length) $("library-msg").textContent = total ? `No saved routes match. ${total} route${total === 1 ? "" : "s"} exist so far; try a different city or word.` : "No routes have been published yet.";
-  else $("library-msg").textContent = `${routes.length} route${routes.length === 1 ? "" : "s"} found.`;
+  else $("library-msg").textContent = `${routes.length} route${routes.length === 1 ? "" : "s"} found${place ? `, matching your words or passing within 50 km of ${place.name}` : ""}.`;
 }
 
 export async function useRoute(id) {
