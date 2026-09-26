@@ -44,21 +44,79 @@ def square(im, size, fill=0.86, bg=None):
     return canvas
 
 
+def components(alpha):
+    """Connected groups of opaque pixels, as lists of (x, y). Plain flood fill; a 2000 px row takes a second or two."""
+    w, h = alpha.size
+    px = alpha.load()
+    seen = bytearray(w * h)
+    out = []
+    for y0 in range(h):
+        for x0 in range(w):
+            if not px[x0, y0] or seen[y0 * w + x0]:
+                continue
+            stack, pixels = [(x0, y0)], []
+            seen[y0 * w + x0] = 1
+            while stack:
+                x, y = stack.pop()
+                pixels.append((x, y))
+                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                    if 0 <= nx < w and 0 <= ny < h and px[nx, ny] and not seen[ny * w + nx]:
+                        seen[ny * w + nx] = 1
+                        stack.append((nx, ny))
+            out.append(pixels)
+    return out
+
+
+def bbox_of(pixels):
+    xs = [x for x, _ in pixels]
+    ys = [y for _, y in pixels]
+    return (min(xs), min(ys), max(xs) + 1, max(ys) + 1)
+
+
+def split_row(sheet, frames):
+    """Separate the characters in a row by connected pixels, not by columns: a generator neither spaces
+    frames evenly nor keeps them apart, and a trunk reaching into the next frame's column belongs to
+    its own elephant. The `frames` biggest groups are the bodies; specks (a detached tail tuft) join
+    the nearest body. Returns [(image, bbox)] left to right, each image the size of the sheet."""
+    alpha = sheet.split()[3].point(lambda v: 255 if v > 8 else 0)
+    comps = sorted(components(alpha), key=len, reverse=True)
+    if len(comps) < frames or len(comps[frames - 1]) < len(comps[0]) * 0.25:
+        raise SystemExit(f"could not find {frames} separate characters in the row (touching frames?)")
+    bodies = comps[:frames]
+    boxes = [bbox_of(b) for b in bodies]
+    for speck in comps[frames:]:
+        sx = sum(x for x, _ in speck) / len(speck)
+        near = min(range(frames), key=lambda i: 0 if boxes[i][0] <= sx <= boxes[i][2] else min(abs(sx - boxes[i][0]), abs(sx - boxes[i][2])))
+        bodies[near].extend(speck)
+    order = sorted(range(frames), key=lambda i: boxes[i][0])
+    cells = []
+    for i in order:
+        mask = Image.new("L", sheet.size, 0)
+        mask.putdata([0] * (sheet.width * sheet.height))
+        mp = mask.load()
+        for x, y in bodies[i]:
+            mp[x, y] = 255
+        img = Image.new("RGBA", sheet.size, (0, 0, 0, 0))
+        img.paste(sheet, (0, 0), mask)
+        cells.append((img, bbox_of(bodies[i])))
+    return cells
+
+
 def sprite_sheet(src, frames=8, frame_px=112):
-    """Slice the run row into frames, crop them all to the same box (so the ground line stays put), and re-pack."""
+    """Re-pack the run frames on a shared ground line, so the bounce of a run cycle survives while
+    every frame sits in the same place on the sheet."""
     sheet = Image.open(src).convert("RGBA")
-    fw = sheet.width // frames
-    cells = [sheet.crop((i * fw, 0, (i + 1) * fw, sheet.height)) for i in range(frames)]
-    boxes = [c.split()[3].point(lambda v: 255 if v > 8 else 0).getbbox() for c in cells]
-    boxes = [b for b in boxes if b]
-    l, t = min(b[0] for b in boxes), min(b[1] for b in boxes)
-    r, btm = max(b[2] for b in boxes), max(b[3] for b in boxes)
-    side = max(r - l, btm - t)
+    cells = split_row(sheet, frames)
+    top = min(b[1] for _, b in cells)
+    bottom = max(b[3] for _, b in cells)
+    widest = max(b[2] - b[0] for _, b in cells)
+    side = max(widest, bottom - top)
     out = Image.new("RGBA", (frame_px * frames, frame_px), (0, 0, 0, 0))
-    for i, c in enumerate(cells):
-        cell = c.crop((l, t, r, btm))
+    for i, (img, b) in enumerate(cells):
+        cell = img.crop(b)
         canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-        canvas.alpha_composite(cell, ((side - cell.width) // 2, side - cell.height))  # feet on the bottom edge
+        y = side - (bottom - top) + (b[1] - top)  # each frame keeps its own height above the shared ground line
+        canvas.alpha_composite(cell, ((side - cell.width) // 2, y))
         out.alpha_composite(canvas.resize((frame_px, frame_px), RS), (i * frame_px, 0))
     return out
 
