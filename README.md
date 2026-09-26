@@ -609,6 +609,17 @@ Google Search Console: add `deodapper.com` as a Domain property, prove ownership
 record it gives you (Cloudflare → DNS), submit `https://deodapper.com/sitemap.xml`, and request
 indexing of the homepage. Bing Webmaster Tools can import the Search Console property.
 
+### Artwork
+
+Deodap is a painted character now: the four source pictures live in `artwork/` (full body,
+head, an 8-frame run cycle in one row, and a coastal-road scene), and `python
+scripts/make-artwork.py` builds everything the app shows from them: `web/img/deodap.png` (logo,
+landing mascot, drive overlay), `deodap-head.png` (doc pages and the 32/64 px favicons),
+`deodap-run.png` (the "working" spinner, a sprite sheet the CSS steps through at 8 frames per
+0.72 s), `og.png` (the scene with the wordmark, for link previews), and the app icons on a cream
+background including the maskable one with the character inside the 80% safe zone. Replace a
+source file, run the script, bump `SHELL_VERSION`.
+
 ### PWA and hosting
 
 Live at https://aviman1258.github.io/tour-guide/ (drive screen: `/drive.html`). Every push to

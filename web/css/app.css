@@ -212,27 +212,20 @@ select.quiet { min-height: 36px; padding: 4px 8px; font-size: 13px; color: var(-
 .busy-pill[hidden] { display: none; }
 /* the road slides left under Deodap's feet so he looks like he's running right */
 .busy-road {
-  grid-area: road; position: relative; width: 84px; height: 42px; overflow: hidden; border-radius: 8px;
+  grid-area: road; position: relative; width: 84px; height: 60px; overflow: hidden; border-radius: 8px;
   background:
     repeating-linear-gradient(90deg, var(--muted) 0 10px, transparent 10px 18px) 0 calc(100% - 3px) / 18px 2px repeat-x,
     color-mix(in srgb, var(--accent) 14%, transparent);
   animation: busy-road 0.55s linear infinite;
 }
 @keyframes busy-road { to { background-position: -18px calc(100% - 3px), 0 0; } }
-.busy-deodap { display: block; }
-.busy-deodap .body-bob { animation: busy-bob 0.55s ease-in-out infinite; }
-@keyframes busy-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.6px); } }
-.busy-deodap .leg { transform-box: fill-box; transform-origin: 50% 0; }
-.busy-deodap .leg.a { animation: busy-leg 0.55s ease-in-out infinite alternate; }
-.busy-deodap .leg.b { animation: busy-leg 0.55s ease-in-out infinite alternate-reverse; }
-@keyframes busy-leg { from { transform: rotate(-22deg); } to { transform: rotate(22deg); } }
-.busy-deodap .ear { transform-box: fill-box; transform-origin: 60% 10%; animation: busy-ear 0.55s ease-in-out infinite alternate; }
-@keyframes busy-ear { from { transform: rotate(-10deg); } to { transform: rotate(12deg); } }
-.busy-deodap .trunk { transform-box: fill-box; transform-origin: 0 0; animation: busy-trunk 0.55s ease-in-out infinite alternate; }
-@keyframes busy-trunk { from { transform: rotate(-9deg); } to { transform: rotate(7deg); } }
-.busy-deodap .tail { transform-box: fill-box; transform-origin: 100% 0; animation: busy-trunk 0.55s ease-in-out infinite alternate-reverse; }
-.busy-deodap .dust { fill: var(--muted); opacity: .5; animation: busy-dust 0.55s linear infinite; }
-@keyframes busy-dust { from { transform: translateX(6px); opacity: .55; } to { transform: translateX(-10px); opacity: 0; } }
+/* Deodap running: an 8-frame sprite sheet (web/img/deodap-run.png, 112 px frames shown at 56 px) */
+.busy-sprite {
+  position: absolute; left: 14px; bottom: 3px; width: 56px; height: 56px;
+  background: url(../img/deodap-run.png) 0 0 / 448px 56px no-repeat;
+  animation: busy-run 0.72s steps(8) infinite;
+}
+@keyframes busy-run { to { background-position: -448px 0; } }
 .busy-text { grid-area: text; }
 .busy-cancel { grid-area: cancel; }
 .busy-bar { grid-area: bar; }
@@ -246,7 +239,7 @@ select.quiet { min-height: 36px; padding: 4px 8px; font-size: 13px; color: var(-
 .btn-danger { border-color: var(--late); color: var(--late); }
 .btn-danger:hover { background: color-mix(in srgb, var(--late) 12%, transparent); }
 .busy-time { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; flex: 0 0 auto; }
-@media (prefers-reduced-motion: reduce) { .busy-road, .busy-deodap * { animation-duration: 2.2s; } }
+@media (prefers-reduced-motion: reduce) { .busy-road { animation-duration: 2.2s; } .busy-sprite { animation-duration: 2.4s; } }
 
 /* busy card: text stack + progress bar */
 .busy-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
