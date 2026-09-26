@@ -43,7 +43,52 @@ export async function route(points, opts = {}) {
 
 // ---------- Valhalla ----------
 
+// The public server routes at most 10 locations per request. A long day (start + 9 or more
+// stops + end) is routed in consecutive pieces that share an endpoint, then stitched back into
+// one route: same legs, same geometry, same totals as if it had been one call.
+export const VALHALLA_MAX_LOCATIONS = 10;
+
+/** Consecutive windows of at most `max` points, each starting where the previous one ended. */
+export function chunkPoints(points, max = VALHALLA_MAX_LOCATIONS) {
+  if (points.length <= max) return [points];
+  const out = [];
+  let i = 0;
+  while (i < points.length - 1) {
+    const end = Math.min(points.length, i + max);
+    out.push(points.slice(i, end));
+    if (end === points.length) break;
+    i = end - 1;
+  }
+  return out;
+}
+
+/** Join routed pieces end to end (the shared point appears once). */
+export function stitch(parts) {
+  if (parts.length === 1) return parts[0];
+  const coords = [];
+  const legs = [];
+  let totalSec = 0, totalM = 0;
+  const flags = { hasToll: false, hasHighway: false, hasFerry: false };
+  for (const part of parts) {
+    const c = part.geometry.coordinates;
+    coords.push(...(coords.length ? c.slice(1) : c));
+    legs.push(...part.legs);
+    totalSec += part.totalSec;
+    totalM += part.totalM;
+    for (const k of Object.keys(flags)) flags[k] = flags[k] || Boolean(part.flags?.[k]);
+  }
+  return { geometry: { type: "LineString", coordinates: coords }, legs, totalSec, totalM, router: parts[0].router, flags };
+}
+
 async function valhalla(points, o) {
+  const chunks = chunkPoints(points);
+  if (chunks.length === 1) return valhallaOnce(points, o);
+  const parts = [];
+  for (const c of chunks) parts.push(await valhallaOnce(c, o)); // one at a time: the public server's politeness queue
+  return stitch(parts);
+}
+
+async function valhallaOnce(points, o) {
   const body = {
     locations: points.map((p) => ({ lat: p.lat, lon: p.lon, type: "break" })),
     costing: "auto",

@@ -255,7 +255,10 @@ session, kept in sessionStorage). With `ADMIN_SECRET` unset the admin API answer
    stops it supplies carry `source: "google"` and a "place data: Google" note on the card).
 3. **Routing** (`server/router.js`): Valhalla's public server routes the day, honouring
    *Avoid tolls* / *Avoid highways* when ticked and flagging when no such route exists; the
-   OSRM demo server is the fallback for plain routes. The schedule is walked from your start
+   OSRM demo server is the fallback for plain routes. Valhalla takes at most 10 locations per
+   request, so a long day (start, 9+ stops, end) is routed in consecutive pieces sharing an
+   endpoint and stitched back into one route (`chunkPoints`, `stitch`); before this a full-day
+   plan failed with "Exceeded max locations: 10". The schedule is walked from your start
    time (plus a 30 min buffer for bags and the rental car when the start is an airport, detected
    from its label; anywhere else you leave at the start time): drive + 3 min parking + dwell per stop. Drive times include
    **typical traffic** (`web/js/traffic.js`): each leg is slowed by a multiplier for the day and
