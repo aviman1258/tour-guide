@@ -206,9 +206,11 @@ export function search({ near, at, radiusKm = 50, q = "", limit = 20 } = {}) {
     });
     const byPlace = at ? rows.filter((r) => { try { return passesNear(JSON.parse(r.points_json || "[]"), at, radiusKm); } catch { return false; } }) : [];
     const seen = new Set();
-    rows = [...byText, ...byPlace].filter((r) => !seen.has(r.id) && seen.add(r.id));
+    const textIds = new Set(byText.map((r) => r.id));
+    rows = [...byText, ...byPlace].filter((r) => !seen.has(r.id) && seen.add(r.id)).map((r) => ({ ...r, _text: textIds.has(r.id) ? 1 : 0 }));
   }
-  rows.sort((a, b) => b.uses - a.uses || (b.created_at > a.created_at ? 1 : b.created_at < a.created_at ? -1 : 0));
+  // routes that match the words outrank ones that merely pass near the place; then most used, then newest
+  rows.sort((a, b) => (b._text || 0) - (a._text || 0) || b.uses - a.uses || (b.created_at > a.created_at ? 1 : b.created_at < a.created_at ? -1 : 0));
   return rows.slice(0, Math.min(50, limit)).map(summarize);
 }
 
