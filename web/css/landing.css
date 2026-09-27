@@ -14,6 +14,7 @@ body.landing {
 }
 .hero { max-width: 620px; margin: 0 auto; text-align: center; }
 .mascot { width: 180px; height: 180px; display: block; margin: 8px auto 4px; }
+.hero-banner { display: block; width: 100%; height: auto; aspect-ratio: 1200 / 318; object-fit: cover; border-radius: 16px; margin: 0 auto 16px; box-shadow: 0 8px 28px rgba(0,0,0,.18); }
 h1 { margin: 0; font-size: 40px; letter-spacing: -.01em; }
 .tag { margin: 2px 0 14px; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: .12em; font-size: 13px; }
 .lede { margin: 0 auto 26px; max-width: 520px; color: var(--muted); font-size: 17px; }

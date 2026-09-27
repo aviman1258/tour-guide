@@ -13,6 +13,7 @@ Outputs:
   web/img/deodap-head.png       head, trimmed, 256x256, transparent (small favicons, doc pages)
   web/img/deodap-run.png        sprite sheet, 8 frames of 112x112 (the "working" spinner)
   web/img/og.png                1200x630 social preview: the scene plus the wordmark
+  web/img/hero.jpg              1200x318 landing-page banner: the sharp band of the scene (the generator letterboxed it)
   web/icons/favicon-32.png, favicon-64.png
   web/icons/icon-192.png, icon-512.png, apple-touch-icon-180.png   (opaque cream background)
   web/icons/icon-512-maskable.png   (same, character inside the 80% safe zone)
@@ -121,6 +122,20 @@ def sprite_sheet(src, frames=8, frame_px=112):
     return out
 
 
+def hero_band(scene_path, height=318):
+    """The scene came letterboxed inside blurred bars; keep the sharp middle band as a wide banner."""
+    im = Image.open(scene_path).convert("RGB").resize((1200, 630), RS)
+    edges = im.convert("L").filter(ImageFilter.FIND_EDGES)
+    w, h = edges.size
+    px = edges.load()
+    energy = [sum(px[x, y] for x in range(0, w, 4)) / (w / 4) for y in range(h)]
+    sharp = [y for y in range(8, h - 8) if energy[y] > 3]
+    top, bottom = (sharp[0], sharp[-1]) if len(sharp) > height // 2 else (0, h)
+    mid = (top + bottom) // 2
+    y0 = max(0, min(h - height, mid - height // 2))
+    return im.crop((0, y0, 1200, y0 + height))
+
+
 def og_image(scene_path):
     """The scene with the wordmark laid over its lower band."""
     im = Image.open(scene_path).convert("RGBA").resize((1200, 630), RS)
@@ -159,7 +174,8 @@ def main():
     square(full, 512, fill=0.62, bg=CREAM).convert("RGB").save(ICONS / "icon-512-maskable.png", optimize=True)
     sprite_sheet(ART / "deodap-run.png").save(IMG / "deodap-run.png", optimize=True)
     og_image(ART / "deodap-scene.png").save(IMG / "og.png", optimize=True)
-    for p in sorted(list(IMG.glob("*.png")) + list(ICONS.glob("*.png"))):
+    hero_band(ART / "deodap-scene.png").save(IMG / "hero.jpg", quality=84, optimize=True, progressive=True)
+    for p in sorted(list(IMG.glob("*.png")) + list(IMG.glob("*.jpg")) + list(ICONS.glob("*.png"))):
         im = Image.open(p)
         print(f"{p.relative_to(ROOT)}  {im.size[0]}x{im.size[1]}  {p.stat().st_size // 1024} KB")
 

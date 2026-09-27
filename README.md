@@ -629,7 +629,8 @@ head, an 8-frame run cycle in one row, and a coastal-road scene), and `python
 scripts/make-artwork.py` builds everything the app shows from them: `web/img/deodap.png` (logo,
 landing mascot, drive overlay), `deodap-head.png` (doc pages and the 32/64 px favicons),
 `deodap-run.png` (the "working" spinner, a sprite sheet the CSS steps through at 8 frames per
-0.72 s), `og.png` (the scene with the wordmark, for link previews), and the app icons on a cream
+0.72 s), `og.png` (the scene with the wordmark, for link previews), `hero.jpg` (the sharp band of the
+scene, the landing page's banner), and the app icons on a cream
 background including the maskable one with the character inside the 80% safe zone. Replace a
 source file, run the script, bump `SHELL_VERSION`.
 
