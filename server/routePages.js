@@ -69,6 +69,7 @@ function shell({ title, description, canonical, body, jsonLd, image = `${BASE}/i
     <a class="doc-home" href="/"><img src="/img/deodap-head.png" alt="" width="36" height="36" /> Deodapper</a>
 ${body}
     <p class="foot"><a href="/routes">All saved routes</a> · <a href="/">Deodapper home</a> · <a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a></p>
+    <p class="foot fine">© 2026 Deodapper. Stories draw on <a href="https://en.wikipedia.org/wiki/Wikipedia:Text_of_the_Creative_Commons_Attribution-ShareAlike_4.0_International_License" rel="noopener">Wikipedia (CC BY-SA)</a> and <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a> data.</p>
   </main>
 </body>
 </html>`;
