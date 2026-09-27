@@ -11,6 +11,15 @@
   <link rel="stylesheet" href="css/app.css" />
   <style>
     body { padding: 0 0 40px; }
+    /* header: the title never shrinks; on phones the day buttons take their own full row */
+    .topbar .brand { flex: 0 0 auto; }
+    .topbar h1 { overflow: visible; }
+    .days .btn { min-height: 36px; padding: 4px 10px; font-size: 13px; }
+    @media (max-width: 640px) {
+      .days { order: 3; flex: 1 1 100%; }
+      .days .btn { flex: 1; padding: 4px 4px; }
+      .topbar nav .btn { min-height: 36px; padding: 4px 10px; font-size: 13px; }
+    }
     .admin { max-width: 1100px; margin: 0 auto; padding: 12px; display: flex; flex-direction: column; gap: 14px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
     .stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
@@ -20,10 +29,14 @@
     th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
     th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
     @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
-    .card h2 { display: flex; justify-content: space-between; align-items: baseline; }
-    .card h2 small { color: var(--muted); font-weight: 400; }
+    /* section headings: chevron, title, then any note or button pushed to the right edge */
+    .card h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 34px; }
+    .card h2 > small { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 12px; text-align: right; }
+    .card h2 > .btn { margin-left: auto; }
+    .card h2 > small ~ .btn { margin-left: 0; }
+    .card.fold.closed > h2 { margin-bottom: 0; }
     .scroll { overflow-x: auto; }
     .bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; padding-top: 6px; }
     .bars .bar { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
@@ -35,11 +48,17 @@
     .kind-plan_error, .kind-prepare_error, .kind-admin_delete { color: var(--late); font-weight: 600; }
     /* every section folds; the heading is the toggle */
     .card.fold > h2 { cursor: pointer; user-select: none; }
-    .card.fold > h2::before { content: "▾"; display: inline-block; width: 18px; color: var(--muted); font-size: 13px; }
+    .card.fold > h2::before { content: "▾"; display: inline-block; flex: 0 0 14px; color: var(--muted); font-size: 13px; }
     .card.fold.closed > h2::before { content: "▸"; }
     .card.fold.closed > :not(h2) { display: none; }
     .seed-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px 12px; margin: 8px 0; }
-    .seed-list label { display: flex; gap: 8px; align-items: baseline; font-size: 14px; }
+    .seed-list label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.35; padding: 4px 0; }
+    .seed-list input[type="checkbox"] { flex: 0 0 auto; width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; padding: 0; accent-color: var(--accent); }
+    .seed-list label span { min-width: 0; }
+    /* wide tables scroll sideways inside their card instead of squeezing every column to a word */
+    .scroll table { min-width: 640px; }
+    #places, #devices, #pages, #kinds, #visitors { min-width: 0; }
+    #routes { min-width: 960px; }
     .seed-list label.published { color: var(--muted); }
     .seed-list small { color: var(--muted); }
     .research-test { margin-top: 10px; gap: 6px; }
