@@ -38,6 +38,10 @@
     .card.fold > h2::before { content: "▾"; display: inline-block; width: 18px; color: var(--muted); font-size: 13px; }
     .card.fold.closed > h2::before { content: "▸"; }
     .card.fold.closed > :not(h2) { display: none; }
+    .seed-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px 12px; margin: 8px 0; }
+    .seed-list label { display: flex; gap: 8px; align-items: baseline; font-size: 14px; }
+    .seed-list label.published { color: var(--muted); }
+    .seed-list small { color: var(--muted); }
     .research-test { margin-top: 10px; gap: 6px; }
     .research-test input { flex: 1; min-width: 0; }
     #research-out { white-space: pre-wrap; font-size: 12px; margin: 8px 0 0; }
@@ -99,6 +103,18 @@
       <p id="indexnow-msg" class="hint" hidden></p>
       <p class="hint">Everything free-tier drivers can find. Delete removes the route and its narration for everyone; drivers who already saved it to their phone keep their copy.</p>
       <div class="scroll"><table id="routes"></table></div>
+    </section>
+
+    <section class="card">
+      <h2>Starter routes <small id="seed-note"></small></h2>
+      <p class="hint">Twelve ready-made drives (Southern California and the big fly-in cities). The server plans each one, writes and records the narration, drafts the listing and publishes it, exactly as a subscriber would, one after another in the background. About 3 minutes and 70 cents a route; already-published ones are skipped.</p>
+      <div id="seed-list" class="seed-list"></div>
+      <div class="row">
+        <button type="button" id="seed-all" class="btn btn-sm">Select all unpublished</button>
+        <button type="button" id="seed-run" class="btn btn-sm btn-primary">Plan, narrate and publish selected</button>
+      </div>
+      <div id="seed-status" class="hint"></div>
+      <div class="scroll"><table id="seed-results"></table></div>
     </section>
 
     <section class="card"><h2>Most active addresses</h2><div class="scroll"><table id="visitors"></table></div></section>

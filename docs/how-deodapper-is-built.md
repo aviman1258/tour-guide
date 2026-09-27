@@ -214,6 +214,13 @@ route free"), listed at `deodapper.com/routes` and in the sitemap automatically.
 is, and each published route adds one such page. Publish routes for the cities you care about,
 then use URL inspection → Request indexing on the new page once.
 
+**Starter routes.** The admin page has a "Starter routes" section: twelve ready-made drives that the
+server plans, narrates, records and publishes by itself, one after another (about 3 minutes and 70
+cents each, counted against the daily Claude budget). Tick the ones you want and press the button;
+the list shows progress and links to the finished pages. Already-published ones are skipped, so it
+is safe to press again after a failure. Adding presets means editing `STARTER_ROUTES` in
+`server/lib/seed.js` (a start, an end with coordinates, a time window and the interests).
+
 ### 2.6b Google Places (optional)
 
 The free sources have a blind spot: small local places. A neighbourhood temple like Kali Mandir

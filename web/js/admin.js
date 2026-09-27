@@ -10,13 +10,13 @@ let days = 30;
 function key() { try { return sessionStorage.getItem(KEY) || ""; } catch { return ""; } }
 function setKey(v) { try { v ? sessionStorage.setItem(KEY, v) : sessionStorage.removeItem(KEY); } catch { /* ignore */ } }
 
-async function api(path, method = "GET", retried = false) {
-  const res = await fetch(path, { method, headers: key() ? { "x-admin-key": key() } : {} });
+async function api(path, method = "GET", retried = false, body = undefined) {
+  const res = await fetch(path, { method, headers: { ...(key() ? { "x-admin-key": key() } : {}), ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
   if (res.status === 401 && !retried) {
     const entered = await askSecret({ title: "Admin", label: "Admin password", submit: "Sign in" });
     if (!entered) throw new Error("Admin password required.");
     setKey(entered);
-    return api(path, method, true);
+    return api(path, method, true, body);
   }
   if (res.status === 204) return {};
   const data = await res.json().catch(() => ({}));
@@ -193,6 +193,38 @@ $("indexnow-btn")?.addEventListener("click", async () => {
     m.textContent = !r.enabled ? "IndexNow is off: set INDEXNOW_KEY in Render first." : r.status ? `Submitted ${r.submitted} pages (IndexNow answered ${r.status}). Bing usually crawls within a day.` : `Couldn't reach IndexNow: ${r.lastError || "unknown error"}`;
   } catch (err) { m.textContent = err.message; } finally { b.disabled = false; }
 });
+// ---------- starter routes ----------
+let seedTimer = null;
+function renderSeed(st) {
+  const list = $("seed-list");
+  const chosen = new Set([...list.querySelectorAll("input:checked")].map((i) => i.value));
+  list.innerHTML = st.presets.map((p) => `<label class="${p.published ? "published" : ""}"><input type="checkbox" value="${p.key}" ${p.published ? "disabled" : chosen.has(p.key) ? "checked" : ""} /> <span>${escapeHtml(p.start)} → ${escapeHtml(p.end)} <small>${p.window}${p.published ? " · published" : ""}</small></span></label>`).join("");
+  const n = st.done.length + st.failed.length + st.skipped.length;
+  $("seed-note").textContent = st.running ? `running · ${n} of ${st.total} done` : st.finishedAt ? `last run finished ${when(st.finishedAt)}` : "";
+  $("seed-status").textContent = st.running && st.current ? `Working on ${st.current.name} · ${st.current.phase === "plan" ? "planning the stops" : st.current.phase === "narrate" ? "writing and recording the narration" : "publishing"}…` : st.running ? "Starting…" : "";
+  $("seed-run").disabled = st.running;
+  const rows = [
+    ...st.done.map((r) => ({ kind: "published", name: r.name, detail: `<a href="/routes/${encodeURIComponent(r.id)}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a> · ${r.stops} stops · ${r.narrations} narrations · ${r.seconds} s` })),
+    ...st.failed.map((r) => ({ kind: "failed", name: r.name, detail: escapeHtml(r.error) })),
+    ...st.skipped.map((r) => ({ kind: "skipped", name: r.name, detail: `already published as “${escapeHtml(r.title)}”` })),
+  ];
+  table("seed-results", [
+    { label: "Route", render: (r) => escapeHtml(r.name) },
+    { label: "Result", render: (r) => `<b>${r.kind}</b> · ${r.detail}` },
+  ], rows);
+  clearTimeout(seedTimer);
+  if (st.running) seedTimer = setTimeout(loadSeed, 5000);
+}
+async function loadSeed() { try { renderSeed(await api("/api/admin/seed")); } catch (err) { $("seed-status").textContent = err.message; } }
+$("seed-all").addEventListener("click", () => { for (const i of $("seed-list").querySelectorAll("input:not(:disabled)")) i.checked = true; });
+$("seed-run").addEventListener("click", async () => {
+  const keys = [...$("seed-list").querySelectorAll("input:checked")].map((i) => i.value);
+  if (!keys.length) { $("seed-status").textContent = "Tick at least one route."; return; }
+  $("seed-run").disabled = true;
+  try { renderSeed(await api("/api/admin/seed", "POST", false, { keys })); } catch (err) { $("seed-status").textContent = err.message; $("seed-run").disabled = false; }
+});
+loadSeed();
+
 $("refresh").addEventListener("click", load);
 $("logout").addEventListener("click", () => { setKey(""); location.reload(); });
 load();

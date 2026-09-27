@@ -177,6 +177,20 @@ destination at `https://<host>/api/pay/webhook`.
 
 Later: accounts, if ever needed; the credit check is the one place to change.
 
+### Starter routes (seeding the library)
+
+`server/lib/seed.js` holds twelve preset drives (Southern California coast and city routes, and
+airport-to-landmark drives for San Diego, San Francisco, Las Vegas, Miami, Chicago, Savannah and
+Nashville) and a background job that runs each one through the same code a subscriber would:
+`plan.runPlan` → `narrate.prepareDrive` (narration and Deodap's voice clips) → `claude.describeRoute`
+for the listing → `library.publish` → IndexNow ping. Dated for the coming Saturday so traffic and
+weather are real. The admin page's "Starter routes" section lists the presets with published
+flags, lets you tick some or all, and polls the job every 5 seconds showing the current route and
+phase, then a table of published (with a link), failed (with the error) and skipped (same start
+and end already in the library). One job at a time, sequential, about 3 minutes and 70 cents a
+route; the daily Claude budget still applies. Re-running skips what exists, so a job cut short by
+a redeploy just continues on the next press.
+
 ### Content filter on published routes
 
 `server/lib/moderation.js` checks every piece of text other drivers will read (title,
@@ -335,6 +349,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `GET /api/health` | | `{ok, claude:"sdk"\|"cli", models, osrm, data:{dir, exists, writable, events, routes, admin, analytics}}` |
 | `GET /api/admin/costs?days=` | `x-admin-key` | Claude usage: per-tool calls, median tokens and cost, totals, median cost per route |
 | `GET /api/admin/routes` | `x-admin-key` | `{routes: [summary + author]}` every shared route, newest first |
+| `GET /api/admin/seed`, `POST /api/admin/seed` | `x-admin-key`; POST `{keys}` | starter routes: the preset list with published flags and the job status; start planning → narrating → publishing the selected presets in the background (202; 409 while running) |
 | `DELETE /api/admin/routes/:id` | `x-admin-key` | 204; removes a shared route for everyone |
 | `POST /api/owner/unlock` | `{passphrase}` + `x-device` | `{token, expiresAt}`; 401 wrong (`triesLeft`), 429 locked (`lockedUntil`) |
 | `POST /api/owner/logout` | `x-app-key` | revokes that owner token |

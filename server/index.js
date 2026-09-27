@@ -25,6 +25,7 @@ import * as places from "./places.js";
 import * as tts from "./lib/tts.js";
 import * as accounts from "./lib/accounts.js";
 import * as mail from "./lib/mail.js";
+import * as seed from "./lib/seed.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -283,6 +284,21 @@ app.get("/api/admin/research-test", requireAdmin, h(async (req, res) => {
 app.get("/api/admin/costs", requireAdmin, h(async (req, res) => {
   const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
   res.json({ ...usage.summary(days), budget: usage.budget(), voice: tts.summary(days) });
+}));
+// Starter routes: plan → narrate → publish a preset list, in the background (lib/seed.js).
+app.get("/api/admin/seed", requireAdmin, h(async (_req, res) => { res.json(seed.status()); }));
+app.post("/api/admin/seed", requireAdmin, h(async (req, res) => {
+  const keys = Array.isArray(req.body?.keys) ? req.body.keys.map(String) : [];
+  const st = seed.start(keys, {
+    log: (m) => console.log(`[seed] ${m}`),
+    publish: async (pkg, title, description, region) => {
+      const summary = library.publish({ pkg, title, description, region, author: "seed" });
+      pingIndexNow([routePages.routeUrl(summary), `${routePages.BASE}/routes`, `${routePages.BASE}/sitemap.xml`]);
+      return summary;
+    },
+  });
+  analytics.track(req, "seed_start", `${st.total} routes`);
+  res.status(202).json(st);
 }));
 // Shared-route moderation: list everything, delete anything.
 app.get("/api/admin/routes", requireAdmin, h(async (_req, res) => {
