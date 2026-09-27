@@ -59,7 +59,8 @@ function shell({ title, description, canonical, body, jsonLd, image = `${BASE}/i
   <meta property="og:url" content="${esc(canonical)}" />
   <meta property="og:image" content="${esc(image)}" />
   <meta name="twitter:card" content="summary_large_image" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48.png" />
+  <link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96.png" />
   <link rel="stylesheet" href="/css/landing.css" />
   ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>` : ""}
 </head>

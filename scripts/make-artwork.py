@@ -14,7 +14,8 @@ Outputs:
   web/img/deodap-busy.png       sprite sheet, 6 frames of 120x120 (the "working" spinner)
   web/img/og.png                1200x630 social preview: the scene plus the wordmark
   web/img/hero.jpg              1200x318 landing-page banner: the sharp band of the scene (the generator letterboxed it)
-  web/icons/favicon-32.png, favicon-64.png
+  web/icons/favicon-48.png, favicon-96.png, favicon-144.png   (Google only accepts multiples of 48 px)
+  web/favicon.ico               32 + 48 px, for the crawlers and browsers that just ask for /favicon.ico
   web/icons/icon-192.png, icon-512.png, apple-touch-icon-180.png   (opaque cream background)
   web/icons/icon-512-maskable.png   (same, character inside the 80% safe zone)
 """
@@ -186,8 +187,11 @@ def main():
 
     square(full, 512, fill=0.96).save(IMG / "deodap.png", optimize=True)
     square(head, 256, fill=0.96).save(IMG / "deodap-head.png", optimize=True)
-    for s in (32, 64):
+    for s in (48, 96, 144):
         square(head, s, fill=1.0).save(ICONS / f"favicon-{s}.png", optimize=True)
+    for old in ("favicon-32.png", "favicon-64.png"):
+        (ICONS / old).unlink(missing_ok=True)
+    square(head, 48, fill=1.0).save(ROOT / "web" / "favicon.ico", format="ICO", sizes=[(16, 16), (32, 32), (48, 48)])
     for name, size, fill in (("icon-192.png", 192, 0.82), ("icon-512.png", 512, 0.82), ("apple-touch-icon-180.png", 180, 0.84)):
         square(full, size, fill=fill, bg=CREAM).convert("RGB").save(ICONS / name, optimize=True)
     # maskable: platforms may crop to a circle covering the central 80%; keep him inside it

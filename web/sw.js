@@ -1,7 +1,7 @@
 // Service worker: offline app shell, polite tile cache (only tiles the map asked for),
 // network-only API. Bump SHELL_VERSION when shipping changes so clients refresh.
 
-const SHELL_VERSION = "v60"; // bump on every deploy that changes web/ — the shell is cache-first
+const SHELL_VERSION = "v61"; // bump on every deploy that changes web/ — the shell is cache-first
 const SHELL = `tg-shell-${SHELL_VERSION}`;
 const TILES = "tg-tiles";
 const IMAGES = "tg-images";
@@ -28,7 +28,7 @@ const SHELL_FILES = [
   "./vendor/leaflet/leaflet.js", "./vendor/leaflet/leaflet.css",
   "./vendor/leaflet/images/marker-icon.png", "./vendor/leaflet/images/marker-icon-2x.png", "./vendor/leaflet/images/marker-shadow.png",
   "./vendor/leaflet/images/layers.png", "./vendor/leaflet/images/layers-2x.png",
-  "./icons/favicon-32.png", "./icons/favicon-64.png", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-512-maskable.png", "./icons/apple-touch-icon-180.png", "./icons/blank-tile.png",
+  "./favicon.ico", "./icons/favicon-48.png", "./icons/favicon-96.png", "./icons/favicon-144.png", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-512-maskable.png", "./icons/apple-touch-icon-180.png", "./icons/blank-tile.png",
 ];
 
 self.addEventListener("install", (event) => {
