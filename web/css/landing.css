@@ -41,6 +41,7 @@ h1 { margin: 0; font-size: 40px; letter-spacing: -.01em; }
 .foot a { color: var(--accent); }
 
 .foot.fine { font-size: 12px; opacity: .8; }
+footer.foot { margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--line); line-height: 1.6; }
 
 /* terms / privacy pages */
 .doc-body { max-width: 680px; margin: 0 auto; text-align: left; }
