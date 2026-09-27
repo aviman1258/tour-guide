@@ -46,6 +46,18 @@ app.post("/api/pay/webhook", express.raw({ type: "*/*", limit: "1mb" }), (req, r
 });
 app.use(express.json({ limit: "4mb" }));
 
+// The Render hostname (tour-guide-xxxx.onrender.com) serves the very same site. Search engines
+// must only ever index deodapper.com, or the two copies compete and neither ranks: every page
+// already carries a canonical link, and on any host other than the public one we say so outright.
+const PUBLIC_HOST = new URL(config.publicBase).hostname;
+app.use((req, res, next) => {
+  const host = String(req.hostname || "").toLowerCase();
+  if (host && host !== PUBLIC_HOST && host !== "localhost" && host !== "127.0.0.1" && !host.startsWith("192.168.") && !host.startsWith("10.")) {
+    res.set("x-robots-tag", "noindex, nofollow");
+  }
+  next();
+});
+
 // ---------- usage analytics ----------
 // Page opens are reported by the page itself (POST /api/ping) so visits served from the
 // offline cache or the installed app are counted too; the server only sees API calls otherwise.

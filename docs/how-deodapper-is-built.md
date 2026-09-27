@@ -180,6 +180,18 @@ Domain property `deodapper.com`, verified through the Cloudflare integration (it
 record). Sitemap submitted as `https://deodapper.com/sitemap.xml`. Use **URL inspection →
 Request indexing** after big content changes. Bing Webmaster Tools can import this property.
 
+**If the site doesn't show up in Google.** A new domain takes anywhere from a few days to a few
+weeks to be indexed, and a coined name like "deodapper" ranks the moment the homepage is in the
+index, so the only question is whether it is. In Search Console: **Pages** (left menu) shows how
+many pages are indexed and why the rest aren't ("Discovered, currently not indexed" means Google
+knows the URL and hasn't got round to it yet; "Crawled, not indexed" means it looked and wasn't
+convinced). **URL inspection** on `https://deodapper.com/` → **Test live URL** shows whether
+Google can fetch the page at all (a Cloudflare challenge or a block would show here) → **Request
+indexing** asks for a crawl within a day or two; do this for `/`, `/routes` and each route page,
+a handful a day at most. Only deodapper.com should ever be indexed: the Render hostname serves the
+same pages and is marked noindex by the server. Seeing the site in your own signed-in Chrome but
+not in an incognito window means personalisation (your history), not the index.
+
 **Titles and descriptions are drafted by Claude** (Haiku, half a cent) when the publish form
 opens, in a fixed shape: "City: two or three highlights" and a specific one-to-two-sentence
 description with no brochure language. The publisher can edit or ask for another draft. This keeps

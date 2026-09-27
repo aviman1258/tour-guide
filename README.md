@@ -618,6 +618,11 @@ landing page carries a canonical link, Open Graph and Twitter cards with `web/im
 (1200×630, rendered from the mascot SVG), and JSON-LD describing a `WebApplication` with the four
 offers, so search results can show the prices. `plan.html` has its own title and description;
 `drive.html` and `admin.html` are `noindex`. Getting indexed still needs a one-time step in
+Only `deodapper.com` is meant to be indexed. The Render hostname serves the same site, so every
+page carries a canonical link to deodapper.com and the server adds `X-Robots-Tag: noindex,
+nofollow` to responses on any host other than the public one (`PUBLIC_BASE_URL`), localhost and
+private addresses excepted.
+
 Google Search Console: add `deodapper.com` as a Domain property, prove ownership with the TXT
 record it gives you (Cloudflare → DNS), submit `https://deodapper.com/sitemap.xml`, and request
 indexing of the homepage. Bing Webmaster Tools can import the Search Console property.
