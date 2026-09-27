@@ -624,12 +624,13 @@ indexing of the homepage. Bing Webmaster Tools can import the Search Console pro
 
 ### Artwork
 
-Deodap is a painted character now: the four source pictures live in `artwork/` (full body,
-head, an 8-frame run cycle in one row, and a coastal-road scene), and `python
+Deodap is a painted character now: the source pictures live in `artwork/` (full body, head, a
+6-frame "doing research" loop in one row, and a coastal-road scene), and `python
 scripts/make-artwork.py` builds everything the app shows from them: `web/img/deodap.png` (logo,
 landing mascot, drive overlay), `deodap-head.png` (doc pages and the 32/64 px favicons),
-`deodap-run.png` (the "working" spinner, a sprite sheet the CSS steps through at 8 frames per
-0.72 s), `og.png` (the scene with the wordmark, for link previews), `hero.jpg` (the sharp band of the
+`deodap-busy.png` (the "working" spinner: Deodap at his desk reading, flipping a page and taking
+notes, a sprite sheet the CSS steps through at 6 frames per 2.4 s; the slicer separates frames by
+connected pixels and lines them up on a shared baseline, so generator spacing doesn't matter), `og.png` (the scene with the wordmark, for link previews), `hero.jpg` (the sharp band of the
 scene, the landing page's banner), and the app icons on a cream
 background including the maskable one with the character inside the 80% safe zone. Replace a
 source file, run the script, bump `SHELL_VERSION`.

@@ -210,22 +210,17 @@ select.quiet { min-height: 36px; padding: 4px 8px; font-size: 13px; color: var(-
   box-shadow: 0 6px 24px rgba(0,0,0,.25); width: min(94vw, 520px); box-sizing: border-box;
 }
 .busy-pill[hidden] { display: none; }
-/* the road slides left under Deodap's feet so he looks like he's running right */
+/* Deodap at his desk: reading, flipping a page, taking notes (web/img/deodap-busy.png, 6 frames of 120 px shown at 60 px) */
 .busy-road {
-  grid-area: road; position: relative; width: 84px; height: 60px; overflow: hidden; border-radius: 8px;
-  background:
-    repeating-linear-gradient(90deg, var(--muted) 0 10px, transparent 10px 18px) 0 calc(100% - 3px) / 18px 2px repeat-x,
-    color-mix(in srgb, var(--accent) 14%, transparent);
-  animation: busy-road 0.55s linear infinite;
+  grid-area: road; position: relative; width: 84px; height: 64px; overflow: hidden; border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
-@keyframes busy-road { to { background-position: -18px calc(100% - 3px), 0 0; } }
-/* Deodap running: an 8-frame sprite sheet (web/img/deodap-run.png, 112 px frames shown at 56 px) */
 .busy-sprite {
-  position: absolute; left: 14px; bottom: 3px; width: 56px; height: 56px;
-  background: url(../img/deodap-run.png) 0 0 / 448px 56px no-repeat;
-  animation: busy-run 0.72s steps(8) infinite;
+  position: absolute; left: 12px; bottom: 2px; width: 60px; height: 60px;
+  background: url(../img/deodap-busy.png) 0 0 / 360px 60px no-repeat;
+  animation: busy-work 2.4s steps(6) infinite;
 }
-@keyframes busy-run { to { background-position: -448px 0; } }
+@keyframes busy-work { to { background-position: -360px 0; } }
 .busy-text { grid-area: text; }
 .busy-cancel { grid-area: cancel; }
 .busy-bar { grid-area: bar; }
@@ -239,7 +234,7 @@ select.quiet { min-height: 36px; padding: 4px 8px; font-size: 13px; color: var(-
 .btn-danger { border-color: var(--late); color: var(--late); }
 .btn-danger:hover { background: color-mix(in srgb, var(--late) 12%, transparent); }
 .busy-time { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; flex: 0 0 auto; }
-@media (prefers-reduced-motion: reduce) { .busy-road { animation-duration: 2.2s; } .busy-sprite { animation-duration: 2.4s; } }
+@media (prefers-reduced-motion: reduce) { .busy-sprite { animation-duration: 6s; } }
 
 /* busy card: text stack + progress bar */
 .busy-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }

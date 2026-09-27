@@ -5,13 +5,13 @@
 Sources (PNG, transparent unless noted):
   artwork/deodap-full.png   Deodap standing / waving, 1024x1024
   artwork/deodap-head.png   head and ears, 512x512
-  artwork/deodap-run.png    8-frame run cycle in one row, 4096x512
+  artwork/deodap-research.png  6 frames of Deodap reading, flipping a page and taking notes, one row
   artwork/deodap-scene.png  Deodap in a car on a coast road, 1200x630 (opaque)
 
 Outputs:
   web/img/deodap.png            full body, trimmed, 512x512, transparent (logo, mascot, overlay)
   web/img/deodap-head.png       head, trimmed, 256x256, transparent (small favicons, doc pages)
-  web/img/deodap-run.png        sprite sheet, 8 frames of 112x112 (the "working" spinner)
+  web/img/deodap-busy.png       sprite sheet, 6 frames of 120x120 (the "working" spinner)
   web/img/og.png                1200x630 social preview: the scene plus the wordmark
   web/img/hero.jpg              1200x318 landing-page banner: the sharp band of the scene (the generator letterboxed it)
   web/icons/favicon-32.png, favicon-64.png
@@ -74,32 +74,52 @@ def bbox_of(pixels):
     return (min(xs), min(ys), max(xs) + 1, max(ys) + 1)
 
 
-def split_row(sheet, frames):
-    """Separate the characters in a row by connected pixels, not by columns: a generator neither spaces
-    frames evenly nor keeps them apart, and a trunk reaching into the next frame's column belongs to
-    its own elephant. The `frames` biggest groups are the bodies; specks (a detached tail tuft) join
-    the nearest body. Returns [(image, bbox)] left to right, each image the size of the sheet."""
+def split_columns(sheet, frames):
+    """Fallback for frames that touch: cut at the thinnest column near each expected boundary."""
     alpha = sheet.split()[3].point(lambda v: 255 if v > 8 else 0)
-    comps = sorted(components(alpha), key=len, reverse=True)
-    if len(comps) < frames or len(comps[frames - 1]) < len(comps[0]) * 0.25:
-        raise SystemExit(f"could not find {frames} separate characters in the row (touching frames?)")
-    bodies = comps[:frames]
-    boxes = [bbox_of(b) for b in bodies]
-    for speck in comps[frames:]:
-        sx = sum(x for x, _ in speck) / len(speck)
-        near = min(range(frames), key=lambda i: 0 if boxes[i][0] <= sx <= boxes[i][2] else min(abs(sx - boxes[i][0]), abs(sx - boxes[i][2])))
-        bodies[near].extend(speck)
-    order = sorted(range(frames), key=lambda i: boxes[i][0])
+    w, h = alpha.size
+    px = alpha.load()
+    density = [sum(1 for y in range(h) if px[x, y]) for x in range(w)]
+    fw = w / frames
+    cuts = []
+    for i in range(1, frames):
+        centre = round(i * fw)
+        lo, hi = max(1, round(centre - 0.3 * fw)), min(w - 1, round(centre + 0.3 * fw))
+        cuts.append(min(range(lo, hi), key=lambda x: (density[x], abs(x - centre))))
+    edges = [0, *cuts, w]
     cells = []
-    for i in order:
+    for i in range(frames):
+        cell = sheet.crop((edges[i], 0, edges[i + 1], h))
+        b = cell.split()[3].point(lambda v: 255 if v > 8 else 0).getbbox()
+        cells.append((cell, b or (0, 0, cell.width, cell.height)))
+    return cells
+
+
+def split_row(sheet, frames):
+    """Separate the frames of a row by connected pixels, grouped by horizontal position: a frame may be
+    several pieces (elephant, desk, a pencil) and generators never space frames evenly. The pieces are
+    clustered into `frames` groups at the biggest jumps between their centres, so a trunk reaching into
+    the next frame's column still belongs to its own elephant. If a piece spans two frames (they touch),
+    fall back to cutting columns. Returns [(image, bbox)] left to right, each image the size of the sheet."""
+    alpha = sheet.split()[3].point(lambda v: 255 if v > 8 else 0)
+    comps = [c for c in components(alpha) if len(c) > 4]
+    fw = sheet.width / frames
+    if len(comps) < frames or any(bbox_of(c)[2] - bbox_of(c)[0] > 1.5 * fw for c in comps):
+        return split_columns(sheet, frames)
+    centres = sorted(((sum(x for x, _ in c) / len(c), i) for i, c in enumerate(comps)))
+    gaps = sorted(range(1, len(centres)), key=lambda k: centres[k][0] - centres[k - 1][0], reverse=True)[: frames - 1]
+    edges = [0, *sorted(gaps), len(centres)]
+    groups = [[comps[i] for _, i in centres[edges[g]:edges[g + 1]]] for g in range(frames)]
+    cells = []
+    for group in groups:
+        pixels = [pt for c in group for pt in c]
         mask = Image.new("L", sheet.size, 0)
-        mask.putdata([0] * (sheet.width * sheet.height))
         mp = mask.load()
-        for x, y in bodies[i]:
+        for x, y in pixels:
             mp[x, y] = 255
         img = Image.new("RGBA", sheet.size, (0, 0, 0, 0))
         img.paste(sheet, (0, 0), mask)
-        cells.append((img, bbox_of(bodies[i])))
+        cells.append((img, bbox_of(pixels)))
     return cells
 
 
@@ -172,7 +192,7 @@ def main():
         square(full, size, fill=fill, bg=CREAM).convert("RGB").save(ICONS / name, optimize=True)
     # maskable: platforms may crop to a circle covering the central 80%; keep him inside it
     square(full, 512, fill=0.62, bg=CREAM).convert("RGB").save(ICONS / "icon-512-maskable.png", optimize=True)
-    sprite_sheet(ART / "deodap-run.png").save(IMG / "deodap-run.png", optimize=True)
+    sprite_sheet(ART / "deodap-research.png", frames=6, frame_px=120).save(IMG / "deodap-busy.png", optimize=True)
     og_image(ART / "deodap-scene.png").save(IMG / "og.png", optimize=True)
     hero_band(ART / "deodap-scene.png").save(IMG / "hero.jpg", quality=84, optimize=True, progressive=True)
     for p in sorted(list(IMG.glob("*.png")) + list(IMG.glob("*.jpg")) + list(ICONS.glob("*.png"))):
