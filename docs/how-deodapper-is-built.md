@@ -383,6 +383,12 @@ recover on their own. Payments failing: Stripe dashboard → Developers → Webh
 
 ---
 
+**"My plan failed when my screen turned off."** It no longer does: planning and preparing run as
+server-side jobs that outlive the connection, and the page reattaches (or resumes after a reload)
+and finishes with "Your plan finished while you were away". While a job runs the page also asks
+the phone to keep the screen on. If a visitor still reports a lost plan, `/api/health` → `jobs`
+shows how many jobs exist and are running; jobs are kept two hours.
+
 **Someone can't sign in.** Check `/api/health` → `mail.enabled` (false = `RESEND_API_KEY` missing) and
 `mail.lastError` (Resend's own message: an unverified domain or a bad key). Links last 20 minutes
 and work once; "already used" means they tapped it twice, so they should ask for a new one. Three

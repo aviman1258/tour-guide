@@ -4,6 +4,7 @@ import * as map from "./map.js";
 import * as itinerary from "./itinerary.js";
 import * as share from "./share.js";
 import * as drivePrep from "./drivePrep.js";
+import * as actions from "./actions.js";
 import * as storage from "./storage.js";
 import * as library from "./library.js";
 import { ping } from "./ping.js";
@@ -67,6 +68,14 @@ async function boot() {
 
   const ok = await api.probe();
   if (ok) account.sync().catch(() => {});
+  // a plan or prepare that was running when this page went away (screen off, reload) is still
+  // running on the server: pick it up and finish it here
+  const pending = api.pendingJob();
+  if (ok && pending?.id && Date.now() - (pending.at || 0) < 2 * 3600_000) {
+    const resume = pending.doneKey === "package" ? drivePrep.resumePrepare(pending) : actions.resumePlan(pending);
+    resume.then((r) => { if (r) itinerary.toast(pending.doneKey === "package" ? "Your drive finished preparing while you were away." : `Your plan finished while you were away: ${r.stops.length} stops.`, 6000); })
+      .catch((err) => { api.clearPendingJob(); if (!err.cancelled) itinerary.toast(err.message, 6000); });
+  } else if (pending) api.clearPendingJob();
   // a public route page's "Drive this route free" button lands here with ?route=<id>
   const routeParam = new URLSearchParams(location.search).get("route");
   if (ok && routeParam) {

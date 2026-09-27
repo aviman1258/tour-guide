@@ -3,6 +3,19 @@
 // when the running task can be cancelled. Several tasks can overlap.
 
 const tasks = new Map(); // id → { label, onCancel, estimateMs, startedAt }
+
+// While something is running, keep the screen awake: a phone that locks mid-plan drops the
+// connection (the job itself survives on the server now, but staying connected is nicer).
+let wakeLock = null;
+async function holdWakeLock() {
+  try {
+    if (wakeLock || !navigator.wakeLock || document.visibilityState !== "visible") return;
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => { wakeLock = null; });
+  } catch { wakeLock = null; }
+}
+function releaseWakeLock() { wakeLock?.release?.().catch(() => {}); wakeLock = null; }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && tasks.size) holdWakeLock(); });
 let el = null, timer = null, startedAt = 0, seq = 0;
 
 function ensure() {
@@ -74,12 +87,14 @@ export function begin(label = "Working…", { onCancel, estimateMs, startedAt: t
     timer = setInterval(tick, 1000);
   }
   tasks.set(id, { label, onCancel, estimateMs: estimateMs || null, startedAt: t0 || Date.now() });
+  holdWakeLock();
   render();
   let finished = false;
   const done = () => {
     if (finished) return;
     finished = true;
     tasks.delete(id);
+    if (!tasks.size) releaseWakeLock();
     render();
   };
   done.done = done;

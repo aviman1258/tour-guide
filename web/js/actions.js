@@ -114,66 +114,62 @@ export function cancelPlan() {
 }
 export const isPlanning = () => Boolean(planController);
 
-export async function plan() {
-  const it = state.get();
-  if (!it.start || !it.end) throw new Error("Pick a start and an end first.");
-  if (!it.interests.trim()) throw new Error("Tell me what you're interested in.");
-  planController?.abort();
-  const ctrl = new AbortController();
-  planController = ctrl;
-  const startedAt = Date.now();
-  const task = busy.begin("Asking Deodap for stops…", { onCancel: () => ctrl.abort() });
-
-  // progress shown in the sidebar while we wait: candidates appear, then turn into real stops
+/** Progress shown in the sidebar while a plan runs: candidates appear, then turn into real stops. */
+function planProgress(task, startedAt) {
   const progress = { startedAt, phase: "claude", estimate: null, candidates: [], found: [], dropped: [] };
   const publish = () => state.set({ planning: { ...progress, candidates: [...progress.candidates], found: [...progress.found], dropped: [...progress.dropped] } });
-  publish();
-
   const PHASE_LABEL = { claude: "Asking Deodap for stops…", ground: "Checking each place on Wikipedia and the map…", route: "Routing and timing the day…" };
   let serverEstimate = null;
   const refreshEstimate = () => {
     progress.estimate = timings.planEstimate(serverEstimate, progress.candidates.length || serverEstimate?.candidateCount || 12);
     task.update({ estimateMs: progress.estimate.totalMs, startedAt });
   };
+  publish();
   refreshEstimate();
+  const onEvent = (event, data) => {
+    if (event === "estimate") { serverEstimate = data; refreshEstimate(); }
+    else if (event === "phase") {
+      if (data.status === "start") { progress.phase = data.phase; task.update({ label: PHASE_LABEL[data.phase] || "Working…" }); }
+      else if (data.status === "end" && data.ms) {
+        // remember how long it really took, on this device
+        if (data.phase === "ground") timings.record("plan.groundPerCandidate", data.ms / Math.max(1, progress.candidates.length));
+        else timings.record(`plan.${data.phase}`, data.ms);
+      }
+    }
+    else if (event === "candidates") { progress.candidates = data.map((c) => ({ ...c, status: "checking" })); refreshEstimate(); }
+    else if (event === "stop") {
+      progress.found.push(data.stop);
+      const c = progress.candidates.find((x) => x.status === "checking" && x.name.toLowerCase() === data.stop.name.toLowerCase());
+      if (c) { c.status = "ok"; c.stopId = data.stop.id; }
+      task.update({ label: `Verified ${progress.found.length} of ${progress.candidates.length} places…` });
+    }
+    else if (event === "dropped") {
+      progress.dropped.push(data);
+      const c = progress.candidates.find((x) => x.status === "checking" && x.name.toLowerCase() === data.name.toLowerCase());
+      if (c) { c.status = "dropped"; c.reason = data.reason; }
+    }
+    publish();
+  };
+  return { onEvent };
+}
+
+/** Run (or resume) a plan stream and put the result into the itinerary. */
+async function runPlanStream(label, startStream) {
+  const it = state.get();
+  planController?.abort();
+  const ctrl = new AbortController();
+  planController = ctrl;
+  const startedAt = Date.now();
+  const task = busy.begin(label, { onCancel: () => ctrl.abort() });
+  const { onEvent } = planProgress(task, startedAt);
   try {
-    const result = await api.planStream({
-      start: it.start, end: it.end, date: it.date, arrivalTime: it.arrivalTime, deadline: it.deadline,
-      interests: it.interests, departBufferMinutes: it.departBufferMinutes, safetyBufferMinutes: it.safetyBufferMinutes,
-      routeOptions: it.routeOptions,
-    }, {
-      signal: ctrl.signal,
-      onEvent: (event, data) => {
-        if (event === "estimate") { serverEstimate = data; refreshEstimate(); }
-        else if (event === "phase") {
-          if (data.status === "start") { progress.phase = data.phase; task.update({ label: PHASE_LABEL[data.phase] || "Working…" }); }
-          else if (data.status === "end" && data.ms) {
-            // remember how long it really took, on this device
-            if (data.phase === "ground") timings.record("plan.groundPerCandidate", data.ms / Math.max(1, progress.candidates.length));
-            else timings.record(`plan.${data.phase}`, data.ms);
-          }
-        }
-        else if (event === "candidates") { progress.candidates = data.map((c) => ({ ...c, status: "checking" })); refreshEstimate(); }
-        else if (event === "stop") {
-          progress.found.push(data.stop);
-          const c = progress.candidates.find((x) => x.status === "checking" && x.name.toLowerCase() === data.stop.name.toLowerCase());
-          if (c) { c.status = "ok"; c.stopId = data.stop.id; }
-          task.update({ label: `Verified ${progress.found.length} of ${progress.candidates.length} places…` });
-        }
-        else if (event === "dropped") {
-          progress.dropped.push(data);
-          const c = progress.candidates.find((x) => x.status === "checking" && x.name.toLowerCase() === data.name.toLowerCase());
-          if (c) { c.status = "dropped"; c.reason = data.reason; }
-        }
-        publish();
-      },
-    });
+    const result = await startStream({ signal: ctrl.signal, onEvent });
     if (ctrl.signal.aborted) return null;
     state.replace({ ...it, ...result, planning: null });
     return result;
   } catch (err) {
     state.set({ planning: null });
-    if (ctrl.signal.aborted || err.name === "AbortError") {
+    if (ctrl.signal.aborted || err.name === "AbortError" || err.cancelled) {
       const e = new Error("Planning cancelled.");
       e.cancelled = true;
       throw e;
@@ -183,6 +179,22 @@ export async function plan() {
     task.done();
     if (planController === ctrl) planController = null;
   }
+}
+
+export async function plan() {
+  const it = state.get();
+  if (!it.start || !it.end) throw new Error("Pick a start and an end first.");
+  if (!it.interests.trim()) throw new Error("Tell me what you're interested in.");
+  return runPlanStream("Asking Deodap for stops…", (opts) => api.planStream({
+    start: it.start, end: it.end, date: it.date, arrivalTime: it.arrivalTime, deadline: it.deadline,
+    interests: it.interests, departBufferMinutes: it.departBufferMinutes, safetyBufferMinutes: it.safetyBufferMinutes,
+    routeOptions: it.routeOptions,
+  }, opts));
+}
+
+/** A plan that was running when the page went away (screen off, reload): pick it up where it left off. */
+export async function resumePlan(pending) {
+  return runPlanStream("Picking up your plan where it left off…", (opts) => api.jobStream(pending.id, { ...opts, doneKey: "itinerary" }));
 }
 
 export async function suggest(count = 3) {

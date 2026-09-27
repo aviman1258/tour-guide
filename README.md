@@ -325,6 +325,23 @@ verified. The estimate comes from the medians of the last 20 real runs per phase
 `data/timings.json` (gitignored; priors until the first run). `GET /api/estimate` exposes it.
 Cancel closes the connection; the server aborts the Claude call and stops.
 
+### Planning survives a dark screen
+
+Planning takes a minute or two and preparing longer; a phone that locks in the meantime drops
+the connection. The server therefore runs both as **jobs** (`server/lib/jobs.js`): the response
+stream is only a window onto the job, which keeps running when the client disappears and keeps
+every progress event for two hours. The stream's first event is `job {id}`; the client
+(`followJob` in `web/js/api.js`) counts the events it has seen and, if the connection dies
+without a verdict, reattaches with `GET /api/jobs/:id?after=N` (backing off up to 8 s, for up to
+~200 attempts), gets the missed events replayed, and carries on. Only an explicit Cancel stops
+the work (`POST /api/jobs/:id/cancel`); a dropped connection never does. The pending job is
+remembered in localStorage, so a page that was closed or reloaded resumes it on the next load
+(`actions.resumePlan`, `drivePrep.resumePrepare`) and shows "Your plan finished while you were
+away". Credits settle inside the job, so a paid plan that finished while the phone was dark is
+still delivered and still charged exactly once. Jobs belong to the `x-device` that started them.
+On top of that, `web/js/busy.js` holds a screen Wake Lock while anything is running, so the
+screen doesn't go dark in the first place on browsers that support it.
+
 ## Shapes
 
 ```js
@@ -368,7 +385,9 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `POST /api/auth/logout`, `GET /api/auth/me` | `x-session` | revoke the session; `{signedIn, routes}` |
 | `GET /api/me/routes`, `GET/PUT/DELETE /api/me/routes/:tripId` | `x-session`; PUT `{title, package}` | the account's private drive packages: list (with `deleted` markers), fetch, store (413 over 2.5 MB, 429 over 100 routes), soft-delete |
 | `GET /api/whoami` | | `{tier, protected, ip, forwarded, cf}` — the tier the server sees for you, your resolved IP, the raw `X-Forwarded-For` chain and any `cf-*` headers |
-| `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed) |
+| `POST /api/plan` | `{start, end, arrivalTime, deadline, interests, date?}` | full `Itinerary` (grounded, routed, scheduled, trimmed); with `Accept: text/event-stream` a job stream (first event `job {id}`) |
+| `GET /api/jobs/:id?after=N` | `x-device` of the starter | the job's status and events after the first N; with `Accept: text/event-stream` replays them and streams live until it ends |
+| `POST /api/jobs/:id/cancel` | `x-device` of the starter | stops a running plan or prepare (204) |
 | `POST /api/schedule` | `{itinerary, trim?}` | itinerary with `route` + `schedule` recomputed |
 | `GET /api/audio/:hash.mp3` | | a narration clip (immutable, range requests honoured) |
 | `POST /api/reroute` | `{from:{lat,lon}, to:{lat,lon}, routeOptions?}` | one routed leg with steps (drive mode's way back to the planned line; 50 km cap, rate-limited with the free endpoints) |

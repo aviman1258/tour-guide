@@ -59,9 +59,8 @@ function renderProgress(p) {
   box.innerHTML = html;
 }
 
-export async function prepare() {
-  const it = state.get();
-  if (!it.start || !it.end || !it.stops.length) throw new Error("Plan a route first.");
+/** Run (or resume) a prepare stream, then store the package on this device. */
+async function runPrepare(startStream) {
   controller?.abort();
   const ctrl = new AbortController();
   controller = ctrl;
@@ -71,7 +70,7 @@ export async function prepare() {
   task.update({ estimateMs: progress.estimate.totalMs, startedAt });
   renderProgress(progress);
   try {
-    const pkg = await api.prepareDriveStream(it, {
+    const pkg = await startStream({
       signal: ctrl.signal,
       onEvent: (event, data) => {
         if (event === "estimate") { progress.estimate = timings.narrateEstimate(data); task.update({ estimateMs: progress.estimate.totalMs, startedAt }); }
@@ -85,7 +84,7 @@ export async function prepare() {
       },
     });
     if (ctrl.signal.aborted) return null;
-    pkg.tripId = state.tripId(it);
+    pkg.tripId = state.tripId(pkg.itinerary);
     pkg.preparedAt = pkg.preparedAt || new Date().toISOString();
     await storage.saveTrip(pkg);
     // pull the clips onto this device now, so the drive works with no signal
@@ -97,7 +96,7 @@ export async function prepare() {
     state.set({ route: pkg.itinerary.route, schedule: pkg.itinerary.schedule });
     return pkg;
   } catch (err) {
-    if (ctrl.signal.aborted || err.name === "AbortError") {
+    if (ctrl.signal.aborted || err.name === "AbortError" || err.cancelled) {
       const e = new Error("Prepare cancelled.");
       e.cancelled = true;
       throw e;
@@ -108,6 +107,17 @@ export async function prepare() {
     renderProgress(null);
     if (controller === ctrl) controller = null;
   }
+}
+
+export async function prepare() {
+  const it = state.get();
+  if (!it.start || !it.end || !it.stops.length) throw new Error("Plan a route first.");
+  return runPrepare((opts) => api.prepareDriveStream(it, opts));
+}
+
+/** A prepare that was running when the page went away: pick it up and store the result. */
+export async function resumePrepare(pending) {
+  return runPrepare((opts) => api.jobStream(pending.id, { ...opts, doneKey: "package" }));
 }
 
 export function exportPackage(pkg) {

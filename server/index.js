@@ -26,6 +26,7 @@ import * as tts from "./lib/tts.js";
 import * as accounts from "./lib/accounts.js";
 import * as mail from "./lib/mail.js";
 import * as seed from "./lib/seed.js";
+import * as jobs from "./lib/jobs.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -337,6 +338,7 @@ app.get("/api/health", h(async (_req, res) => {
     voice: tts.stats(),
     accounts: accounts.stats(),
     mail: mail.stats(),
+    jobs: jobs.stats(),
     claude: config.anthropicKey ? "sdk" : "cli",
     data,
     models: { strong: config.modelStrong, fast: config.modelFast },
@@ -370,47 +372,62 @@ app.get("/api/reverse", h(async (req, res) => {
   res.json(await stops.stopAtPoint(lat, lon));
 }));
 
-// Claude proposes → Wikipedia/Nominatim ground → route → schedule + trim.
-// With `Accept: text/event-stream` the response is a stream of progress events (see server/plan.js);
-// otherwise the finished itinerary as one JSON document.
-app.post("/api/plan", h(async (req, res) => {
-  const input = plan.parsePlanInput(req.body);
-
-  // If the browser cancels (connection closed before we answered), stop the Claude call and skip the rest.
-  // Note: `req` emits close as soon as the body is consumed, so listen on `res` and check it never finished.
-  const ac = new AbortController();
-  res.on("close", () => { if (!res.writableFinished) { ac.abort(); console.log("[plan] cancelled by client"); } });
-
-  const t0 = Date.now();
-  const done = (result) => analytics.track(req, "plan", result ? `${result.stops.length} stops · ${Math.round((result.route?.totalM || 0) / 1609)} mi` : "cancelled", Date.now() - t0);
-
-  const streaming = String(req.headers.accept || "").includes("text/event-stream");
-  if (!streaming) {
-    const result = await plan.runPlan(input, { signal: ac.signal });
-    done(result);
-    if (result && req.credit) result.credit = await settleCredit(req);
-    if (result) res.json(result);
-    return;
+// ---------- jobs: planning and preparing survive a dropped connection ----------
+// The browser's stream is a window onto a server-side job (lib/jobs.js). A phone whose screen
+// goes dark loses the connection; the job keeps running and the page reattaches with
+// GET /api/jobs/:id?after=N, which replays the events it missed and then streams live.
+async function serveJob(req, res, job) {
+  if (!String(req.headers.accept || "").includes("text/event-stream")) {
+    const result = await job.promise;
+    if (job.status === "error") throw httpError(job.error.status, job.error.message);
+    if (job.status === "cancelled") return res.status(410).json({ error: "cancelled", jobId: job.id });
+    return res.json(result);
   }
-
+  streamJob(req, res, job, 0);
+}
+function streamJob(req, res, job, after) {
   res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache, no-transform", connection: "keep-alive", "x-accel-buffering": "no" });
   res.flushHeaders?.();
-  const send = (event, data) => { if (!res.writableEnded && !ac.signal.aborted) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
+  const send = (event, data) => { if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
   const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(": ping\n\n"); }, 15000);
-  try {
-    const result = await plan.runPlan(input, { emit: send, signal: ac.signal });
-    done(result);
-    if (result && req.credit) send("credit", await settleCredit(req));
-  } catch (err) {
-    analytics.track(req, "plan_error", err.message, Date.now() - t0);
-    if (!ac.signal.aborted) {
-      if ((err.status || 500) >= 500) console.error(err);
-      send("error", { message: err.message, status: err.status || 500 });
-    }
-  } finally {
-    clearInterval(heartbeat);
-    res.end();
-  }
+  send("job", { id: job.id, kind: job.kind, after });
+  for (const e of job.events.slice(Math.max(0, Number(after) || 0))) send(e.event, e.data);
+  const unsubscribe = jobs.subscribe(job, (e) => {
+    if (e) send(e.event, e.data);
+    else { clearInterval(heartbeat); res.end(); }
+  });
+  res.on("close", () => { clearInterval(heartbeat); unsubscribe(); }); // the job carries on without us
+}
+app.get("/api/jobs/:id", h(async (req, res) => {
+  const job = jobs.get(req.params.id, jobs.ownerOf(req));
+  if (!job) throw httpError(404, "That job is gone (jobs are kept for two hours) or belongs to another device.");
+  const after = Number(req.query.after) || 0;
+  if (String(req.headers.accept || "").includes("text/event-stream")) return streamJob(req, res, job, after);
+  res.json(jobs.view(job, after));
+}));
+app.post("/api/jobs/:id/cancel", h(async (req, res) => {
+  if (!jobs.cancel(req.params.id, jobs.ownerOf(req))) throw httpError(404, "no such job");
+  res.status(204).end();
+}));
+setInterval(() => jobs.sweep(), 15 * 60_000).unref();
+
+// Claude proposes → Wikipedia/Nominatim ground → route → schedule + trim.
+// With `Accept: text/event-stream` the response streams the job's progress events (see server/plan.js)
+// and the finished itinerary as `done`; otherwise the itinerary as one JSON document.
+app.post("/api/plan", h(async (req, res) => {
+  const input = plan.parsePlanInput(req.body);
+  const t0 = Date.now();
+  const job = jobs.create({
+    kind: "plan", owner: jobs.ownerOf(req),
+    run: async ({ emit, signal }) => {
+      const result = await plan.runPlan(input, { emit, signal });
+      analytics.track(req, "plan", result ? `${result.stops.length} stops · ${Math.round((result.route?.totalM || 0) / 1609)} mi` : "cancelled", Date.now() - t0);
+      if (result && req.credit) { const v = await settleCredit(req); result.credit = v; emit("credit", v); }
+      return result;
+    },
+    onError: (err) => { analytics.track(req, "plan_error", err.message, Date.now() - t0); if ((err.status || 500) >= 500) console.error(err); },
+  });
+  await serveJob(req, res, job);
 }));
 
 app.get("/api/estimate", h(async (_req, res) => {
@@ -547,41 +564,22 @@ app.post("/api/suggest", h(async (req, res) => {
   res.json({ candidates: grounded.filter((s) => !existing.has(s.name.toLowerCase()) && !existing.has((s.wikipediaTitle || "").toLowerCase())).slice(0, n), credit });
 }));
 
-// Narration package for drive mode. Streams progress events with Accept: text/event-stream.
+// Narration package for drive mode. Same job model as planning: the phone can drop off and come back.
 app.post("/api/prepare-drive", h(async (req, res) => {
   const { itinerary } = req.body || {};
   if (!itinerary?.start || !itinerary?.end) throw httpError(400, "itinerary with start and end is required");
-
-  const ac = new AbortController();
-  res.on("close", () => { if (!res.writableFinished) { ac.abort(); console.log("[prepare-drive] cancelled by client"); } });
-
   const t0 = Date.now();
-  const done = (pkg) => {
-    analytics.track(req, "prepare", pkg ? `${pkg.narration.length} narrations` : "cancelled", Date.now() - t0);
-    if (pkg && req.credit) pkg.credit = pay.consumeQuota(req.credit, "prepare");
-  };
-  if (!String(req.headers.accept || "").includes("text/event-stream")) {
-    const pkg = await narrate.prepareDrive(itinerary, { signal: ac.signal });
-    done(pkg);
-    if (pkg) res.json(pkg);
-    return;
-  }
-  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache, no-transform", connection: "keep-alive", "x-accel-buffering": "no" });
-  res.flushHeaders?.();
-  const send = (event, data) => { if (!res.writableEnded && !ac.signal.aborted) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
-  const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(": ping\n\n"); }, 15000);
-  try {
-    done(await narrate.prepareDrive(itinerary, { emit: send, signal: ac.signal }));
-  } catch (err) {
-    analytics.track(req, "prepare_error", err.message, Date.now() - t0);
-    if (!ac.signal.aborted) {
-      if ((err.status || 500) >= 500) console.error(err);
-      send("error", { message: err.message, status: err.status || 500 });
-    }
-  } finally {
-    clearInterval(heartbeat);
-    res.end();
-  }
+  const job = jobs.create({
+    kind: "prepare", owner: jobs.ownerOf(req),
+    run: async ({ emit, signal }) => {
+      const pkg = await narrate.prepareDrive(itinerary, { emit, signal });
+      analytics.track(req, "prepare", pkg ? `${pkg.narration.length} narrations` : "cancelled", Date.now() - t0);
+      if (pkg && req.credit) { pkg.credit = pay.consumeQuota(req.credit, "prepare"); emit("credit", pkg.credit); }
+      return pkg;
+    },
+    onError: (err) => { analytics.track(req, "prepare_error", err.message, Date.now() - t0); if ((err.status || 500) >= 500) console.error(err); },
+  });
+  await serveJob(req, res, job);
 }));
 
 // IndexNow ownership file: the key itself, at /<key>.txt
