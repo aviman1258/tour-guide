@@ -367,7 +367,7 @@ function stopCard(it, s, i, sched, { readOnly = false } = {}) {
     el.dataset.id = s.id;
     el.innerHTML = `
       <div class="num">${i + 1}</div>
-      ${s.thumbnail ? `<img class="thumb" src="${escapeHtml(s.thumbnail)}" alt="" loading="lazy">` : `<div class="thumb empty">${CATEGORY_ICON[s.category] || "📍"}</div>`}
+      ${s.thumbnail ? `<img class="thumb" src="${escapeHtml(s.thumbnail)}" alt="${escapeHtml(s.name)}" loading="lazy">` : `<div class="thumb empty">${CATEGORY_ICON[s.category] || "📍"}</div>`}
       <div class="body">
         <div class="title">
           <span>${escapeHtml(s.name)}</span>

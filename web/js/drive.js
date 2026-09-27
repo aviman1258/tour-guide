@@ -537,7 +537,7 @@ function renderNextStop(fix, progressM) {
   $("next-name").textContent = s ? `${state.nextStopIdx + 1}. ${s.name}` : `End: ${state.it.end.label}`;
   $("skip-stop").hidden = !s;
   const thumb = $("next-thumb");
-  if (s?.thumbnail) { thumb.src = s.thumbnail; thumb.hidden = false; } else thumb.hidden = true;
+  if (s?.thumbnail) { thumb.src = s.thumbnail; thumb.alt = s.name; thumb.hidden = false; } else { thumb.hidden = true; thumb.alt = ""; }
 
   if (!fix) {
     const wx = s && state.weather.get(s.id);

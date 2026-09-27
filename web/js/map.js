@@ -35,7 +35,7 @@ function icon(label, cls) {
 
 function popup(stop, extra = "") {
   return `
-    ${stop.thumbnail ? `<img src="${escapeHtml(stop.thumbnail)}" alt="" loading="lazy">` : ""}
+    ${stop.thumbnail ? `<img src="${escapeHtml(stop.thumbnail)}" alt="${escapeHtml(stop.name)}" loading="lazy">` : ""}
     <b>${escapeHtml(stop.name)}</b>${extra}
     ${stop.blurb ? `<div>${escapeHtml(stop.blurb)}</div>` : ""}
     ${stop.wikipediaUrl ? `<a href="${escapeHtml(stop.wikipediaUrl)}" target="_blank" rel="noopener">Wikipedia</a> · ` : ""}

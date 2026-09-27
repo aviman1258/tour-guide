@@ -79,7 +79,7 @@ ${body}
 function banner(r, cls) {
   if (!r.image) return "";
   const big = String(r.image).replace(/\/(\d{2,4})px-/, "/800px-");
-  return `<img class="${cls}" src="${esc(big)}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${esc(r.image)}'" />`;
+  return `<img class="${cls}" src="${esc(big)}" alt="Landmark on the route: ${esc(r.title)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${esc(r.image)}'" />`;
 }
 
 export function routePage(summary, pkg) {
@@ -130,7 +130,7 @@ export function routePage(summary, pkg) {
 export function indexPage(routes) {
   const cards = routes.map((r) => `
       <li class="route-card${r.image ? "" : " no-image"}">
-        <a class="route-card-banner" href="${esc(routeUrl(r))}" tabindex="-1" aria-hidden="true">${banner(r, "")}${r.image ? "" : `<span>${esc((r.region || r.endLabel || "").split(",")[0])}</span>`}</a>
+        <a class="route-card-banner" href="${esc(routeUrl(r))}" tabindex="-1" aria-hidden="true">${banner(r, "").replace(/alt="[^"]*"/, 'alt=""')}${r.image ? "" : `<span>${esc((r.region || r.endLabel || "").split(",")[0])}</span>`}</a>
         <div class="route-card-body">
           <a href="${esc(routeUrl(r))}"><b>${esc(r.title)}</b></a>
           <div class="route-meta">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi · about ${esc(fmtDuration(r.minutes))}${r.uses ? ` · driven ${r.uses}×` : ""}</div>

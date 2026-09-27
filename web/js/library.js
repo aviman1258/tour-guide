@@ -46,7 +46,7 @@ function renderResults(routes) {
       </div>`;
     if (r.image) {
       const img = document.createElement("img");
-      img.alt = "";
+      img.alt = `Landmark on the route: ${r.title}`;
       img.loading = "lazy";
       img.decoding = "async";
       img.onerror = () => { img.onerror = null; img.src = r.image; }; // the source was smaller than 800 px
