@@ -26,6 +26,11 @@ export function setEnd(end) {
   reschedule();
 }
 
+export function swapEnds() {
+  state.set((it) => ({ ...it, start: it.end, end: it.start, departBufferMinutes: isAirport(it.end) ? 30 : 0 }));
+  reschedule();
+}
+
 export function setRouteOptions(patch) {
   state.set((it) => ({ ...it, routeOptions: { ...(it.routeOptions || {}), ...patch } }));
   reschedule();

@@ -52,9 +52,16 @@ async function boot() {
   }
   // otherwise the form starts clean; earlier trips are one tap away under My routes
 
+  // no stops yet: the page is just the search (no map); the map appears with the first plan
+  let noPlan = null;
   state.subscribe((it) => {
+    const now = !(it.stops?.length);
+    document.body.classList.toggle("no-plan", now);
+    document.body.classList.toggle("planning", Boolean(it.planning));
     itinerary.render(it);
     map.render(it);
+    if (noPlan === true && !now) requestAnimationFrame(() => map.reveal(state.get()));
+    noPlan = now;
   });
 
   const ok = await api.probe();

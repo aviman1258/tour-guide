@@ -68,11 +68,14 @@
         </form>
       </details>
 
-      <form id="plan-form" class="card" autocomplete="off">
-        <h2 class="subscriber-only">Create your own route</h2>
-        <div class="subscriber-only">
-          <div class="field">
-            <label for="start-query">Start</label>
+      <form id="plan-form" class="card search" autocomplete="off">
+        <h2 class="subscriber-only search-title">Create your own route</h2>
+        <p class="subscriber-only search-sub">Where you start, where you need to end up, and what you love. Deodap plans the stops, times the day and tells the stories as you drive.</p>
+        <div class="free-only hint" id="retime-hint">Set the day you're driving this route and when you'll start. Times below re-fit to your schedule.</div>
+
+        <div class="search-bar">
+          <div class="field sb-cell sb-place subscriber-only">
+            <label for="start-query">From</label>
             <div class="input-wrap">
               <button type="button" class="loc-btn" id="start-loc" title="Use my current location" aria-label="Use my current location as the start">
                 <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -81,9 +84,9 @@
             </div>
             <div id="start-label" class="hint"></div>
           </div>
-
-          <div class="field">
-            <label for="end-query">End</label>
+          <button type="button" id="swap-btn" class="swap subscriber-only" title="Swap start and end" aria-label="Swap start and end">⇄</button>
+          <div class="field sb-cell sb-place subscriber-only">
+            <label for="end-query">To</label>
             <div class="input-wrap">
               <button type="button" class="loc-btn" id="end-loc" title="Use my current location" aria-label="Use my current location as the end">
                 <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -92,43 +95,32 @@
             </div>
             <div id="end-label" class="hint"></div>
           </div>
-        </div>
-
-        <div class="free-only hint" id="retime-hint">Set the day you're driving this route and when you'll start. Times below re-fit to your schedule.</div>
-
-        <div class="row three">
-          <div class="field">
+          <div class="field sb-cell sb-date">
             <label for="date">Date</label>
             <input id="date" type="date" />
           </div>
-          <div class="field">
+          <div class="field sb-cell sb-time">
             <label for="arrival">Start at</label>
             <select id="arrival" required aria-label="Start time"></select>
           </div>
-          <div class="field">
+          <div class="field sb-cell sb-time">
             <label for="deadline">Be at the end by</label>
             <select id="deadline" required aria-label="Be at the end by"></select>
           </div>
+          <button type="submit" id="plan-btn" class="btn btn-primary sb-go subscriber-only">Plan my tour</button>
         </div>
 
-        <div class="subscriber-only">
-          <div class="field">
-            <label for="interests">Interests</label>
+        <div class="subscriber-only search-more">
+          <div class="field sb-cell sb-interests">
+            <label for="interests">What are you into?</label>
             <textarea id="interests" rows="2" placeholder="Tourist attractions, iconic landmarks, historic neighborhoods"></textarea>
           </div>
-
-          <div class="field">
-            <label>Route</label>
-            <div class="row checks">
-              <label class="check"><input type="checkbox" id="avoid-tolls" /> Avoid tolls</label>
-              <label class="check"><input type="checkbox" id="avoid-highways" /> Avoid highways</label>
-            </div>
-          </div>
-
-          <div class="row">
-            <button type="submit" id="plan-btn" class="btn btn-primary">Plan my tour</button>
-            <button type="button" id="cancel-plan-btn" class="btn btn-danger" hidden>Cancel planning</button>
-            <button type="button" id="reset-btn" class="btn btn-ghost">Reset</button>
+          <div class="row search-opts">
+            <label class="check"><input type="checkbox" id="avoid-tolls" /> Avoid tolls</label>
+            <label class="check"><input type="checkbox" id="avoid-highways" /> Avoid highways</label>
+            <span class="grow"></span>
+            <button type="button" id="cancel-plan-btn" class="btn btn-danger btn-sm" hidden>Cancel planning</button>
+            <button type="button" id="reset-btn" class="btn btn-ghost btn-sm">Reset</button>
           </div>
           <p id="price-line" class="hint price-line" hidden></p>
         </div>

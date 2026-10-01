@@ -19,6 +19,14 @@ export function init(el) {
   return map;
 }
 
+/** The map was hidden while there was no plan; size it to its container and fit the trip. */
+export function reveal(it) {
+  if (!map) return;
+  map.invalidateSize({ animate: false });
+  lastKey = "";
+  render(it);
+}
+
 export function onMapClick(fn) {
   onClickHandler = fn;
 }

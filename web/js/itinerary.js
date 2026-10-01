@@ -142,6 +142,12 @@ export function bindForm() {
       if (key !== "interests") actions.reschedule();
     });
   }
+  $("swap-btn").addEventListener("click", () => {
+    actions.swapEnds();
+    const it = state.get();
+    $("start-query").value = it.start?.label || "";
+    $("end-query").value = it.end?.label || "";
+  });
   $("avoid-tolls").addEventListener("change", (e) => actions.setRouteOptions({ avoidTolls: e.target.checked }));
   $("avoid-highways").addEventListener("change", (e) => actions.setRouteOptions({ avoidHighways: e.target.checked }));
 

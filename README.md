@@ -44,7 +44,12 @@ hero under the title, and it becomes the page's social preview image. A free dri
 their own date and start time (re-timing only; stops are fixed because the narration is tied to
 them), saves it to the phone and drives it exactly like a subscriber would.
 
-The create screen opens straight on the "Create your own route" form; the saved-route search and
+Until a plan has stops the plan screen is only the search: no map (it has nothing to show), a
+dark band with From ⇄ To, date, start time and "be at the end by" joined into one bar like a
+travel site, the Plan button at its end, and interests and route options underneath (on phones
+the bar stacks). The first plan brings in the map with the route and the form moves into the
+sidebar as before (`body.no-plan`, toggled in `web/js/main.js`; `map.reveal` resizes the map
+when it appears). The create screen opens straight on the "Create your own route" form; the saved-route search and
 My routes sit below it there (on the free screen the search leads). There is no "you have a
 prepared trip" banner any more: My routes and sign-in cover reopening a trip.
 
