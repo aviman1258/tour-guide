@@ -33,7 +33,10 @@ planner; on a hosted server it asks once per device for the passphrase (`APP_SEC
 server treats as the subscriber tier. Passphrase and admin-password prompts are a masked
 `<dialog>` with a Show/Hide toggle (`web/js/secretPrompt.js`), never a plain `window.prompt`. **Free** (`plan.html?tier=free`) hides every AI control and
 shows "Find a saved route" instead: routes that subscribers published, searchable by text or
-"near me". The list starts empty and only shows what a search (or "near me") matched; pressing
+"near me". Typing searches as you go (300 ms after the last key, two characters minimum,
+`GET /api/routes?live=1`, which matches the routes' words only, because Nominatim's policy
+forbids autocomplete); pressing Find or Enter runs the full search, which also geocodes the words
+and adds routes passing near that place. The list starts empty and only shows what a search (or "near me") matched; pressing
 Find with nothing typed just asks for a city or word. Each result is a card with a banner picture
 on top: the Wikipedia photo of the route's most landmark-like, highest-priority stop (chosen at
 publish time by `pickImage` in `server/lib/library.js`, stored in the `image` column and

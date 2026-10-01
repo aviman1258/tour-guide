@@ -447,7 +447,8 @@ app.get("/api/routes", h(async (req, res) => {
   const q = String(req.query.q || "").trim().slice(0, 120);
   // words that name a place ("Los Angeles", "Orange County", "LAX") also match routes passing near it
   let at = null, place = null;
-  if (q && !near) {
+  // live=1 is the as-you-type search: text only, because Nominatim's rules forbid autocomplete
+  if (q && !near && !req.query.live) {
     try {
       const hit = (await nominatim.search(q, { limit: 1 }))[0];
       if (library.isPlaceLike(hit)) { at = { lat: hit.lat, lon: hit.lon }; place = { name: hit.name || q, displayName: hit.displayName }; }

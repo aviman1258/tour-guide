@@ -59,7 +59,30 @@ function renderResults(routes) {
   }
 }
 
+/** As you type: matching routes by their words, quietly (no busy pill), latest keystroke wins. */
+let liveTimer = null, liveCtrl = null;
+function liveSearch() {
+  clearTimeout(liveTimer);
+  const q = $("library-query").value.trim();
+  liveCtrl?.abort();
+  if (q.length < 2) { renderResults([]); $("library-msg").textContent = ""; return; }
+  liveTimer = setTimeout(async () => {
+    const ctrl = new AbortController();
+    liveCtrl = ctrl;
+    try {
+      const { routes, total } = await api.searchRoutes({ q, live: true }, ctrl.signal);
+      if (ctrl.signal.aborted || $("library-query").value.trim() !== q) return;
+      renderResults(routes);
+      $("library-msg").textContent = routes.length
+        ? `${routes.length} route${routes.length === 1 ? "" : "s"} match so far. Press Find to include routes that pass near the place you typed.`
+        : total ? "Nothing matches those words yet. Press Find to look for routes passing near that place." : "No routes have been published yet.";
+    } catch { /* aborted or offline: Find still works */ }
+  }, 300);
+}
+
 async function search({ near, q } = {}) {
+  clearTimeout(liveTimer);
+  liveCtrl?.abort();
   if (!near && !q) { // nothing to search for: the list stays empty rather than showing everything
     renderResults([]);
     $("library-msg").textContent = "Type a city, an airport or a word from the route, or tap the location button for routes near you.";
@@ -159,6 +182,7 @@ export function bind() {
     try { await search({ q }); } catch (err) { toast(err.message, 4000); }
   };
   $("library-search").addEventListener("click", go);
+  $("library-query").addEventListener("input", liveSearch);
   $("library-query").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
   $("library-near").addEventListener("click", () => {
     if (!navigator.geolocation) return toast("Location isn't available in this browser");

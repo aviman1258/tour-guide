@@ -215,12 +215,13 @@ export const payCredit = ({ start, end, arrivalTime, deadline }) => call("GET", 
 export const payRelease = (token) => call("POST", "/api/pay/release", { token });
 
 // shared route library
-export const searchRoutes = ({ near, q, radiusKm } = {}) => {
+export const searchRoutes = ({ near, q, radiusKm, live } = {}, signal) => {
   const p = new URLSearchParams();
+  if (live) p.set("live", "1");
   if (near) p.set("near", `${near.lat},${near.lon}`);
   if (q) p.set("q", q);
   if (radiusKm) p.set("radiusKm", String(radiusKm));
-  return call("GET", `/api/routes?${p}`);
+  return call("GET", `/api/routes?${p}`, undefined, signal);
 };
 export const getRoute = (id) => call("GET", `/api/routes/${encodeURIComponent(id)}`);
 export const publishRoute = (pkg, title, description) => call("POST", "/api/routes", { package: pkg, title, description });
