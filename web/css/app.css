@@ -270,6 +270,11 @@ input[type="date"], input[type="time"], select#arrival, select#deadline { font-s
   background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
   max-height: 280px; overflow-y: auto;
 }
+.suggest { color: var(--text); text-align: left; }
+/* inside the white search bar the dropdown is white too, whatever the phone's theme */
+body.no-plan .sb-cell .suggest { background: #fff; color: #1c2430; border-color: #e3d6cc; }
+body.no-plan .sb-cell .suggest .sub, body.no-plan .sb-cell .suggest li.status { color: #6b5b52; }
+body.no-plan .sb-cell .suggest li:hover, body.no-plan .sb-cell .suggest li[aria-selected="true"] { background: #fdecd2; }
 .suggest li { padding: 8px 10px; border-radius: 6px; cursor: pointer; }
 .suggest li:hover, .suggest li[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .suggest li.status { color: var(--muted); font-size: 13px; cursor: default; }
