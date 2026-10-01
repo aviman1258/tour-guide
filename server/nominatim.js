@@ -27,8 +27,8 @@ function normalize(r) {
  * Free-text search. `viewbox` = {minLat,minLon,maxLat,maxLon} biases (not filters) results.
  * Returns up to `limit` normalized results.
  */
-export async function search(q, { viewbox, countrycodes = "us", limit = 3 } = {}) {
-  const key = `s:${q.toLowerCase()}:${limit}:${viewbox ? [viewbox.minLon, viewbox.minLat, viewbox.maxLon, viewbox.maxLat].map((n) => n.toFixed(2)).join(",") : ""}`;
+export async function search(q, { viewbox, countrycodes = "", limit = 3 } = {}) { // worldwide; the viewbox keeps hits near the trip
+  const key = `s:${q.toLowerCase()}:${limit}:${countrycodes}:${viewbox ? [viewbox.minLon, viewbox.minLat, viewbox.maxLon, viewbox.maxLat].map((n) => n.toFixed(2)).join(",") : ""}`;
   return cache.wrap(key, 7 * DAY, async () => {
     const params = new URLSearchParams({ q, format: "jsonv2", limit: String(limit), addressdetails: "1" });
     if (countrycodes) params.set("countrycodes", countrycodes);

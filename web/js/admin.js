@@ -198,7 +198,12 @@ let seedTimer = null;
 function renderSeed(st) {
   const list = $("seed-list");
   const chosen = new Set([...list.querySelectorAll("input:checked")].map((i) => i.value));
-  list.innerHTML = st.presets.map((p) => `<label class="${p.published ? "published" : ""}"><input type="checkbox" value="${p.key}" ${p.published ? "disabled" : chosen.has(p.key) ? "checked" : ""} /> <span>${escapeHtml(p.start)} → ${escapeHtml(p.end)} <small>${p.window}${p.published ? " · published" : ""}</small></span></label>`).join("");
+  let lastArea = null;
+  list.innerHTML = st.presets.map((p) => {
+    const head = p.area !== lastArea ? `<div class="seed-area">${escapeHtml(p.area || "")}</div>` : "";
+    lastArea = p.area;
+    return `${head}<label class="${p.published ? "published" : ""}"><input type="checkbox" value="${p.key}" ${p.published ? "disabled" : chosen.has(p.key) ? "checked" : ""} /> <span><b>${escapeHtml(p.city || "")}</b> · ${escapeHtml(p.start)} → ${escapeHtml(p.end)} <small>${p.window}${p.published ? " · published" : ""}</small></span></label>`;
+  }).join("");
   const n = st.done.length + st.failed.length + st.skipped.length;
   $("seed-note").textContent = st.running ? `running · ${n} of ${st.total} done` : st.finishedAt ? `last run finished ${when(st.finishedAt)}` : "";
   $("seed-status").textContent = st.running && st.current ? `Working on ${st.current.name} · ${st.current.phase === "plan" ? "planning the stops" : st.current.phase === "narrate" ? "writing and recording the narration" : "publishing"}…` : st.running ? "Starting…" : "";

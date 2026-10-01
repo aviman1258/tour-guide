@@ -61,6 +61,7 @@
     #routes { min-width: 960px; }
     .seed-list label.published { color: var(--muted); }
     .seed-list small { color: var(--muted); }
+    .seed-area { grid-column: 1 / -1; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 8px; }
     .research-test { margin-top: 10px; gap: 6px; }
     .research-test input { flex: 1; min-width: 0; }
     #research-out { white-space: pre-wrap; font-size: 12px; margin: 8px 0 0; }
@@ -126,7 +127,7 @@
 
     <section class="card">
       <h2>Starter routes <small id="seed-note"></small></h2>
-      <p class="hint">Twelve ready-made drives (Southern California and the big fly-in cities). The server plans each one, writes and records the narration, drafts the listing and publishes it, exactly as a subscriber would, one after another in the background. About 3 minutes and 70 cents a route; already-published ones are skipped.</p>
+      <p class="hint">Ready-made drives for US and international cities: a highlights drive per city, plus one built around what the city is known for. The server plans each one, writes and records the narration, drafts the listing and publishes it, exactly as a subscriber would, one after another in the background. About 5 minutes and 60 to 80 cents a route. It stops by itself near the daily Claude and voice budgets; press again the next day and it carries on, skipping what is already published.</p>
       <div id="seed-list" class="seed-list"></div>
       <div class="row">
         <button type="button" id="seed-all" class="btn btn-sm">Select all unpublished</button>

@@ -196,16 +196,22 @@ Later: accounts, if ever needed; the credit check is the one place to change.
 
 ### Starter routes (seeding the library)
 
-`server/lib/seed.js` holds twelve preset drives (Southern California coast and city routes, and
-airport-to-landmark drives for San Diego, San Francisco, Las Vegas, Miami, Chicago, Savannah and
-Nashville) and a background job that runs each one through the same code a subscriber would:
+`server/lib/seed.js` holds the preset drives: the first twelve (Southern California coast and
+city routes, and airport-to-landmark drives for San Diego, San Francisco, Las Vegas, Miami,
+Chicago, Savannah and Nashville), then for each of ten more US cities and eleven international
+ones (London, Paris, Rome, Barcelona, Tokyo, Dubai, Mumbai, Sydney, Toronto, Mexico City, Lisbon)
+an airport-to-landmark highlights drive plus one built around what the city is known for (food,
+music, art, coast…). Each preset has a `city` and `area` (US / International), which group the admin
+list. A background job that runs each one through the same code a subscriber would:
 `plan.runPlan` → `narrate.prepareDrive` (narration and Deodap's voice clips) → `claude.describeRoute`
 for the listing → `library.publish` → IndexNow ping. Dated for the coming Saturday so traffic and
 weather are real. The admin page's "Starter routes" section lists the presets with published
 flags, lets you tick some or all, and polls the job every 5 seconds showing the current route and
 phase, then a table of published (with a link), failed (with the error) and skipped (same start
 and end already in the library). One job at a time, sequential, about 3 minutes and 70 cents a
-route; the daily Claude budget still applies. Re-running skips what exists, so a job cut short by
+route; it stops itself when the day's Claude budget is within 90 cents of the cap or the voice
+budget within 25 cents (so no route is published without its recorded voice), and carries on
+when pressed again the next day. Re-running skips what exists, so a job cut short by
 a redeploy just continues on the next press.
 
 ### Content filter on published routes
