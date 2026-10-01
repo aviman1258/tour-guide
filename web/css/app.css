@@ -135,7 +135,9 @@ body.no-plan .sb-cell input, body.no-plan .sb-cell select, body.no-plan .sb-cell
 }
 body.no-plan .sb-cell input:focus, body.no-plan .sb-cell select:focus, body.no-plan .sb-cell textarea:focus { outline: none; }
 body.no-plan .sb-cell:focus-within { box-shadow: inset 0 0 0 2px var(--brand-saffron); }
-body.no-plan .sb-cell .input-wrap input { padding-left: 32px; }
+body.no-plan .sb-cell .input-wrap input { padding-left: 32px; text-overflow: ellipsis; }
+/* phones: keep the From text clear of the swap badge on its right edge */
+@media (max-width: 899px) { body.no-plan .sb-place .input-wrap input { padding-right: 44px; } }
 body.no-plan .sb-cell .loc-btn { left: -6px; color: var(--brand-coral); }
 body.no-plan .sb-cell .hint { display: none; }
 body.no-plan .sb-cell textarea { min-height: 44px; resize: none; }
