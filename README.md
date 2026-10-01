@@ -44,6 +44,11 @@ hero under the title, and it becomes the page's social preview image. A free dri
 their own date and start time (re-timing only; stops are fixed because the narration is tied to
 them), saves it to the phone and drives it exactly like a subscriber would.
 
+Colours follow the painted Deodap (`--brand-*` tokens in `web/css/app.css`): a dusk-to-plum
+sunset gradient for the search bands, saffron (his marigold garland) for the main action buttons,
+terracotta as the accent for links and primary buttons, cream behind the app icon. The free
+screen's "Find a saved route" gets the same band until a route is loaded.
+
 Until a plan has stops the plan screen is only the search: no map (it has nothing to show), a
 dark band with From ⇄ To, date, start time and "be at the end by" joined into one bar like a
 travel site, the Plan button at its end, and interests and route options underneath (on phones

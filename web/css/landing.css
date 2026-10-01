@@ -1,10 +1,11 @@
 :root {
   --bg: #f6f7f9; --card: #ffffff; --text: #1c1f24; --muted: #5d6673; --line: #e1e5ea;
-  --accent: #1f5f8b; --accent-text: #ffffff; --free: #1e8e4f;
+  --accent: #a8462b; --accent-text: #ffffff; --free: #1e8e4f;
+  --brand-dusk: #2a1d4b; --brand-plum: #5c2a5e; --brand-saffron: #f4a531;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #14171c; --card: #1d2229; --text: #e8ebef; --muted: #9aa4b1; --line: #2c333d; --accent: #5aa5dc; --accent-text: #0b1520; --free: #3ccb7a; }
+  :root { --bg: #14171c; --card: #1d2229; --text: #e8ebef; --muted: #9aa4b1; --line: #2c333d; --accent: #f4a531; --accent-text: #2a1606; --free: #3ccb7a; }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
