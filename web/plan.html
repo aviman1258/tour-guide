@@ -32,12 +32,6 @@
     <section id="map" aria-label="Map"></section>
 
     <aside id="sidebar">
-      <div id="resume-banner" class="card resume" hidden>
-        <div class="grow"><div class="resume-title">You have a prepared trip on this device</div><div id="resume-sub" class="hint"></div></div>
-        <button type="button" id="resume-open" class="btn btn-primary btn-sm">Open it</button>
-        <button type="button" id="resume-dismiss" class="btn btn-ghost btn-sm" title="Start a new trip">✕</button>
-      </div>
-
       <!-- Free tier: pick a route someone published -->
       <section id="library-card" class="card library">
         <h2 id="library-title">Find a saved route</h2>
@@ -75,6 +69,7 @@
       </details>
 
       <form id="plan-form" class="card" autocomplete="off">
+        <h2 class="subscriber-only">Create your own route</h2>
         <div class="subscriber-only">
           <div class="field">
             <label for="start-query">Start</label>

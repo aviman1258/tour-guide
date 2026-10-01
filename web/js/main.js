@@ -38,7 +38,7 @@ async function boot() {
   else if (login?.ok) { myRoutes.open(); itinerary.toast("Signed in. Your routes now follow you to any device you sign in on.", 6000); }
 
   // a shared link (#i=…) or ?trip=<id> (back from drive mode) restores a trip;
-  // otherwise the form starts clean, with an offer to reopen the last prepared trip.
+  // otherwise the form starts clean (earlier trips live under My routes).
   const fromHash = await share.loadFromHash();
   const tripParam = new URLSearchParams(location.search).get("trip");
   if (fromHash) {
@@ -49,17 +49,8 @@ async function boot() {
     const pkg = await storage.getTrip(tripParam).catch(() => null);
     if (pkg) state.replace(pkg.itinerary);
     history.replaceState(null, "", location.pathname);
-  } else {
-    const activeId = storage.getActiveTripId();
-    const pkg = activeId ? await storage.getTrip(activeId).catch(() => null) : null;
-    if (pkg) {
-      const it = pkg.itinerary;
-      document.getElementById("resume-sub").textContent = `${it.start?.label || "?"} → ${it.end?.label || "?"} · ${it.stops.length} stops · prepared ${(pkg.preparedAt || "").slice(0, 10)}`;
-      document.getElementById("resume-banner").hidden = false;
-      document.getElementById("resume-open").addEventListener("click", () => { state.replace(it); document.getElementById("resume-banner").hidden = true; });
-      document.getElementById("resume-dismiss").addEventListener("click", () => { document.getElementById("resume-banner").hidden = true; });
-    }
   }
+  // otherwise the form starts clean; earlier trips are one tap away under My routes
 
   state.subscribe((it) => {
     itinerary.render(it);

@@ -44,6 +44,10 @@ hero under the title, and it becomes the page's social preview image. A free dri
 their own date and start time (re-timing only; stops are fixed because the narration is tied to
 them), saves it to the phone and drives it exactly like a subscriber would.
 
+The create screen opens straight on the "Create your own route" form; the saved-route search and
+My routes sit below it there (on the free screen the search leads). There is no "you have a
+prepared trip" banner any more: My routes and sign-in cover reopening a trip.
+
 **My routes** (`web/js/myRoutes.js`, both tiers, a collapsed card that opens on tap and shows the
 count in its title) lists every drive package on the device: planned
 and prepared, paid for, saved from the library, imported. Each row shows date, stops, narrations

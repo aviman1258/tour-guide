@@ -89,7 +89,7 @@ export async function saveToPhone() {
   const it = state.get();
   if (!it.start || !it.end || !it.stops.length) throw new Error("Pick a saved route first.");
   // `loaded` is whatever was last picked from the library; the plan on screen may have moved on
-  // (resume banner, back from drive mode, another route). Only ever save a package for THESE stops.
+  // (My routes, back from drive mode, another route). Only ever save a package for THESE stops.
   if (loaded && !samePlan(loaded.package.itinerary, it)) loaded = null;
   if (!loaded) {
     // maybe the itinerary came from an earlier package on this device

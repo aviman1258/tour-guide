@@ -84,9 +84,6 @@ body.busy .stops { opacity: .6; transition: opacity .2s; }
 }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
-.resume { display: flex; align-items: center; gap: 10px; border-color: var(--accent); }
-.resume .grow { flex: 1; min-width: 0; }
-.resume-title { font-weight: 600; }
 .card h2 { font-size: 15px; margin: 0 0 8px; }
 
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; min-width: 0; }
@@ -266,6 +263,8 @@ select.quiet { min-height: 36px; padding: 4px 8px; font-size: 13px; color: var(-
 /* tiers: the landing page sets body.free or body.subscriber; each hides the other's controls */
 body.free .subscriber-only { display: none !important; }
 body.subscriber .free-only { display: none !important; }
+/* create-your-own: the form comes first, saved routes and My routes sit below the plan */
+body.subscriber #library-card, body.subscriber #my-routes { order: 10; }
 body.free .stop .controls { display: none; }           /* saved routes are driven as published */
 body.free #library-card { border-color: var(--ok); }
 details.card > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; list-style: none; min-height: 32px; }
