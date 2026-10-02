@@ -556,11 +556,13 @@ deriving content from them.
 - A stop counts as **visited** after 20 s stopped inside its radius, when you leave it again,
   when route progress passes it by 1.2 km, or when you tap *Visited*. Fired/visited state is
   persisted so a page reload mid-drive does not replay anything.
-- **Weather at the stops** (`web/js/weather.js`): one Open-Meteo request from the browser for
-  all stops (free, no key, 30-minute cache). Each stop marker gets a badge with an icon and the
-  temperature, and the stop list and next-stop card show it too: the forecast for the planned
-  arrival hour when the trip date is within 7 days, otherwise current conditions. Purely
-  decorative: offline or blocked, nothing is shown and the drive is unaffected.
+- **Weather at the stops** (`web/js/weather.js`, on the plan map and stop cards and in drive
+  mode): Open-Meteo from the browser (free, no key, 30-minute cache), for each stop's planned
+  arrival hour. Up to 15 days ahead it is the hourly forecast; further out it is **typical**
+  weather, the same date and hour averaged over the last three years from Open-Meteo's
+  historical archive (three requests, marked "avg" on the marker and "typical" on the card);
+  for a date in the past it is what the weather actually was; without a date, current
+  conditions. Tooltips say which. Purely decorative: offline or blocked, nothing is shown.
 - **Next-turn banner** from the route steps, with a green "✓ On route" line while the car is
   on the line and an off-route card (bearing arrow + distance to the next stop) when it isn't.
 - **Spoken directions** (`web/js/turnVoice.js`, a 3-position slider under the controls,

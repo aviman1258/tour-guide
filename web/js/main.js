@@ -13,6 +13,24 @@ import * as pay from "./pay.js";
 import { bindOwnerGesture } from "./ownerGesture.js";
 import * as account from "./account.js";
 import * as myRoutes from "./myRoutes.js";
+import * as weather from "./weather.js";
+
+// Weather at each stop for its planned arrival hour (forecast, typical or actual: web/js/weather.js),
+// fetched again only when the stops, the date or the arrival times change.
+let wxKey = "", wxTimer = null;
+function loadWeather(it) {
+  const key = `${it.date}|${(it.stops || []).map((s) => `${s.id}@${it.schedule?.items?.find((x) => x.stopId === s.id)?.arrive || ""}`).join(",")}`;
+  if (key === wxKey) return;
+  wxKey = key;
+  clearTimeout(wxTimer);
+  if (!it.stops?.length) { map.setWeather(null); itinerary.setWeather(null); return; }
+  wxTimer = setTimeout(async () => {
+    const wx = await weather.forStops(it.stops, it.schedule, it.date);
+    if (key !== wxKey) return; // the plan moved on meanwhile
+    map.setWeather(wx);
+    itinerary.setWeather(wx);
+  }, 600);
+}
 
 async function boot() {
   // tier decides which controls exist on this screen (CSS hides the other tier's)
@@ -62,6 +80,7 @@ async function boot() {
     map.render(it);
     if (noPlan === true && !now) requestAnimationFrame(() => map.reveal(state.get()));
     noPlan = now;
+    loadWeather(it);
   });
 
   const ok = await api.probe();

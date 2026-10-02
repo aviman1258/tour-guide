@@ -6,6 +6,7 @@ import * as api from "./api.js";
 import * as map from "./map.js";
 import * as busy from "./busy.js";
 import * as typeahead from "./typeahead.js";
+import { wxWhen } from "./weather.js";
 import { here, remember as rememberHere } from "./here.js";
 import { runtime } from "./config.js";
 import { escapeHtml, to12h, fmtDuration, fmtMiles } from "./format.js";
@@ -366,6 +367,9 @@ function renderStops(it) {
   }
 }
 
+let weather = new Map(); // stopId → weather summary, set by main.js once Open-Meteo answers
+export function setWeather(wx) { weather = wx || new Map(); render(state.get()); }
+
 function stopCard(it, s, i, sched, { readOnly = false } = {}) {
   {
     const el = document.createElement("article");
@@ -383,7 +387,7 @@ function stopCard(it, s, i, sched, { readOnly = false } = {}) {
         ${s.whyItMatches ? `<div class="why">${escapeHtml(s.whyItMatches)}</div>` : ""}
         ${s.blurb ? `<p class="blurb">${escapeHtml(s.blurb)}</p>` : ""}
         <div class="times">
-          ${sched ? `<span>🚗 ${fmtDuration(sched.legMinutes)}</span><span>arrive <b>${to12h(sched.arrive)}</b></span><span>leave <b>${to12h(sched.depart)}</b></span>` : `<span>${s.dwellMinutes} min stop</span>`}${s.website ? `<a class="attrib" href="${escapeHtml(s.website)}" target="_blank" rel="noopener nofollow">website</a>` : ""}${s.source === "google" ? `<span class="attrib">place data: Google</span>` : ""}
+          ${sched ? `<span>🚗 ${fmtDuration(sched.legMinutes)}</span><span>arrive <b>${to12h(sched.arrive)}</b></span><span>leave <b>${to12h(sched.depart)}</b></span>` : `<span>${s.dwellMinutes} min stop</span>`}${weather.get(s.id) ? `<span class="wx" title="${escapeHtml(weather.get(s.id).text)} · ${escapeHtml(wxWhen(weather.get(s.id)))}">${weather.get(s.id).icon} ${weather.get(s.id).tempF}°${weather.get(s.id).when === "typical" ? " typical" : ""}</span>` : ""}${s.website ? `<a class="attrib" href="${escapeHtml(s.website)}" target="_blank" rel="noopener nofollow">website</a>` : ""}${s.source === "google" ? `<span class="attrib">place data: Google</span>` : ""}
         </div>
         ${readOnly ? "" : `<div class="controls">
           <button type="button" class="btn btn-sm btn-icon" data-act="up" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>

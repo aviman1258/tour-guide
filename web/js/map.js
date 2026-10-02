@@ -1,8 +1,10 @@
 // Leaflet map for the plan/edit screen: numbered markers, route polyline, click-to-add.
 
 import { escapeHtml } from "./format.js";
+import { wxWhen } from "./weather.js";
 
 let map, layer, routeLayer, onClickHandler = null;
+let weather = new Map(), lastIt = null; // stopId → weather summary (web/js/weather.js)
 let lastKey = "";
 
 export function init(el) {
@@ -31,10 +33,11 @@ export function onMapClick(fn) {
   onClickHandler = fn;
 }
 
-function icon(label, cls) {
+function icon(label, cls, w) {
+  const badge = w ? `<div class="marker-wx" title="${escapeHtml(w.text)} · ${escapeHtml(wxWhen(w))}">${w.icon} ${w.tempF}°${w.when === "typical" ? "<small>avg</small>" : ""}</div>` : "";
   return L.divIcon({
     className: "",
-    html: `<div class="marker-num ${cls}"><span>${label}</span></div>`,
+    html: `<div class="marker-wrap"><div class="marker-num ${cls}"><span>${label}</span></div>${badge}</div>`,
     iconSize: [28, 28],
     iconAnchor: [4, 28],
     popupAnchor: [10, -26],
@@ -52,8 +55,12 @@ function popup(stop, extra = "") {
 }
 
 /** Redraw markers + route from the itinerary. Fits bounds only when the set of points changed. */
+/** Weather arrived: redraw the markers with their badges. */
+export function setWeather(wx) { weather = wx || new Map(); if (lastIt) render(lastIt); }
+
 export function render(it) {
   if (!map) return;
+  lastIt = it;
   layer.clearLayers();
   routeLayer.clearLayers();
   const pts = [];
@@ -66,7 +73,8 @@ export function render(it) {
     const sched = it.schedule?.items?.find((x) => x.stopId === s.id);
     const extra = sched ? `<div style="color:#888">${sched.arrive} – ${sched.depart}</div>` : "";
     const cls = s.lunch !== "none" ? "lunch" : "";
-    L.marker([s.lat, s.lon], { icon: icon(String(i + 1), cls) }).bindPopup(popup(s, extra)).addTo(layer);
+    const w = weather.get(s.id);
+    L.marker([s.lat, s.lon], { icon: icon(String(i + 1), cls, w) }).bindPopup(popup(s, extra + (w ? `<div style="color:#888">${w.icon} ${w.tempF}° ${escapeHtml(w.text)} · ${escapeHtml(wxWhen(w))}</div>` : ""))).addTo(layer);
     pts.push([s.lat, s.lon]);
   });
   if (it.end) {

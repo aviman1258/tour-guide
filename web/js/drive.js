@@ -186,7 +186,7 @@ function drawRoute() {
 
 /** Numbered stop marker, with a small weather badge beside it when we know the forecast. */
 function stopIcon(label, cls, wx) {
-  const badge = wx ? `<div class="marker-wx" title="${escapeHtml(wx.text)} ${wx.when}">${wx.icon} ${wx.tempF}°</div>` : "";
+  const badge = wx ? `<div class="marker-wx" title="${escapeHtml(wx.text)} · ${escapeHtml(weather.wxWhen(wx))}">${wx.icon} ${wx.tempF}°${wx.when === "typical" ? "<small>avg</small>" : ""}</div>` : "";
   return L.divIcon({ className: "", html: `<div class="marker-wrap"><div class="marker-num ${cls}">${label}</div>${badge}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
 }
 
@@ -541,7 +541,7 @@ function renderNextStop(fix, progressM) {
 
   if (!fix) {
     const wx = s && state.weather.get(s.id);
-    $("next-meta").textContent = `${sched ? `planned ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : ""}${wx ? `${sched ? " · " : ""}${wx.icon} ${wx.tempF}° ${wx.text}` : ""}`;
+    $("next-meta").textContent = `${sched ? `planned ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : ""}${wx ? `${sched ? " · " : ""}${wx.icon} ${wx.tempF}° ${wx.text}${wx.when === "typical" ? " (typical)" : ""}` : ""}`;
     return;
   }
   let distM, etaMin;

@@ -419,6 +419,14 @@ body.free.no-plan #library-card .result.route { color: var(--text); }
 .marker-num.start { background: var(--ok); }
 .marker-num.end { background: var(--late); }
 .marker-num.lunch { background: var(--tight); }
+.marker-wrap { position: relative; width: 28px; height: 28px; }
+.marker-wx {
+  position: absolute; left: 26px; top: -6px; white-space: nowrap; font-size: 12px; font-weight: 700; line-height: 1;
+  background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 3px 7px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25); pointer-events: none;
+}
+.marker-wx small { font-weight: 600; color: var(--muted); margin-left: 3px; font-size: 10px; }
+.stop .times .wx { white-space: nowrap; }
 .leaflet-popup-content { font: 14px/1.4 system-ui, sans-serif; margin: 10px 12px; }
 .leaflet-popup-content img { width: 100%; border-radius: 6px; margin-bottom: 6px; }
 
