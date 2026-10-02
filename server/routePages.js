@@ -79,7 +79,7 @@ ${body}
 function banner(r, cls) {
   if (!r.image) return "";
   const big = String(r.image).replace(/\/(\d{2,4})px-/, "/800px-");
-  return `<img class="${cls}" src="${esc(big)}" alt="Landmark on the route: ${esc(r.title)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${esc(r.image)}'" />`;
+  return `<img class="${cls}" src="${esc(big)}" alt="Landmark on the route: ${esc(r.title)}" loading="lazy" decoding="async" onload="if(this.naturalHeight>this.naturalWidth*0.85){this.classList.add('tall');var b=this.parentNode;b.style.setProperty('--photo','url(&quot;'+this.currentSrc+'&quot;)');b.classList.add('has-tall')}" onerror="this.onerror=null;this.src='${esc(r.image)}'" />`;
 }
 
 /** "56 mi (90 km)" for routes in mile countries, "90 km (56 mi)" everywhere else (region ends in the country code). */
@@ -118,7 +118,7 @@ export function routePage(summary, pkg) {
     <h1>${esc(r.title)}</h1>
     <p class="doc-date">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${distLabel(r)} · about ${esc(hours)} driving · ${r.narrationCount} spoken stories${r.uses ? ` · driven ${r.uses}×` : ""}</p>
     ${r.description ? `<p class="lede-left">${esc(r.description)}</p>` : ""}
-    ${banner(r, "route-hero")}${credit(r)}
+    ${r.image ? `<div class="route-hero-frame">${banner(r, "route-hero")}</div>` : ""}${credit(r)}
     <div class="route-cta">
       <a class="btn-cta" href="/plan.html?tier=free&route=${encodeURIComponent(r.id)}">Drive this route free</a>
       <a class="btn-cta ghost" href="/plan.html?tier=create">Create your own route</a>

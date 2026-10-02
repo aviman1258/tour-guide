@@ -37,7 +37,7 @@ async function boot() {
   document.body.classList.add(tier());
   ping({ tier: tier() });
   const badge = document.getElementById("tier-badge");
-  if (badge) badge.textContent = isFree() ? "Free · saved routes" : "Create your own route";
+  if (badge) badge.textContent = isFree() ? "Free tours" : "Create your own route";
   // tidy ?tier= out of the address bar, but keep params later steps still need (?trip=, ?route=)
   const keepQuery = ["trip", "route", "login"].some((k) => new URLSearchParams(location.search).get(k));
   history.replaceState(null, "", location.pathname + (keepQuery ? location.search : "") + location.hash);

@@ -55,6 +55,14 @@ function renderResults(routes) {
       img.loading = "lazy";
       img.decoding = "async";
       img.onerror = () => { img.onerror = null; img.src = r.image; }; // the source was smaller than 800 px
+      img.onload = () => { // a tall photo (a tower, a spire) shows whole on a blurred copy instead of losing its top
+        if (img.naturalHeight > img.naturalWidth * 0.85) {
+          img.classList.add("tall");
+          const b = el.querySelector(".banner");
+          b.style.setProperty("--photo", `url("${img.currentSrc}")`);
+          b.classList.add("has-tall");
+        }
+      };
       img.src = wide(r.image);
       el.querySelector(".banner").appendChild(img);
       if (r.imageCredit) {
