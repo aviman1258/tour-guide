@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { routePage, indexPage } from "../server/routePages.js";
+import { routePage, indexPage, distLabel } from "../server/routePages.js";
 
 const base = {
   id: "r_img00001", title: "Irvine: Mission and Pier", description: "", region: "Irvine, California, US",
@@ -23,4 +23,11 @@ test("route pages show the landmark picture as a card banner, a hero and the soc
   assert.ok(plain.includes("no-image") && plain.includes("<span>Irvine</span>"), "a coloured banner naming the region instead");
   assert.ok(!routePage(base, pkg).includes("route-hero"));
   assert.ok(routePage(base, pkg).includes("/img/og.png"));
+});
+
+test("distances lead with the unit the route's country uses", () => {
+  assert.equal(distLabel({ miles: 56, region: "Houston, Texas, US" }), "56 mi (90 km)");
+  assert.equal(distLabel({ miles: 56, region: "Paris, Île-de-France, FR" }), "90 km (56 mi)");
+  assert.equal(distLabel({ miles: 30, region: "London, England, GB" }), "30 mi (48 km)");
+  assert.equal(distLabel({ miles: 30, region: "" }), "30 mi (48 km)");
 });
