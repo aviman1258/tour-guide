@@ -102,7 +102,7 @@ export function routePage(summary, pkg) {
   const drivebys = (pkg.narration || []).filter((n) => n.kind === "driveby").length;
   const body = `
     <h1>${esc(r.title)}</h1>
-    <p class="doc-date">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi · about ${esc(hours)} driving · ${r.narrationCount} spoken stories${r.uses ? ` · driven ${r.uses}×` : ""}</p>
+    <p class="doc-date">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi (${Math.round(r.miles * 1.609344)} km) · about ${esc(hours)} driving · ${r.narrationCount} spoken stories${r.uses ? ` · driven ${r.uses}×` : ""}</p>
     ${r.description ? `<p class="lede-left">${esc(r.description)}</p>` : ""}
     ${banner(r, "route-hero")}
     <div class="route-cta">
@@ -133,7 +133,7 @@ export function indexPage(routes) {
         <a class="route-card-banner" href="${esc(routeUrl(r))}" tabindex="-1" aria-hidden="true">${banner(r, "").replace(/alt="[^"]*"/, 'alt=""')}${r.image ? "" : `<span>${esc((r.region || r.endLabel || "").split(",")[0])}</span>`}</a>
         <div class="route-card-body">
           <a href="${esc(routeUrl(r))}"><b>${esc(r.title)}</b></a>
-          <div class="route-meta">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi · about ${esc(fmtDuration(r.minutes))}${r.uses ? ` · driven ${r.uses}×` : ""}</div>
+          <div class="route-meta">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi (${Math.round(r.miles * 1.609344)} km) · about ${esc(fmtDuration(r.minutes))}${r.uses ? ` · driven ${r.uses}×` : ""}</div>
           ${r.description ? `<p>${esc(r.description)}</p>` : ""}
           <div class="route-meta">${esc(r.startLabel)} → ${esc(r.endLabel)}</div>
         </div>

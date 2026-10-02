@@ -565,6 +565,13 @@ deriving content from them.
   conditions. Tooltips say which. Purely decorative: offline or blocked, nothing is shown.
 - **Next-turn banner** from the route steps, with a green "✓ On route" line while the car is
   on the line and an off-route card (bearing arrow + distance to the next stop) when it isn't.
+- **Units** (`web/js/units.js`): miles, feet and °F, or kilometres, metres and °C, picked per
+  device (the selector beside the route options on the plan screen, and under Spoken directions in
+  drive mode). The default follows the browser's region: the US, the UK (miles on its road signs),
+  Liberia and Myanmar start on imperial, everywhere else on metric. It changes every written
+  distance and temperature, and the spoken prompts switch to round metric steps (highway 2 km, 1 km,
+  "in 200 metres"; streets 500 m heads-up, 150 m, then "now"; slow 80 m). Public route pages show
+  both ("56 mi (90 km)").
 - **Spoken directions** (`web/js/turnVoice.js`, a 3-position slider under the controls,
   remembered per device, default Reserved). The prompt distances follow the car's speed:
   - **highway pace** (50 mph and up): "In one mile, take the exit…", "In half a mile, …", then

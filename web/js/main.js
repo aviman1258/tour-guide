@@ -82,6 +82,7 @@ async function boot() {
     noPlan = now;
     loadWeather(it);
   });
+  window.addEventListener("tg:units", () => { const it = state.get(); itinerary.render(it); map.render(it); library.rerender(); });
 
   const ok = await api.probe();
   if (ok) account.sync().catch(() => {});

@@ -7,7 +7,7 @@ import * as storage from "./storage.js";
 import * as busy from "./busy.js";
 import * as map from "./map.js";
 import { toast } from "./itinerary.js";
-import { escapeHtml, fmtDuration } from "./format.js";
+import { escapeHtml, fmtDuration, fmtMiles } from "./format.js";
 import { samePlan, matchingPackage } from "./planMatch.js";
 import { remember as rememberHere } from "./here.js";
 
@@ -27,7 +27,12 @@ function msg(id, text, isError = false) {
 /** Wikipedia thumbnails come at ~330 px; ask for a wider one for the banner, fall back to the original. */
 const wide = (url, w = 800) => String(url || "").replace(/\/(\d{2,4})px-/, `/${w}px-`);
 
+let shown = [];
+/** Redraw the last results (units changed). */
+export function rerender() { if (shown.length) renderResults(shown); }
+
 function renderResults(routes) {
+  shown = routes;
   const box = $("library-results");
   box.innerHTML = "";
   for (const r of routes) {
@@ -38,7 +43,7 @@ function renderResults(routes) {
       <div class="body">
         <div class="grow">
           <div class="name">${escapeHtml(r.title)}</div>
-          <div class="sub">${escapeHtml(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${r.miles} mi · ${fmtDuration(r.minutes)} driving · ${r.narrationCount} narrations${r.uses ? ` · used ${r.uses}×` : ""}</div>
+          <div class="sub">${escapeHtml(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${fmtMiles(r.miles * 1609.344)} · ${fmtDuration(r.minutes)} driving · ${r.narrationCount} narrations${r.uses ? ` · used ${r.uses}×` : ""}</div>
           ${r.description ? `<div class="sub desc">${escapeHtml(r.description)}</div>` : ""}
           <div class="sub">${escapeHtml(r.startLabel)} → ${escapeHtml(r.endLabel)}</div>
         </div>

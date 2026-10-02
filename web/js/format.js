@@ -1,3 +1,4 @@
+import { fmtDistance } from "./units.js";
 // Time and distance formatting. Times are local "HH:MM" strings.
 
 export function toMinutes(hhmm) {
@@ -24,11 +25,8 @@ export function fmtDuration(minutes) {
   return `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + " min" : ""}`.trim();
 }
 
-export function fmtMiles(meters) {
-  const mi = meters / 1609.344;
-  if (mi < 0.2) return `${Math.round(meters * 3.28084 / 50) * 50} ft`;
-  return `${mi.toFixed(mi < 10 ? 1 : 0)} mi`;
-}
+/** A distance in the units this device uses (web/js/units.js); kept under its old name. */
+export function fmtMiles(meters) { return fmtDistance(meters); }
 
 export function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

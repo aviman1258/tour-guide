@@ -2,6 +2,7 @@
 
 import { escapeHtml } from "./format.js";
 import { wxWhen } from "./weather.js";
+import { fmtTemp } from "./units.js";
 
 let map, layer, routeLayer, onClickHandler = null;
 let weather = new Map(), lastIt = null; // stopId → weather summary (web/js/weather.js)
@@ -34,7 +35,7 @@ export function onMapClick(fn) {
 }
 
 function icon(label, cls, w) {
-  const badge = w ? `<div class="marker-wx" title="${escapeHtml(w.text)} · ${escapeHtml(wxWhen(w))}">${w.icon} ${w.tempF}°${w.when === "typical" ? "<small>avg</small>" : ""}</div>` : "";
+  const badge = w ? `<div class="marker-wx" title="${escapeHtml(w.text)} · ${escapeHtml(wxWhen(w))}">${w.icon} ${fmtTemp(w.tempF)}${w.when === "typical" ? "<small>avg</small>" : ""}</div>` : "";
   return L.divIcon({
     className: "",
     html: `<div class="marker-wrap"><div class="marker-num ${cls}"><span>${label}</span></div>${badge}</div>`,
@@ -74,7 +75,7 @@ export function render(it) {
     const extra = sched ? `<div style="color:#888">${sched.arrive} – ${sched.depart}</div>` : "";
     const cls = s.lunch !== "none" ? "lunch" : "";
     const w = weather.get(s.id);
-    L.marker([s.lat, s.lon], { icon: icon(String(i + 1), cls, w) }).bindPopup(popup(s, extra + (w ? `<div style="color:#888">${w.icon} ${w.tempF}° ${escapeHtml(w.text)} · ${escapeHtml(wxWhen(w))}</div>` : ""))).addTo(layer);
+    L.marker([s.lat, s.lon], { icon: icon(String(i + 1), cls, w) }).bindPopup(popup(s, extra + (w ? `<div style="color:#888">${w.icon} ${fmtTemp(w.tempF)} ${escapeHtml(w.text)} · ${escapeHtml(wxWhen(w))}</div>` : ""))).addTo(layer);
     pts.push([s.lat, s.lon]);
   });
   if (it.end) {

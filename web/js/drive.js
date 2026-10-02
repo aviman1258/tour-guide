@@ -15,6 +15,7 @@ import { ping } from "./ping.js";
 import * as weather from "./weather.js";
 import * as audioCache from "./audioCache.js";
 import { remember as rememberHere } from "./here.js";
+import { fmtTemp, getUnits, setUnits } from "./units.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -25,12 +26,12 @@ const state = {
   geofence: null, speech: null, sim: null,
   watchId: null, wakeLock: null, running: false,
   lastFix: null, lastProj: null, offRoute: false, offCount: 0, onCount: 0, nextManeuverIdx: 0,
-  nextStopIdx: 0, driveState: { fired: {}, visited: [] }, saveTimer: null, turnVoice: createTurnVoice({ mode: loadTurnMode() }),
+  nextStopIdx: 0, driveState: { fired: {}, visited: [] }, saveTimer: null, turnVoice: createTurnVoice({ mode: loadTurnMode(), units: getUnits() }),
   map: null, car: null, carLayer: null, stopMarkers: [], poiMarkers: new Map(), follow: true, followTimer: null,
   weather: new Map(), // stopId → { tempF, icon, text, when } from Open-Meteo
   orient: loadOrient(), rot: 0, rotEver: false, // "heading" (driver's view, car in the lower third) or "north"; rot = current CSS rotation, unwrapped
   // back on course: where we last were on the line, the detour we're following, and request throttling
-  lastOnRouteM: null, detour: null, detourLayer: null, detourVoice: createTurnVoice({ mode: loadTurnMode() }),
+  lastOnRouteM: null, detour: null, detourLayer: null, detourVoice: createTurnVoice({ mode: loadTurnMode(), units: getUnits() }),
   rerouteBusy: false, rerouteAskMs: 0, rerouteAskAt: null, rerouteSeq: 0,
 };
 
@@ -186,7 +187,7 @@ function drawRoute() {
 
 /** Numbered stop marker, with a small weather badge beside it when we know the forecast. */
 function stopIcon(label, cls, wx) {
-  const badge = wx ? `<div class="marker-wx" title="${escapeHtml(wx.text)} · ${escapeHtml(weather.wxWhen(wx))}">${wx.icon} ${wx.tempF}°${wx.when === "typical" ? "<small>avg</small>" : ""}</div>` : "";
+  const badge = wx ? `<div class="marker-wx" title="${escapeHtml(wx.text)} · ${escapeHtml(weather.wxWhen(wx))}">${wx.icon} ${fmtTemp(wx.tempF)}${wx.when === "typical" ? "<small>avg</small>" : ""}</div>` : "";
   return L.divIcon({ className: "", html: `<div class="marker-wrap"><div class="marker-num ${cls}">${label}</div>${badge}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
 }
 
@@ -541,7 +542,7 @@ function renderNextStop(fix, progressM) {
 
   if (!fix) {
     const wx = s && state.weather.get(s.id);
-    $("next-meta").textContent = `${sched ? `planned ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : ""}${wx ? `${sched ? " · " : ""}${wx.icon} ${wx.tempF}° ${wx.text}${wx.when === "typical" ? " (typical)" : ""}` : ""}`;
+    $("next-meta").textContent = `${sched ? `planned ${to12h(sched.arrive)} – ${to12h(sched.depart)}` : ""}${wx ? `${sched ? " · " : ""}${wx.icon} ${fmtTemp(wx.tempF)} ${wx.text}${wx.when === "typical" ? " (typical)" : ""}` : ""}`;
     return;
   }
   let distM, etaMin;
@@ -796,6 +797,21 @@ function bindUi() {
     state.speech.setMuted(on);
     $("mute-btn").textContent = on ? "🔇" : "🔊";
     $("mute-btn").setAttribute("aria-pressed", String(on));
+  });
+  // miles or kilometres for the banner, the cards and the spoken directions
+  const unitsSel = $("units");
+  unitsSel.value = getUnits();
+  unitsSel.addEventListener("change", () => setUnits(unitsSel.value));
+  window.addEventListener("tg:units", (e) => {
+    unitsSel.value = e.detail.units;
+    state.turnVoice.setUnits(e.detail.units);
+    state.detourVoice.setUnits(e.detail.units);
+    if (!state.it) return;
+    state.it.stops.forEach((s, i) => state.stopMarkers[i]?.setIcon(stopIcon(i + 1, state.geofence.visited.has(s.id) ? "visited" : "", state.weather.get(s.id))));
+    refreshMarkers();
+    renderStopList();
+    renderNextStop(state.lastFix, state.offRoute ? null : state.lastProj?.progressM);
+    if (!state.running) $("banner-secondary").textContent = `${state.it.stops.length} stops · ${fmtMiles(state.total)} · ${state.pkg.narration.length} narrations`;
   });
   const slider = $("turn-voice");
   $("orient-btn").addEventListener("click", () => setOrient(state.orient === "heading" ? "north" : "heading", { announce: true }));

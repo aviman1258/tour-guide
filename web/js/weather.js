@@ -1,3 +1,4 @@
+import { fmtTemp } from "./units.js";
 // Weather at the stops, from Open-Meteo (free, no key, called from the browser), for the hour
 // you're planned to arrive, chosen by how far away the trip is:
 //   up to 15 days ahead  → the hourly forecast                     (when: "forecast")
@@ -40,7 +41,7 @@ export function summarize(result, { date, arrive, when = "forecast" } = {}) {
   }
   return null;
 }
-export const wxShort = (w) => (w ? `${w.icon} ${w.tempF}°` : "");
+export const wxShort = (w) => (w ? `${w.icon} ${fmtTemp(w.tempF)}` : "");
 /** What the reading is, in words, for tooltips: "forecast", "typical for Nov 14 (2023–2025)", … */
 export function wxWhen(w) {
   if (!w) return "";
