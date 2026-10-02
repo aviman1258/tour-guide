@@ -10,12 +10,24 @@ let days = 30;
 function key() { try { return sessionStorage.getItem(KEY) || ""; } catch { return ""; } }
 function setKey(v) { try { v ? sessionStorage.setItem(KEY, v) : sessionStorage.removeItem(KEY); } catch { /* ignore */ } }
 
+// Several requests start at once when the page opens; if the password is missing they all get a
+// 401 together. They share one prompt instead of asking once each.
+let signingIn = null;
+function askOnce() {
+  signingIn ??= askSecret({ title: "Admin", label: "Admin password", submit: "Sign in" })
+    .then((entered) => { if (entered) setKey(entered); return entered; })
+    .finally(() => { setTimeout(() => { signingIn = null; }, 0); });
+  return signingIn;
+}
+
 async function api(path, method = "GET", retried = false, body = undefined) {
-  const res = await fetch(path, { method, headers: { ...(key() ? { "x-admin-key": key() } : {}), ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const sentKey = key();
+  const res = await fetch(path, { method, headers: { ...(sentKey ? { "x-admin-key": sentKey } : {}), ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
   if (res.status === 401 && !retried) {
-    const entered = await askSecret({ title: "Admin", label: "Admin password", submit: "Sign in" });
+    // another request may have signed in while this one was in flight: just retry with that key
+    if (key() && key() !== sentKey) return api(path, method, true, body);
+    const entered = await askOnce();
     if (!entered) throw new Error("Admin password required.");
-    setKey(entered);
     return api(path, method, true, body);
   }
   if (res.status === 204) return {};
