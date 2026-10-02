@@ -27,6 +27,7 @@ import * as accounts from "./lib/accounts.js";
 import * as mail from "./lib/mail.js";
 import * as seed from "./lib/seed.js";
 import * as jobs from "./lib/jobs.js";
+import { bestPicture } from "./lib/routeImage.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -286,6 +287,39 @@ app.get("/api/admin/costs", requireAdmin, h(async (req, res) => {
   const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
   res.json({ ...usage.summary(days), budget: usage.budget(), voice: tts.summary(days) });
 }));
+// Route pictures: the most iconic stop's free Commons photo with its credit (lib/routeImage.js).
+// Routes published before credits existed are refreshed in the background after start-up;
+// the admin button redoes every route.
+const pictures = { running: false, done: 0, total: 0, changed: 0, at: null };
+async function refreshPictures(ids) {
+  if (pictures.running) return;
+  Object.assign(pictures, { running: true, done: 0, total: ids.length, changed: 0, at: new Date().toISOString() });
+  try {
+    for (const id of ids) {
+      try {
+        const { summary, package: pkg } = library.get(id, { countUse: false });
+        const pic = await bestPicture(pkg.itinerary?.stops || []);
+        if ((pic?.url || "") !== summary.image || !summary.imageCredit) { library.setImage(id, pic); pictures.changed++; }
+      } catch (err) {
+        // Wikipedia busy: keep this route's current picture, cool off, and move on (the next start-up retries it)
+        console.warn(`[pictures] ${id}: ${err.message}`);
+        pictures.skipped = (pictures.skipped || 0) + 1;
+        await new Promise((r) => setTimeout(r, 30_000));
+      }
+      pictures.done++;
+      await new Promise((r) => setTimeout(r, 1500)); // polite to Wikipedia
+    }
+    console.log(`[pictures] refreshed ${pictures.done} route(s), ${pictures.changed} changed`);
+  } finally { pictures.running = false; }
+}
+setTimeout(() => { const ids = library.uncreditedIds(); if (ids.length) refreshPictures(ids); }, 20_000).unref();
+app.get("/api/admin/pictures", requireAdmin, h(async (_req, res) => { res.json(pictures); }));
+app.post("/api/admin/pictures", requireAdmin, h(async (_req, res) => {
+  const ids = library.list().map((r) => r.id);
+  refreshPictures(ids);
+  res.status(202).json({ ...pictures, total: ids.length });
+}));
+
 // Starter routes: plan → narrate → publish a preset list, in the background (lib/seed.js).
 app.get("/api/admin/seed", requireAdmin, h(async (_req, res) => { res.json(seed.status()); }));
 app.post("/api/admin/seed", requireAdmin, h(async (req, res) => {
@@ -293,7 +327,8 @@ app.post("/api/admin/seed", requireAdmin, h(async (req, res) => {
   const st = seed.start(keys, {
     log: (m) => console.log(`[seed] ${m}`),
     publish: async (pkg, title, description, region) => {
-      const summary = library.publish({ pkg, title, description, region, author: "seed" });
+      const picture = await bestPicture(pkg.itinerary.stops).catch(() => undefined); // Wikipedia busy: old pick, refreshed later
+      const summary = library.publish({ pkg, title, description, region, author: "seed", picture });
       pingIndexNow([routePages.routeUrl(summary), `${routePages.BASE}/routes`, `${routePages.BASE}/sitemap.xml`]);
       return summary;
     },
@@ -500,7 +535,8 @@ app.post("/api/routes", requireAccess("publish"), h(async (req, res) => {
     const r = await nominatim.reverse(pkg.itinerary.start.lat, pkg.itinerary.start.lon, 10);
     region = [r?.address?.city || r?.address?.town || r?.address?.county, r?.address?.state, r?.address?.country_code?.toUpperCase()].filter(Boolean).join(", ");
   } catch { /* region is optional */ }
-  const summary = library.publish({ pkg, title, description, region, author: "subscriber" });
+  const picture = await bestPicture(pkg.itinerary.stops).catch(() => undefined); // Wikipedia busy: old pick, refreshed later
+  const summary = library.publish({ pkg, title, description, region, author: "subscriber", picture });
   console.log(`[library] published ${summary.id} "${summary.title}" (${summary.stopsCount} stops, ${summary.region})`);
   pingIndexNow([routePages.routeUrl(summary), `${routePages.BASE}/routes`, `${routePages.BASE}/sitemap.xml`]);
   analytics.track(req, "publish", `${summary.id} ${summary.title}`);

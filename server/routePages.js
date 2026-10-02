@@ -89,6 +89,13 @@ export function distLabel(r) {
   return !cc || ["US", "GB", "LR", "MM", "PR", "GU", "VI", "AS"].includes(cc) ? `${mi} mi (${km} km)` : `${km} km (${mi} mi)`;
 }
 
+/** "Photo: Jane Photographer, CC BY-SA 4.0, via Wikimedia Commons", linked to the file page. */
+function credit(r, cls = "photo-credit") {
+  const c = r.imageCredit;
+  if (!r.image || !c) return "";
+  return `<p class="${cls}">Photo: ${c.page ? `<a href="${esc(c.page)}" rel="noopener nofollow">${esc(c.artist)}</a>` : esc(c.artist)}, ${esc(c.license)}, via Wikimedia Commons</p>`;
+}
+
 export function routePage(summary, pkg) {
   const it = pkg.itinerary;
   const r = summary;
@@ -111,7 +118,7 @@ export function routePage(summary, pkg) {
     <h1>${esc(r.title)}</h1>
     <p class="doc-date">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${distLabel(r)} · about ${esc(hours)} driving · ${r.narrationCount} spoken stories${r.uses ? ` · driven ${r.uses}×` : ""}</p>
     ${r.description ? `<p class="lede-left">${esc(r.description)}</p>` : ""}
-    ${banner(r, "route-hero")}
+    ${banner(r, "route-hero")}${credit(r)}
     <div class="route-cta">
       <a class="btn-cta" href="/plan.html?tier=free&route=${encodeURIComponent(r.id)}">Drive this route free</a>
       <a class="btn-cta ghost" href="/plan.html?tier=create">Create your own route</a>
@@ -138,7 +145,7 @@ export function indexPage(routes) {
   const cards = routes.map((r) => `
       <li class="route-card${r.image ? "" : " no-image"}">
         <a class="route-card-banner" href="${esc(routeUrl(r))}" tabindex="-1" aria-hidden="true">${banner(r, "").replace(/alt="[^"]*"/, 'alt=""')}${r.image ? "" : `<span>${esc((r.region || r.endLabel || "").split(",")[0])}</span>`}</a>
-        <div class="route-card-body">
+        <div class="route-card-body">${credit(r, "photo-credit small")}
           <a href="${esc(routeUrl(r))}"><b>${esc(r.title)}</b></a>
           <div class="route-meta">${esc(r.region || "")}${r.region ? " · " : ""}${r.stopsCount} stops · ${distLabel(r)} · about ${esc(fmtDuration(r.minutes))}${r.uses ? ` · driven ${r.uses}×` : ""}</div>
           ${r.description ? `<p>${esc(r.description)}</p>` : ""}

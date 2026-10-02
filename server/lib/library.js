@@ -52,6 +52,7 @@ function open() {
       try { db.prepare(`UPDATE routes SET image = ? WHERE id = ?`).run(pickImage(JSON.parse(r.package_json)?.itinerary?.stops || []), r.id); } catch { /* leave blank */ }
     }
   }
+  if (!cols.has("image_credit")) db.exec(`ALTER TABLE routes ADD COLUMN image_credit TEXT NOT NULL DEFAULT ''`); // JSON {artist, license, page, title}
   if (!cols.has("points_json")) { // where the route goes, for "routes near <place>" searches
     db.exec(`ALTER TABLE routes ADD COLUMN points_json TEXT NOT NULL DEFAULT '[]'`);
     for (const r of db.prepare(`SELECT id, package_json FROM routes`).all()) {
@@ -131,7 +132,8 @@ function summarize(row) {
     interests: row.interests, stopNames: row.stop_names.split(" · ").filter(Boolean),
     stopsCount: row.stops_count, miles: row.miles, minutes: row.minutes, narrationCount: row.narration_count,
     createdAt: row.created_at, uses: row.uses,
-    image: row.image || "", // a landmark on the route (Wikipedia thumbnail), "" when none
+    image: row.image || "", // the route's most iconic stop (Wikimedia Commons photo), "" when none
+    imageCredit: (() => { try { return row.image_credit ? JSON.parse(row.image_credit) : null; } catch { return null; } })(),
   };
 }
 
@@ -139,7 +141,7 @@ function summarize(row) {
  * Publish a drive package. Validates labels (no street addresses), strips per-device state.
  * Returns the summary of the stored route.
  */
-export function publish({ pkg, title, description = "", region = "", author = "" }) {
+export function publish({ pkg, title, description = "", region = "", author = "", picture = undefined }) {
   const it = pkg?.itinerary;
   if (!it?.start || !it?.end || !Array.isArray(it.stops) || !it.stops.length) throw httpError(400, "package needs an itinerary with stops");
   if (!Array.isArray(pkg.narration) || !pkg.narration.length) throw httpError(400, "package has no narration; prepare the drive first");
@@ -172,7 +174,9 @@ export function publish({ pkg, title, description = "", region = "", author = ""
     minutes: Math.round((it.route.totalSec || 0) / 60),
     narration_count: pkg.narration.length,
     author, created_at: new Date().toISOString(), uses: 0,
-    image: pickImage(it.stops),
+    // the caller looks up the most iconic free photo (lib/routeImage.js); without it, the old stop-thumbnail pick
+    image: picture === undefined ? pickImage(it.stops) : picture?.url || "",
+    image_credit: picture?.credit ? JSON.stringify(picture.credit) : "",
     points_json: JSON.stringify(routePoints(clean)),
     package_json: JSON.stringify(clean),
   };
@@ -225,6 +229,15 @@ export function get(id, { countUse = false } = {}) {
 /** Every route, newest first, for the admin page (no package body). */
 export function list() {
   return open().prepare(`SELECT * FROM routes ORDER BY created_at DESC`).all().map((r) => ({ ...summarize(r), author: r.author }));
+}
+
+/** Replace a route's picture (the picture refresh). `picture` null clears it. */
+export function setImage(id, picture) {
+  open().prepare(`UPDATE routes SET image = ?, image_credit = ? WHERE id = ?`).run(picture?.url || "", picture?.credit ? JSON.stringify(picture.credit) : "", id);
+}
+/** Ids of routes whose picture has no credit yet (picked before credits existed), oldest first. */
+export function uncreditedIds() {
+  return open().prepare(`SELECT id FROM routes WHERE image_credit = '' ORDER BY created_at`).all().map((r) => r.id);
 }
 
 export function remove(id) {

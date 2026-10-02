@@ -57,6 +57,16 @@ function renderResults(routes) {
       img.onerror = () => { img.onerror = null; img.src = r.image; }; // the source was smaller than 800 px
       img.src = wide(r.image);
       el.querySelector(".banner").appendChild(img);
+      if (r.imageCredit) {
+        const c = document.createElement("a");
+        c.className = "banner-credit";
+        c.href = r.imageCredit.page || "#";
+        c.target = "_blank"; c.rel = "noopener nofollow";
+        c.textContent = `📷 ${r.imageCredit.artist} · ${r.imageCredit.license}`;
+        c.title = `Photo: ${r.imageCredit.artist}, ${r.imageCredit.license}, via Wikimedia Commons`;
+        c.addEventListener("click", (e) => e.stopPropagation());
+        el.querySelector(".banner").appendChild(c);
+      }
     }
     el.querySelector("button").addEventListener("click", () => useRoute(r.id));
     el.addEventListener("click", (e) => { if (e.target.tagName !== "BUTTON") map.focus(r.start.lat, r.start.lon, 9); });

@@ -197,6 +197,23 @@ $("research-btn")?.addEventListener("click", async () => {
     out.textContent = (r.facts.length ? r.facts.map((f) => `• ${f.fact}\n   ${f.source}`).join("\n") : "No facts came back.") + `\n\n${Math.round(r.ms / 1000)} s · calls ${r.research.calls} · with facts ${r.research.withFacts} · empty ${r.research.empty} · failed ${r.research.failed}` + (r.research.lastError ? `\nlast error: ${r.research.lastError}` : "") + (r.recentErrors.length ? `\nrecent Claude errors:\n${r.recentErrors.map((e) => `  ${e.at.slice(11, 19)} ${e.call} ${e.status || ""} ${e.message}`).join("\n")}` : "");
   } catch (err) { out.textContent = err.message; } finally { $("research-btn").disabled = false; }
 });
+$("pictures-btn")?.addEventListener("click", async () => {
+  const b = $("pictures-btn"), m = $("indexnow-msg");
+  b.disabled = true;
+  try {
+    let st = await api("/api/admin/pictures", "POST");
+    m.hidden = false;
+    while (st.running || st.done < st.total) {
+      m.textContent = `Choosing pictures: ${st.done} of ${st.total} routes, ${st.changed} changed…`;
+      await new Promise((r) => setTimeout(r, 3000));
+      st = await api("/api/admin/pictures");
+      if (!st.running) break;
+    }
+    m.textContent = `Pictures refreshed: ${st.done} routes checked, ${st.changed} changed.`;
+    loadRoutes();
+  } catch (err) { m.hidden = false; m.textContent = err.message; }
+  finally { b.disabled = false; }
+});
 $("indexnow-btn")?.addEventListener("click", async () => {
   const b = $("indexnow-btn"), m = $("indexnow-msg");
   b.disabled = true; m.hidden = false; m.textContent = "Submitting…";

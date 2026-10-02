@@ -38,10 +38,15 @@ shows "Find a saved route" instead: routes that subscribers published, searchabl
 forbids autocomplete); pressing Find or Enter runs the full search, which also geocodes the words
 and adds routes passing near that place. The list starts empty and only shows what a search (or "near me") matched; pressing
 Find with nothing typed just asks for a city or word. Each result is a card with a banner picture
-on top: the Wikipedia photo of the route's most landmark-like, highest-priority stop (chosen at
-publish time by `pickImage` in `server/lib/library.js`, stored in the `image` column and
-back-filled for older routes; requested at 800 px with a fallback to the original size), or a
-plain coloured banner naming the region when no stop has a photo. The public `/routes` index and
+on top: a photo of the route's most iconic stop (`server/lib/routeImage.js`, chosen at publish
+time): among the stops whose Wikipedia article has a lead photo, the one people read most (30-day
+pageviews). Stops without a Wikipedia title are looked up by name and used only if the article is
+within 3 km. The photo must be freely licensed on Wikimedia Commons (fair-use images, maps, logos,
+flags and seals are skipped), is fetched at 1280 px, and its author and licence are stored
+(`image_credit`) and shown as the licence requires: a small "📷 author · licence" tag on app
+cards and "Photo: author, licence, via Wikimedia Commons" on the public pages. Routes published
+before this were refreshed automatically after start-up; admin → Shared routes → "Refresh
+pictures" redoes every route. No free photo found: a plain coloured banner naming the region. The public `/routes` index and
 each route's own page (`server/routePages.js`) show the same picture, as a card banner and as a
 hero under the title, and it becomes the page's social preview image. A free driver picks one, sets
 their own date and start time (re-timing only; stops are fixed because the narration is tied to
@@ -389,6 +394,7 @@ Times are local `HH:MM` strings; all math is minutes-since-midnight, no time zon
 | `GET /api/health` | | `{ok, claude:"sdk"\|"cli", models, osrm, data:{dir, exists, writable, events, routes, admin, analytics}}` |
 | `GET /api/admin/costs?days=` | `x-admin-key` | Claude usage: per-tool calls, median tokens and cost, totals, median cost per route |
 | `GET /api/admin/routes` | `x-admin-key` | `{routes: [summary + author]}` every shared route, newest first |
+| `GET /api/admin/pictures`, `POST /api/admin/pictures` | `x-admin-key` | picture refresh progress; re-pick every route's photo in the background (202) |
 | `GET /api/admin/seed`, `POST /api/admin/seed` | `x-admin-key`; POST `{keys}` | starter routes: the preset list with published flags and the job status; start planning → narrating → publishing the selected presets in the background (202; 409 while running) |
 | `DELETE /api/admin/routes/:id` | `x-admin-key` | 204; removes a shared route for everyone |
 | `POST /api/owner/unlock` | `{passphrase}` + `x-device` | `{token, expiresAt}`; 401 wrong (`triesLeft`), 429 locked (`lockedUntil`) |
