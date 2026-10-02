@@ -34,7 +34,7 @@ const stops = [
 test("picks the most-read stop with a free photo, credits its author and licence", async () => {
   const pic = await bestPicture(stops, { get: fakeGet() });
   assert.equal(pic.url, "https://upload.wikimedia.org/thumb/Sacre_Coeur.jpg/1280px-Sacre_Coeur.jpg", "Orsay has more readers but its photo is fair use; the logo is skipped");
-  assert.deepEqual(pic.credit, { artist: "Jane Photographer", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Sacre_Coeur.jpg", title: "Sacré-Cœur, Paris", v: 2 });
+  assert.deepEqual(pic.credit, { artist: "Jane Photographer", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Sacre_Coeur.jpg", title: "Sacré-Cœur, Paris", v: 3 });
 });
 
 test("a searched article far from the stop is not used", async () => {
@@ -62,4 +62,20 @@ test("a landmark beats the town it sits in, even with fewer readers", async () =
     { name: "Kirk Douglas Theatre", wikipediaTitle: "Kirk Douglas Theatre", category: "landmark", lat: 34.023, lon: -118.395 },
   ], { get });
   assert.equal(pic.credit.title, "Kirk Douglas Theatre");
+});
+
+test("a file that is several pictures in one is skipped for the next best stop", async () => {
+  const wh = { title: "White House", pageimage: "White_House_north_and_south_sides.jpg", coordinates: [{ lat: 38.8977, lon: -77.0365 }], pageviews: { a: 90000 } };
+  const lm = { title: "Lincoln Memorial", pageimage: "Lincoln_Memorial_east_side.jpg", coordinates: [{ lat: 38.8893, lon: -77.0502 }], pageviews: { a: 30000 } };
+  const free = { thumburl: "https://upload.wikimedia.org/lm.jpg", extmetadata: { LicenseShortName: { value: "CC BY 4.0" }, Artist: { value: "B" } } };
+  const get = async (url) => {
+    const q = Object.fromEntries(new URL(url).searchParams);
+    if (q.prop === "imageinfo") return { status: 200, data: { query: { pages: [{ imageinfo: [free] }] } } };
+    return { status: 200, data: { query: { pages: q.titles.split("|").map((t) => (t === "White House" ? wh : lm)) } } };
+  };
+  const pic = await bestPicture([
+    { name: "White House", wikipediaTitle: "White House", category: "landmark", lat: 38.8977, lon: -77.0365 },
+    { name: "Lincoln Memorial", wikipediaTitle: "Lincoln Memorial", category: "landmark", lat: 38.8893, lon: -77.0502 },
+  ], { get });
+  assert.equal(pic.credit.title, "Lincoln Memorial");
 });
