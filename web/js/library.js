@@ -33,6 +33,9 @@ export function rerender() { if (shown.length) renderResults(shown); }
 
 function renderResults(routes) {
   shown = routes;
+  // after any search, the way out: a route of your own
+  const cta = $("library-cta");
+  if (cta) cta.hidden = !$("library-query").value.trim() && !routes.length;
   const box = $("library-results");
   box.innerHTML = "";
   for (const r of routes) {

@@ -102,3 +102,8 @@ img.tall { position: relative; object-fit: contain !important; }
 @media (min-width: 720px) { .route-cards { grid-template-columns: 1fr 1fr; } }
 .route-card a { color: var(--accent); text-decoration: none; font-size: 18px; }
 .route-card p { margin: 6px 0; }
+
+.library-cta { display: flex; flex-direction: column; gap: 2px; margin: 22px 0 6px; padding: 16px 18px; border-radius: 14px; text-decoration: none; border: 2px dashed var(--accent); color: var(--text); }
+.library-cta .cta-q { font-weight: 700; font-size: 17px; }
+.library-cta .cta-a { color: var(--accent); font-weight: 600; }
+.library-cta:hover .cta-a { text-decoration: underline; }

@@ -381,6 +381,15 @@ details.card[open] > summary { margin-bottom: 8px; }
 .signin-row input { flex: 1; min-width: 180px; }
 .signin-row .grow { flex: 1; min-width: 0; }
 .library .results { margin-top: 8px; gap: 10px; }
+.library-cta {
+  display: flex; flex-direction: column; gap: 2px; margin-top: 14px; padding: 14px 16px; border-radius: 12px; text-decoration: none;
+  border: 2px dashed var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.library-cta .cta-q { font-weight: 700; font-size: 15px; }
+.library-cta .cta-a { color: var(--accent); font-weight: 600; font-size: 14px; }
+.library-cta:hover .cta-a { text-decoration: underline; }
+body.free.no-plan .library-cta { border-color: var(--brand-saffron); background: rgba(255,255,255,.08); color: #fff; }
+body.free.no-plan .library-cta .cta-a { color: var(--brand-saffron); }
 body.free.no-plan #library-card {
   background: linear-gradient(155deg, var(--brand-dusk) 0%, var(--brand-plum) 62%, #7d3550 100%); color: #fff; border: 0; border-radius: 18px;
   padding: 28px 22px 22px; box-shadow: 0 10px 30px rgba(42, 29, 75, .28);

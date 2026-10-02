@@ -157,7 +157,8 @@ export function indexPage(routes) {
     <h1>Saved routes, free to drive</h1>
     <p class="doc-date">${routes.length} published route${routes.length === 1 ? "" : "s"} · each narrated stop by stop as you drive</p>
     <p class="lede-left">Routes people built with Deodapper and shared. Pick one near you, set your own day and time, and Deodap tells the stories as you pass each place. Want one built around your own interests? <a href="/plan.html?tier=create">Create your own</a> from $1.99.</p>
-    ${routes.length ? `<ul class="route-cards">${cards}\n    </ul>` : `<p>No routes have been published yet. Be the first: <a href="/plan.html?tier=create">create one</a> and publish it.</p>`}`;
+    ${routes.length ? `<ul class="route-cards">${cards}\n    </ul>` : `<p>No routes have been published yet. Be the first: <a href="/plan.html?tier=create">create one</a> and publish it.</p>`}
+    <a class="library-cta" href="/plan.html?tier=subscriber"><span class="cta-q">Didn't find what you were looking for?</span><span class="cta-a">Have Deodap make a route just for you: your start, your end, your interests →</span></a>`;
   const jsonLd = { "@context": "https://schema.org", "@type": "ItemList", name: "Deodapper saved routes", url: `${BASE}/routes`, numberOfItems: routes.length, itemListElement: routes.map((r, i) => ({ "@type": "ListItem", position: i + 1, url: routeUrl(r), name: r.title })) };
   return shell({ title: "Saved driving routes, free to drive · Deodapper", description, canonical: `${BASE}/routes`, body, jsonLd });
 }

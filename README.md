@@ -36,7 +36,9 @@ shows "Find a saved route" instead: routes that subscribers published, searchabl
 "near me". Typing searches as you go (300 ms after the last key, two characters minimum,
 `GET /api/routes?live=1`, which matches the routes' words only, because Nominatim's policy
 forbids autocomplete); pressing Find or Enter runs the full search, which also geocodes the words
-and adds routes passing near that place. The list starts empty and only shows what a search (or "near me") matched; pressing
+and adds routes passing near that place. After any search the results end with "Didn't find what you were looking for? Have Deodap make a
+route just for you", linking to the create screen (the public `/routes` page ends the same way).
+The list starts empty and only shows what a search (or "near me") matched; pressing
 Find with nothing typed just asks for a city or word. Each result is a card with a banner picture
 on top: a photo of the route's most iconic stop (`server/lib/routeImage.js`, chosen at publish
 time): among the stops whose Wikipedia article has a lead photo, the one people read most (30-day
