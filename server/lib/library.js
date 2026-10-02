@@ -235,9 +235,11 @@ export function list() {
 export function setImage(id, picture) {
   open().prepare(`UPDATE routes SET image = ?, image_credit = ? WHERE id = ?`).run(picture?.url || "", picture?.credit ? JSON.stringify(picture.credit) : "", id);
 }
-/** Ids of routes whose picture has no credit yet (picked before credits existed), oldest first. */
-export function uncreditedIds() {
-  return open().prepare(`SELECT id FROM routes WHERE image_credit = '' ORDER BY created_at`).all().map((r) => r.id);
+/** Ids of routes whose picture was chosen under older rules (or never credited), oldest first. */
+export function staleImageIds(version) {
+  return open().prepare(`SELECT id, image_credit FROM routes ORDER BY created_at`).all()
+    .filter((r) => { try { return (JSON.parse(r.image_credit || "{}").v || 0) < version; } catch { return true; } })
+    .map((r) => r.id);
 }
 
 export function remove(id) {

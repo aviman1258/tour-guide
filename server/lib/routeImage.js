@@ -13,6 +13,13 @@ import { fetchJson } from "./http.js";
 import { haversineM } from "./geo.js";
 
 const WIDTH = 1280;
+/** Bumped when the choice rules change; routes picked under an older version are re-picked at start-up. */
+export const PICTURE_VERSION = 2;
+// A whole town or neighbourhood article out-reads any single landmark in it, but a photo of "Culver City"
+// says less than one of the place you'll stop at: those count for a fraction of their readers.
+const AREA_CATEGORIES = new Set(["neighborhood", "district"]);
+const AREA_WEIGHT = 0.25;
+const looksLikeTown = (title) => /,\s*(California|Texas|Colorado|Nevada|Florida|New York|[A-Z][a-z]+ [A-Z][a-z]+)$/.test(title) && !/\b(park|museum|bridge|pier|beach|tower|cathedral|temple|church|palace|castle|market|station|theatre|theater|stadium|monument|memorial|house|hall|gardens?|zoo|aquarium|lighthouse|fort|mission)\b/i.test(title);
 const SKIP_FILE = /\.(svg|gif|tiff?)$|(^|[\s_\-(.,])(map|locator|logo|flag|seal|coat[ _]of[ _]arms|emblem|diagram|plan|icon|signature|montage|collage|composite|drawing|illustration|engraving|lithograph|painting|sketch|plate|postcard|poster|book|walk)(?=[\s_\-).,]|$)/i; // photos only; file names use _ for spaces
 const MAX_KM = { titled: 8, searched: 3 };
 
@@ -67,8 +74,9 @@ async function candidates(stops, get) {
     const c = p.coordinates?.[0];
     if (c && Number.isFinite(w.stop.lat) && haversineM({ lat: c.lat, lon: c.lon }, w.stop) > (w.searched ? MAX_KM.searched : MAX_KM.titled) * 1000) continue;
     if (w.searched && !c) continue; // a guessed article with no position could be anything
-    const views = Object.values(p.pageviews || {}).reduce((a, v) => a + (Number(v) || 0), 0);
-    out.push({ stop: w.stop, title: p.title, file: p.pageimage, thumb: p.thumbnail?.source || null, views });
+    const read = Object.values(p.pageviews || {}).reduce((a, v) => a + (Number(v) || 0), 0);
+    const area = AREA_CATEGORIES.has(w.stop.category) || looksLikeTown(p.title);
+    out.push({ stop: w.stop, title: p.title, file: p.pageimage, thumb: p.thumbnail?.source || null, views: area ? read * AREA_WEIGHT : read });
   }
   return out.sort((a, b) => b.views - a.views);
 }
@@ -102,7 +110,7 @@ export async function bestPicture(stops = [], { get = fetchJson } = {}) {
   const cands = await wrap(() => candidates(list, get));
   for (const c of cands.slice(0, 4)) { // the most-read first; skip any whose photo isn't free to reuse
     const info = await wrap(() => fileInfo(c.file, get));
-    if (info) return { url: info.url, credit: { ...info.credit, title: c.title } };
+    if (info) return { url: info.url, credit: { ...info.credit, title: c.title, v: PICTURE_VERSION } };
   }
   return null;
 }

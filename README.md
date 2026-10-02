@@ -40,12 +40,13 @@ and adds routes passing near that place. The list starts empty and only shows wh
 Find with nothing typed just asks for a city or word. Each result is a card with a banner picture
 on top: a photo of the route's most iconic stop (`server/lib/routeImage.js`, chosen at publish
 time): among the stops whose Wikipedia article has a lead photo, the one people read most (30-day
-pageviews). Stops without a Wikipedia title are looked up by name and used only if the article is
+pageviews), with towns and neighbourhoods counting for a quarter of their readers so a landmark
+beats the town it sits in. Stops without a Wikipedia title are looked up by name and used only if the article is
 within 3 km. The photo must be freely licensed on Wikimedia Commons (fair-use images, maps, logos,
 flags and seals are skipped), is fetched at 1280 px, and its author and licence are stored
 (`image_credit`) and shown as the licence requires: a small "📷 author · licence" tag on app
-cards and "Photo: author, licence, via Wikimedia Commons" on the public pages. Routes published
-before this were refreshed automatically after start-up; admin → Shared routes → "Refresh
+cards and "Photo: author, licence, via Wikimedia Commons" on the public pages. Each choice records the rules version
+(`PICTURE_VERSION`); routes chosen under older rules are re-picked automatically after start-up; admin → Shared routes → "Refresh
 pictures" redoes every route. No free photo found: a plain coloured banner naming the region. The public `/routes` index and
 each route's own page (`server/routePages.js`) show the same picture, as a card banner and as a
 hero under the title, and it becomes the page's social preview image. A free driver picks one, sets

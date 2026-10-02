@@ -27,7 +27,7 @@ import * as accounts from "./lib/accounts.js";
 import * as mail from "./lib/mail.js";
 import * as seed from "./lib/seed.js";
 import * as jobs from "./lib/jobs.js";
-import { bestPicture } from "./lib/routeImage.js";
+import { bestPicture, PICTURE_VERSION } from "./lib/routeImage.js";
 import { quote as priceQuote, PLANS_PER_CREDIT } from "../web/js/pricing.js";
 import * as nominatim from "./nominatim.js";
 import { createLimiter, limitFree } from "./lib/ratelimit.js";
@@ -299,7 +299,8 @@ async function refreshPictures(ids) {
       try {
         const { summary, package: pkg } = library.get(id, { countUse: false });
         const pic = await bestPicture(pkg.itinerary?.stops || []);
-        if ((pic?.url || "") !== summary.image || !summary.imageCredit) { library.setImage(id, pic); pictures.changed++; }
+        if ((pic?.url || "") !== summary.image) pictures.changed++;
+        library.setImage(id, pic); // always: it also records the rules version it was chosen under
       } catch (err) {
         // Wikipedia busy: keep this route's current picture, cool off, and move on (the next start-up retries it)
         console.warn(`[pictures] ${id}: ${err.message}`);
@@ -312,7 +313,7 @@ async function refreshPictures(ids) {
     console.log(`[pictures] refreshed ${pictures.done} route(s), ${pictures.changed} changed`);
   } finally { pictures.running = false; }
 }
-setTimeout(() => { const ids = library.uncreditedIds(); if (ids.length) refreshPictures(ids); }, 20_000).unref();
+setTimeout(() => { const ids = library.staleImageIds(PICTURE_VERSION); if (ids.length) refreshPictures(ids); }, 20_000).unref();
 app.get("/api/admin/pictures", requireAdmin, h(async (_req, res) => { res.json(pictures); }));
 app.post("/api/admin/pictures", requireAdmin, h(async (_req, res) => {
   const ids = library.list().map((r) => r.id);

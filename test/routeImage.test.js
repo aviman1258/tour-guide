@@ -34,7 +34,7 @@ const stops = [
 test("picks the most-read stop with a free photo, credits its author and licence", async () => {
   const pic = await bestPicture(stops, { get: fakeGet() });
   assert.equal(pic.url, "https://upload.wikimedia.org/thumb/Sacre_Coeur.jpg/1280px-Sacre_Coeur.jpg", "Orsay has more readers but its photo is fair use; the logo is skipped");
-  assert.deepEqual(pic.credit, { artist: "Jane Photographer", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Sacre_Coeur.jpg", title: "Sacré-Cœur, Paris" });
+  assert.deepEqual(pic.credit, { artist: "Jane Photographer", license: "CC BY-SA 4.0", page: "https://commons.wikimedia.org/wiki/File:Sacre_Coeur.jpg", title: "Sacré-Cœur, Paris", v: 2 });
 });
 
 test("a searched article far from the stop is not used", async () => {
@@ -46,4 +46,20 @@ test("no stops means no picture; Wikipedia busy or down is an error, so nothing 
   assert.equal(await bestPicture([]), null);
   await assert.rejects(bestPicture(stops, { get: async () => { throw new Error("offline"); } }), PictureLookupFailed);
   await assert.rejects(bestPicture(stops, { get: async () => ({ status: 429, data: null }) }), PictureLookupFailed);
+});
+
+test("a landmark beats the town it sits in, even with fewer readers", async () => {
+  const town = { title: "Culver City, California", pageimage: "Culver_City.jpg", coordinates: [{ lat: 34.02, lon: -118.39 }], pageviews: { a: 40000 } };
+  const stage = { title: "Kirk Douglas Theatre", pageimage: "Kirk_Douglas_Theatre.jpg", coordinates: [{ lat: 34.023, lon: -118.395 }], pageviews: { a: 12000 } };
+  const free = { thumburl: "https://upload.wikimedia.org/x.jpg", extmetadata: { LicenseShortName: { value: "CC BY 4.0" }, Artist: { value: "A" } } };
+  const get = async (url) => {
+    const q = Object.fromEntries(new URL(url).searchParams);
+    if (q.prop === "imageinfo") return { status: 200, data: { query: { pages: [{ imageinfo: [free] }] } } };
+    return { status: 200, data: { query: { pages: q.titles.split("|").map((t) => (t === town.title ? town : stage)) } } };
+  };
+  const pic = await bestPicture([
+    { name: "Culver City", wikipediaTitle: "Culver City, California", category: "neighborhood", lat: 34.02, lon: -118.39 },
+    { name: "Kirk Douglas Theatre", wikipediaTitle: "Kirk Douglas Theatre", category: "landmark", lat: 34.023, lon: -118.395 },
+  ], { get });
+  assert.equal(pic.credit.title, "Kirk Douglas Theatre");
 });
