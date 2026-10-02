@@ -107,9 +107,10 @@ body.busy .stops { opacity: .6; transition: opacity .2s; }
 #plan-form #plan-msg { order: 2; }
 .search-opts { gap: 6px 14px; }
 .search-opts .grow { flex: 1; }
-.units-select { width: auto; min-height: 34px; padding: 4px 8px; font-size: 13px; }
-body.no-plan .units-select { background: transparent; color: #fff; border-color: rgba(255,255,255,.35); }
-body.no-plan .units-select option { color: #1c2430; }
+/* mi | km, in the header on both plan screens */
+.units-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; flex: 0 0 auto; }
+.units-toggle button { font: inherit; font-size: 13px; font-weight: 700; border: 0; background: transparent; color: var(--muted); padding: 6px 11px; min-height: 34px; cursor: pointer; }
+.units-toggle button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
 .swap { display: none; }
 .search-sub { display: none; }
 .sb-go { margin-top: 2px; }

@@ -24,6 +24,9 @@
     </a>
     <div id="status-bar" class="status-bar" hidden></div>
     <nav>
+      <div class="units-toggle" id="units-toggle" role="group" aria-label="Distance and temperature units">
+        <button type="button" data-units="imperial" title="Miles, feet and °F">mi</button><button type="button" data-units="metric" title="Kilometres, metres and °C">km</button>
+      </div>
       <a href="drive.html" id="drive-link" class="btn btn-ghost">Drive mode</a>
     </nav>
   </header>
@@ -119,7 +122,6 @@
             <label class="check"><input type="checkbox" id="avoid-tolls" /> Avoid tolls</label>
             <label class="check"><input type="checkbox" id="avoid-highways" /> Avoid highways</label>
             <span class="grow"></span>
-            <select id="units" class="units-select" aria-label="Distance and temperature units"><option value="imperial">mi · °F</option><option value="metric">km · °C</option></select>
             <button type="button" id="cancel-plan-btn" class="btn btn-danger btn-sm" hidden>Cancel planning</button>
             <button type="button" id="reset-btn" class="btn btn-ghost btn-sm">Reset</button>
           </div>

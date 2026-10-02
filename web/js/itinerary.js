@@ -145,10 +145,11 @@ export function bindForm() {
     });
   }
   // miles or kilometres (and °F or °C), remembered on this device
-  const unitsSel = $("units");
-  unitsSel.value = getUnits();
-  unitsSel.addEventListener("change", () => setUnits(unitsSel.value));
-  window.addEventListener("tg:units", (e) => { unitsSel.value = e.detail.units; });
+  const unitsBox = $("units-toggle");
+  const showUnits = (u) => { for (const b of unitsBox.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.units === u)); };
+  showUnits(getUnits());
+  unitsBox.addEventListener("click", (e) => { const b = e.target.closest("button[data-units]"); if (b) setUnits(b.dataset.units); });
+  window.addEventListener("tg:units", (e) => showUnits(e.detail.units));
   $("swap-btn").addEventListener("click", () => {
     actions.swapEnds();
     const it = state.get();
